@@ -182,6 +182,15 @@
   .item-extra input[type=text]{margin-bottom:8px;font-size:12px;padding:9px 10px;}
 
   .exec-footer{position:sticky;bottom:0;background:var(--bg);padding:14px 0 6px;margin-top:10px;}
+
+  .vist-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;}
+  .vist-card .vtop{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px;}
+  .vist-card .vnome{font-weight:700;font-size:14px;}
+  .vist-card .vsub{font-size:12px;color:var(--sub);margin-top:2px;}
+  .vist-status{font-size:11px;font-weight:800;padding:4px 10px;border-radius:12px;white-space:nowrap;}
+  .vist-status.def{background:rgba(52,199,89,.18);color:var(--verde);}
+  .vist-status.indef{background:rgba(192,39,45,.2);color:var(--red2);}
+  .vist-status.pend{background:rgba(255,159,10,.18);color:var(--amar);}
 </style>
 </head>
 <body>
@@ -256,7 +265,7 @@
 
     <!-- VISTORIAS (placeholder) -->
     <div class="view" id="v-vist">
-      <div class="empty"><div class="ico">✅</div>Vistorias chega nas Fases 7–9.</div>
+      <div id="vistCampoList" style="padding-top:4px"></div>
     </div>
 
     <!-- MAIS (placeholder) -->
@@ -632,6 +641,43 @@ var execEdificacaoId = null;
 var execVistoriaId = null;
 var execTipo = null;
 
+// ════════════════════════════════════════
+// ABA VISTORIAS — lista tudo que existe no aparelho
+// ════════════════════════════════════════
+function renderVistoriasCampo(){
+  var db = loadDB();
+  var lista = (db.vistorias||[]).slice().sort(function(a,b){
+    return new Date(b.atualizadoEm || b.criadoEm || 0) - new Date(a.atualizadoEm || a.criadoEm || 0);
+  });
+  var el = document.getElementById('vistCampoList');
+  if(!lista.length){
+    el.innerHTML = '<div class="empty"><div class="ico">✅</div>Nenhuma vistoria ainda.<br>Toque numa edificação no mapa e depois em "Vistoriar".</div>';
+    return;
+  }
+
+  el.innerHTML = lista.map(function(v){
+    var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
+    var cl = getCL(v.tipo);
+    var todos = Object.values(cl).reduce(function(a,b){return a.concat(b);},[]);
+    var nc = todos.filter(function(it){return v.checklist[it.id] && v.checklist[it.id].status==='nao';}).length;
+
+    var statusCls = 'pend', statusTxt = '⏳ Pendente';
+    if(v.concluida){
+      if(nc===0){ statusCls='def'; statusTxt='✅ Deferido'; }
+      else { statusCls='indef'; statusTxt='⚠️ '+nc+' não conf.'; }
+    }
+
+    return '<div class="vist-card" onclick="abrirExecucao(\''+v.edificacaoId+'\')">'+
+      '<div class="vtop">'+
+        '<div><div class="vnome">'+(e?e.nome:'Edificação removida')+'</div>'+
+        '<div class="vsub">'+(e?e.re:'')+' · '+(v.tipo==='funcionamento'?'Funcionamento':v.tipo==='habite-se'?'Habite-se':'Sem tipo escolhido')+(v.motivo?' · '+v.motivo:'')+'</div></div>'+
+        '<span class="vist-status '+statusCls+'">'+statusTxt+'</span>'+
+      '</div>'+
+      '<div class="vsub">'+(v.concluida ? 'Concluída em '+new Date(v.concluidaEm).toLocaleString('pt-BR') : 'Toque pra continuar')+'</div>'+
+    '</div>';
+  }).join('');
+}
+
 function abrirExecucao(edificacaoId){
   execEdificacaoId = edificacaoId;
   var db = loadDB();
@@ -707,7 +753,15 @@ function togglePrevSistema(sid){
   renderExecucao();
 }
 
+function vistoriaConcluida(){
+  if(!execVistoriaId) return false;
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===execVistoriaId;});
+  return !!(v && v.concluida);
+}
+
 function setItemStatus(itemId, status){
+  if(vistoriaConcluida()){ alert('Esta vistoria já foi concluída e não pode mais ser alterada.'); return; }
   var v = garantirVistoria();
   if(!v.checklist[itemId]) v.checklist[itemId]={};
   v.checklist[itemId].status = status;
@@ -918,6 +972,8 @@ function navTo(v){
     setTimeout(function(){
       if(map){ map.invalidateSize(); renderMapEdificacoes(); renderMapPontos(); renderMapLive(); }
     }, 50);
+  } else if(v==='vist'){
+    renderVistoriasCampo();
   } else if(mapWatchId!==null){
     // saiu do mapa — para o acompanhamento contínuo de GPS pra economizar bateria
     navigator.geolocation.clearWatch(mapWatchId);
