@@ -1733,15 +1733,10 @@ function importarArquivoCampo(input){
 }
 
 // ════════════════════════════════════════
-// PWA — service worker mínimo (tela cheia ao instalar), escopo restrito a este arquivo
+// PWA — service worker real (tela cheia ao instalar + cache offline de verdade)
 // ════════════════════════════════════════
 if('serviceWorker' in navigator){
-  try{
-    var swCode = "self.addEventListener('fetch',function(e){e.respondWith(fetch(e.request).catch(function(){return caches.match(e.request);}));});";
-    var swBlob = new Blob([swCode], {type:'application/javascript'});
-    var swUrl = URL.createObjectURL(swBlob);
-    navigator.serviceWorker.register(swUrl, {scope: location.pathname}).catch(function(){});
-  }catch(e){}
+  navigator.serviceWorker.register('./sw-vistoria-campo.js', {scope:'./'}).catch(function(){});
 }
 
 // ════════════════════════════════════════

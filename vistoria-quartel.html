@@ -1417,14 +1417,10 @@ function importarArquivo(input){
 }
 
 // ════════════════════════════════════════
-// PWA — service worker mínimo, escopo restrito
+// PWA — service worker real (tela cheia ao instalar + cache offline de verdade)
 // ════════════════════════════════════════
 if('serviceWorker' in navigator){
-  try{
-    var swCode = "self.addEventListener('fetch',function(e){e.respondWith(fetch(e.request).catch(function(){return caches.match(e.request);}));});";
-    var swBlob = new Blob([swCode], {type:'application/javascript'});
-    navigator.serviceWorker.register(URL.createObjectURL(swBlob), {scope: location.pathname}).catch(function(){});
-  }catch(e){}
+  navigator.serviceWorker.register('./sw-vistoria-quartel.js', {scope:'./'}).catch(function(){});
 }
 
 // ════════════════════════════════════════
