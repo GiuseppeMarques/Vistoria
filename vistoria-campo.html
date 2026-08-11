@@ -88,7 +88,17 @@
   .cat-btn:active{opacity:.7;}
 
   .chip{background:var(--card2);border:1px solid var(--border);border-radius:20px;padding:6px 12px;
-    font-size:12px;display:flex;align-items:center;gap:5px;}
+    font-size:12px;display:flex;align-items:center;gap:5px;color:var(--txt);font-family:inherit;}
+  .chip.on{background:var(--red);border-color:var(--red);color:#fff;}
+
+  .radar-item{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);
+    border-radius:12px;padding:10px 12px;margin-bottom:8px;}
+  .radar-item .rbadge{width:26px;height:26px;border-radius:50%;color:#fff;font-size:11px;font-weight:800;
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .radar-item .rinfo{flex:1;min-width:0;}
+  .radar-item .rnome{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .radar-item .rre{font-size:11px;color:var(--sub);}
+  .radar-item .rdist{font-size:13px;font-weight:800;color:var(--red2);flex-shrink:0;}
 
   /* Mapa */
   #mapWrap{position:relative;height:calc(100vh - 172px);height:calc(100dvh - 172px);
@@ -199,12 +209,23 @@
       <div class="traj-stat">
         <div class="traj-box"><div class="v" id="tDist">0,00</div><div class="l">km</div></div>
         <div class="traj-box"><div class="v" id="tTime">00:00:00</div><div class="l">duração</div></div>
-        <div class="traj-box"><div class="v" id="tPts">0</div><div class="l">pontos GPS</div></div>
+        <div class="traj-box"><div class="v" id="tPts">0</div><div class="l">por perto</div></div>
       </div>
 
       <div class="traj-status">
         <div class="dot" id="tDot"></div>
         <span id="tStatusTxt">Nenhuma trajetória ativa</span>
+      </div>
+
+      <div id="radarBox" style="display:none;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="font-weight:700;font-size:13px">📡 Radar de edificações</div>
+          <div class="btnrow" style="gap:6px">
+            <button class="chip on" id="radarBtnTodas" onclick="setRadarFiltro('todas')">Todas</button>
+            <button class="chip" id="radarBtnRisco" onclick="setRadarFiltro('risco45')">Risco 4-5</button>
+          </div>
+        </div>
+        <div id="radarList"></div>
       </div>
 
       <div id="tNomeBox" style="display:none">
@@ -996,6 +1017,8 @@ function onGPS(pos){
   }
   esconderAvisoGPS();
 
+  atualizarRadar(lat, lng);
+
   var ultimo = traj.pontosGPS[traj.pontosGPS.length-1];
   if(ultimo){
     var dKm = haversineKm(ultimo.lat, ultimo.lng, lat, lng);
@@ -1006,6 +1029,63 @@ function onGPS(pos){
   persistirTrajAtiva();
   renderTrajUI();
   renderMapLive();
+}
+
+// ════════════════════════════════════════
+// RADAR DE EDIFICAÇÕES PRÓXIMAS (durante a trajetória)
+// ════════════════════════════════════════
+var RADAR_RAIO_M = 150;
+var radarFiltro = 'todas'; // 'todas' | 'risco45'
+var radarLista = [];
+
+function atualizarRadar(lat, lng){
+  var db = loadDB();
+  var todas = (db.edificacoes||[]).filter(function(e){ return e.lat && e.lng; }).map(function(e){
+    return {e:e, distM: haversineKm(lat, lng, e.lat, e.lng)*1000};
+  }).filter(function(x){ return x.distM <= RADAR_RAIO_M; });
+
+  radarLista = (radarFiltro==='risco45'
+    ? todas.filter(function(x){ return x.e.grauRisco===4 || x.e.grauRisco===5 || x.e.grauRisco==='4' || x.e.grauRisco==='5'; })
+    : todas
+  ).sort(function(a,b){ return a.distM - b.distM; });
+
+  renderRadar();
+}
+
+function setRadarFiltro(f){
+  radarFiltro = f;
+  document.getElementById('radarBtnTodas').classList.toggle('on', f==='todas');
+  document.getElementById('radarBtnRisco').classList.toggle('on', f==='risco45');
+  var ultimo = traj && traj.pontosGPS.length ? traj.pontosGPS[traj.pontosGPS.length-1] : null;
+  if(ultimo) atualizarRadar(ultimo.lat, ultimo.lng);
+}
+
+function renderRadar(){
+  var box = document.getElementById('radarBox');
+  var el = document.getElementById('radarList');
+  var pts = document.getElementById('tPts');
+  if(!traj || traj.status!=='ativa'){ box.style.display='none'; return; }
+  box.style.display='block';
+  if(pts) pts.textContent = radarLista.length;
+
+  if(!radarLista.length){
+    el.innerHTML = '<div class="sub" style="padding:6px 0">Nenhuma edificação num raio de '+RADAR_RAIO_M+'m.</div>';
+    return;
+  }
+  el.innerHTML = radarLista.map(function(x){
+    var e = x.e;
+    var cor = {1:'#34C759',2:'#A8D93A',3:'#FF9F0A',4:'#FF5E3A',5:'#C0272D'}[e.grauRisco] || '#8E8E93';
+    return '<div class="radar-item" onclick="abrirCartaoEdificacaoPorId(\''+e.id+'\')">'+
+      '<div class="rbadge" style="background:'+cor+'">'+(e.grauRisco||'—')+'</div>'+
+      '<div class="rinfo"><div class="rnome">'+(e.nome||'Sem nome')+'</div><div class="rre">'+(e.re||'Sem RE')+'</div></div>'+
+      '<div class="rdist">'+Math.round(x.distM)+'m</div>'+
+    '</div>';
+  }).join('');
+}
+function abrirCartaoEdificacaoPorId(id){
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===id;});
+  if(e) abrirCartaoEdificacao(e);
 }
 
 function onGPSErro(err){
@@ -1095,6 +1175,8 @@ function renderTrajUI(){
     nomeBox.style.display='none';
     document.getElementById('tMarcarBox').style.display='none';
     document.getElementById('pontosSessaoBox').style.display='none';
+    document.getElementById('radarBox').style.display='none';
+    radarLista = [];
     btns.innerHTML = '<button class="btn primary" onclick="iniciarTrajetoria()">▶ Iniciar</button>';
     return;
   }
