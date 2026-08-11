@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vistoria Quartel</title>
+<link rel="icon" id="fIconV" type="image/png" href="data:image/png;base64,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">
+<link rel="apple-touch-icon" id="tIconV" href="data:image/png;base64,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">
+<link rel="manifest" id="mLinkV" href="data:application/manifest+json;base64,eyJuYW1lIjogIlZpc3RvcmlhIFF1YXJ0ZWwiLCAic2hvcnRfbmFtZSI6ICJWaXN0LiBRdWFydGVsIiwgInN0YXJ0X3VybCI6ICIuL3Zpc3RvcmlhLXF1YXJ0ZWwuaHRtbCIsICJzY29wZSI6ICIuLyIsICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLCAiYmFja2dyb3VuZF9jb2xvciI6ICIjMEUwRTEwIiwgInRoZW1lX2NvbG9yIjogIiNDMDI3MkQiLCAiaWNvbnMiOiBbeyJzcmMiOiAiZGF0YTppbWFnZS9wbmc7YmFzZTY0LGlWQk9SdzBLR2dvQUFBQU5TVWhFVWdBQUFnQUFBQUlBQ0FZQUFBRDBlTlQ2QUFBTmdrbEVRVlI0bk8zZHk1SGIxaFpBVWJaTE13MlVRRDlWdlR3Y2lzSlRLQzhQVjlsS1FBT045VWEwMjYzKzhBUGdBbmV2TlpjRndFV2N6VU9LZURpeG1jZkh6ejlISHdQQTNuMzc5dWZENkdNb2NKRVhaTUFEckU4Z0xNTkZ2SkZoRDdBZm91QjZMdGlGREh5QTR4QUU3M09CM21Eb0F4eWZHSGlaaS9LTW9ROHdMekh3RHhmaVpPZ0RGTlZqSUgzeUJqOEExUkRJbmJTaEQ4QnJTakdRT1ZHREg0QkxGVUpnK2hNMCtBRzQxY3doTU8ySkdmd0FMR1hHRUpqdWhBeCtBTll5VXdoTWN5SUdQd0JibVNFRWZodDlBRXN3L0FIWTBneHo1OUFGTThQL0FBQ083YWpiZ0VNZXRNRVB3TjRjTFFRTzl4R0E0US9BSGgxdFBoMHFBSTUyY1FGb09kS2NPc1M2NGtnWEZBQk9wLzEvSkxEN0RZRGhEOEFSN1gxKzdUb0E5bjd4QU9BdGU1NWp1MXhQN1BtQ0FjQXQ5dmFSd080MkFJWS9BRFBhMjN6YlZRRHM3ZUlBd0pMMk5PZDJFd0I3dWlnQXNKYTl6THRkQk1CZUxnWUFiR0VQYzI5NEFPemhJZ0RBMWtiUHY2RUJNUHJrQVdDa2tYTndXQUFZL2dBd2JoNE9DUURESHdEK01XSXViaDRBaGo4QS9HcnIrYmhwQUJqK0FQQzZMZWZrWmdGZytBUEErN2FhbDVzRWdPRVBBSmZiWW02dUhnQ0dQd0JjYiszNXVXb0FHUDRBY0xzMTUraHFBV0Q0QThEOTFwcW53MzhLR0FEWTNpb0I0TjAvQUN4bmpibTZlQUFZL2dDd3ZLWG42NklCWVBnRHdIcVduTE8rQXdBQVFZc0ZnSGYvQUxDK3BlYnRJZ0ZnK0FQQWRwYVl1M2NIZ09FUEFOdTdkLzc2RGdBQUJOMFZBTjc5QThBNDk4eGhHd0FBQ0xvNUFMejdCNER4YnAzSE53V0E0UThBKzNITFhQWVJBQUFFWFIwQTN2MER3UDVjTzU5dEFBQWc2S29BOE80ZkFQYnJtamx0QXdBQVFSY0hnSGYvQUxCL2w4NXJHd0FBQ0xvb0FMejdCNERqdUdSdTJ3QUFRTkM3QWVEZFB3QWN6M3Z6MndZQUFJSUVBQUFFdlJrQTF2OEFjRnh2elhFYkFBQUllalVBdlBzSGdPTjdiWjdiQUFCQWtBQUFnS0FYQThENkh3RG04ZEpjdHdFQWdDQUJBQUJCdndTQTlUOEF6T2Y1ZkxjQkFJQWdBUUFBUWY4S0FPdC9BSmpYMHpsdkF3QUFRUUlBQUlJRUFBQUUvUjBBUHY4SGdQbWQ1NzBOQUFBRUNRQUFDQklBQUJBa0FBQWc2T0YwOGdWQUFLaXhBUUNBSUFFQUFFRUNBQUNDQkFBQUJBa0FBQWdTQUFBUUpBQUFJT2czdndFQUFEMDJBQUFRSkFBQUlFZ0FBRUNRQUFDQUlBRUFBRUVDQUFDQ0JBQUFCQWtBQUFnU0FBQVFKQUFBSUVnQUFFQ1FBQUNBSUFFQUFFRUNBQUNDQkFBQUJBa0FBQWdTQUFBUUpBQUFJRWdBQUVDUUFBQ0FJQUVBQUVFQ0FBQ0NCQUFBQkFrQUFBZ1NBQUFRSkFBQUlFZ0FBRUNRQUFDQUlBRUFBRUVDQUFDQ0JBQUFCQWtBQUFnU0FBQVFKQUFBSUVnQUFFQ1FBQUNBSUFFQUFFRUNBQUNDUG93K0FQYmg2OGRQb3c4QjJOQ1hIOTlISHdLRFBUdytmdjQ1K2lEWW5vRVBQQ1VJZWdSQWpNRVB2RVVJZEFpQUNJTWZ1SVlRbUo4dkFRWVkvc0MxM0RmbVp3TXdNUzlnWUFtMkFYT3lBWmlVNFE4c3hmMWtUZ0pnUWw2c3dOTGNWK1lqQUNialJRcXN4ZjFsTGdKZ0lsNmN3TnJjWitZaEFBQWdTQUJNUXBVRFczRy9tWU1BbUlBWEk3QTE5NTNqRXdBQUVDUUFEazZGQTZPNC94eWJBQUNBSUQ4RmZHQnIxTGVmL0lTNXVXOXc5bUgwQWJBUFhzRFFjSDZ0Vzk4akFPSU1mbWdTQXZnT0FBQUVDWUNEV3FMYXZmc0hscmdQMkNJY2t3QUFnQ0FCRU9YZFAzRG1mdEFrQUFBZ1NBQUFRSkFBQUlBZ0FRQUFRUUlBQUlJRUFBQUVDUUFBQ0JJQUFCQWtBQUFnU0FBQVFKQUFBSUFnQVFBQVFRSUFBSUlFQUFBRUNRQUFDQklBQUJBa0FBQWdTQUFBUUpBQUFJQWdBUUFBUVFJQUFJSUVBQUFFQ1FBQUNCSUFBQkFrQUFBZ1NBQUFRSkFBQUlBZ0FRQUFRUUlBQUlJRUFBQUVDUUFBQ0JJQUFCQWtBQUFnU0FBQVFKQUFBSUFnQVFBQVFRSUFBSUkrakQ0QXVNVFhqNTlHSDBMR2x4L2ZSeDhDc0FFYkFBQUlFZ0FBRUNRQUFDQklBQUJBa0FBQWdDQUJBQUJCQWdBQWdnUUFBQVFKQUFBSUVnQUFFQ1FBQUNCSUFBQkFrQUFBZ0NBQkFBQkJIZ2ZNOU81NXZPMDlqeUVlOWZjQ1hNSUdBQUNDQkFBQUJBa0FBQWdTQUFBUUpBQUFJRWdBQUVDUUFBQ0FJQUVBQUVFQ0FBQ0NCQUFBQkFrQUFBZ1NBQUFRSkFBQUlFZ0FBRUNReHdFenZWR1AxcDM1a2I3Lys4OS9SeC9DN3YzKzF4K2pEd0hlWkFNQUFFRUNBQUNDQkFBQUJBa0FBQWdTQUFBUUpBQUFJRWdBQUVDUUFBQ0FJQUVBQUVFQ0FBQ0NCQUFBQkFrQUFBZ1NBQUFRSkFBQUlNampnSm5lbHgvZmIvNno5enpTZDlUZmUwVDNQRHJYbzRuaE5qWUFBQkFrQUFBZ1NBQUFRSkFBQUlBZ0FRQUFRUUlBQUlJRUFBQUVDUUFBQ0JJQUFCQWtBQUFnU0FBQVFKQUFBSUFnQVFBQVFRSUFBSUk4RHBqcGpYcTBidTJSdnZmd1NGL1luZzBBQUFRSkFBQUlFZ0FBRUNRQUFDQklBQUJBa0FBQWdDQUJBQUJCQWdBQWdnUUFBQVFKQUFBSUVnQUFFQ1FBQUNCSUFBQkFrQUFBZ0NDUEEyWjZYMzU4di9uUDN2TkkzMUYvN3hIOS90Y2ZOLzlaanhLRzI5Z0FBRUNRQUFDQUlBRUFBRUVDQUFDQ0JBQUFCQWtBQUFnU0FBQVFKQUFBSUVnQUFFQ1FBQUNBSUFFQUFFRUNBQUNDQkFBQUJBa0FBQWp5T0dDbU4rclJ1clZIK3Q3REkzMWhlellBQUJBa0FBQWdTQUFBUUpBQUFJQWdBUUFBUVFJQUFJSUVBQUFFQ1FBQUNCSUFBQkFrQUFBZ1NBQUFRSkFBQUlBZ0FRQUFRUUlBQUlJRUFBQUVDUUFBQ0JJQUFCQWtBQUFnU0FBQVFKQUFBSUNnRDZNUEFDN3g1Y2YzMFlmQUU3Ly85Y2ZvUXdEdVpBTUFBRUVDQUFDQ0JBQUFCQWtBQUFnU0FBQVFKQUFBSUVnQUFFQ1FBQUNBSUFFQUFFRUNBQUNDQkFBQUJBa0FBQWdTQUFBUUpBQUFJRWdBQUVDUUFBQ0FJQUVBQUVFQ0lPcnJ4MCtqRHdIWUNmZURKZ0VBQUVFQzRLQysvUGgrOTM5RDlRTkwzQWVXdUIreFBRRUFBRUVmUmg4QVk1M3JYOEZEaXcwZ0FvRFQ2U1FFb01MZzUremg4Zkh6ejlFSHdlMjhtSUdSdkdrNEx0OEJBSUFnQVhCdzZoc1l4ZjNuMkFRQUFBUUpnQW1vY0dCcjdqdkhKd0FtNGNVSWJNWDlaZzRDQUFDQ0JNQkVWRG13TnZlWmVRaUF5WGh4QW10eGY1bUxBSmlRRnltd05QZVYrUWlBU1hteEFrdHhQNW1UbndJTzhIUEJ3QzBNL3JuWkFBUjRFUVBYY3QrWW53MUFqRzBBOEJhRHYwTUFSQWtCNENtRHYwY0FjRHFkQkFIVUdQZ0lBRGlRSTRTYXdRTEg0RXVBQUJBa0FBQWdTQUFBUUpBQUFJQWdBUUFBUVFJQUFJSUVBQUFFQ1FBQUNCSUFBQkFrQUFBZ1NBQUFRSkFBQUlBZ0FRQUFRUUlBQUlJRUFBQUVDUUFBQ0JJQUFCQWtBQUFnU0FBQVFKQUFBSUFnQVFBQVFRSUFBSUlFQUFBRUNRQUFDQklBQUJBa0FBQWdTQUFBUUpBQUFJQWdBUUFBUVFJQUFJSUVBQUFFQ1FBQUNCSUFBQkFrQUFBZ1NBQUFRSkFBQUlBZ0FRQUFRUUlBQUlJZUhoOC8veHg5RUxDMXJ4OC9qVDRFZHViTGorK2pEd0UyWlFNQUFFRUNBQUNDQkFBQUJBa0FBQWdTQUFBUUpBQUFJRWdBQUVDUUFBQ0FJQUVBQUVFQ0FBQ0NCQUFBQkFrQUFBZ1NBQUFRSkFBQUlFZ0FBRUNRQUFDQUlBRUFBRUVDQUFDQ0JBQUFCQWtBQUFnU0FBQVFKQUFBSUVnQUFFQ1FBQUNBb0lmSHg4OC9SeDhFQUxBdEd3QUFDQklBQUJBa0FBQWdTQUFBUUpBQUFJQWdBUUFBUVFJQUFJSUVBQUFFQ1FBQUNCSUFBQkFrQUFBZ1NBQUFRSkFBQUlBZ0FRQUFRUUlBQUlJRUFBQUUvZmJ0MjU4UG93OENBTmlXRFFBQUJBa0FBQWdTQUFBUUpBQUFJRWdBQUVDUUFBQ0FJQUVBQUVHL25VNm5rOThDQUlDT2I5LytmTEFCQUlBZ0FRQUFRUUlBQUlJRUFBQUUvUjBBdmdnSUFQTTd6M3NiQUFBSUVnQUFFQ1FBQUNEb1h3SGdld0FBTUsrbmM5NEdBQUNDQkFBQUJQMFNBRDRHQUlENVBKL3ZOZ0FBRUNRQUFDRG94UUR3TVFBQXpPT2x1VzREQUFCQkFnQUFnbDROQUI4REFNRHh2VGJQYlFBQUlPak5BTEFGQUlEamVtdU8yd0FBUUpBQUFJQ2dkd1BBeHdBQWNEenZ6VzhiQUFBSXVpZ0FiQUVBNERndW1kczJBQUFRZEhFQTJBSUF3UDVkT3E5dEFBQWc2S29Bc0FVQWdQMjZaazdiQUFCQTBOVUJZQXNBQVB0ejdYeTJBUUNBb0pzQ3dCWUFBUGJqbHJsODh3WkFCQURBZUxmT1l4OEJBRURRWFFGZ0N3QUE0OXd6aDIwQUFDRG83Z0N3QlFDQTdkMDdmeGZaQUlnQUFOak9Fbk4zc1k4QVJBQUFyRytwZWVzN0FBQVF0R2dBMkFJQXdIcVduTE9MYndCRUFBQXNiK241dXNwSEFDSUFBSmF6eGx6MUhRQUFDRm90QUd3QkFPQithODNUVlRjQUlnQUFicmZtSEYzOUl3QVJBQURYVzN0K2J2SWRBQkVBQUpmYlltNXU5aVZBRVFBQTc5dHFYbTc2cndCRUFBQzhic3M1dWZrL0F4UUJBUENycmVmamtOOEJFQUVBOEk4UmMzSFlEd0dKQUFBWU53K0gvaEtnQ0FDZ2JPUWNIUDVUd0NJQWdLTFI4Mjk0QUp4TzR5OENBR3hwRDNOdkZ3RndPdTNqWWdEQTJ2WXk3M1lUQUtmVGZpNEtBS3hoVDNOdVZ3RndPdTNyNGdEQVV2WTIzM1oxTU04OVBuNytPZm9ZQU9BZWV4djhaN3ZiQUR5MTE0c0dBSmZZOHh6YmRRQ2NUdnUrZUFEd21yM1ByMTBmM0hNK0VnQmc3L1krK005MnZ3RjQ2aWdYRllDbUk4MnBRd1hBNlhTc2l3dEF4OUhtMDZFTzlqa2ZDUUF3MnRFRy85a2hEL281SVFEQTFvNDYrTThPOXhIQVM0NytQd0dBWTVsaDdoeitCSjZ6RFFCZ0xUTU0vck5wVHVRNUlRREFVbVlhL0dmVG5kQnpRZ0NBVzgwNCtNK21QYkhuaEFBQWw1cDU4SjlOZjRMUENRRUFYbE1ZL0dlWkUzMkpHQUNnTlBTZlNwNzBjMElBb0tjNitNL1NKLzhTTVFBd3IvclFmOHFGZUlNWUFEZytRLzlsTHNxRnhBREFjUmo2NzNPQmJpUUlBUGJEd0wrZUM3WWdVUUN3UHNOK0dmOEhWSzZPdmVsM1hha0FBQUFBU1VWT1JLNUNZSUk9IiwgInNpemVzIjogIjUxMng1MTIiLCAidHlwZSI6ICJpbWFnZS9wbmciLCAicHVycG9zZSI6ICJhbnkifSwgeyJzcmMiOiAiZGF0YTppbWFnZS9wbmc7YmFzZTY0LGlWQk9SdzBLR2dvQUFBQU5TVWhFVWdBQUFnQUFBQUlBQ0FZQUFBRDBlTlQ2QUFBTmdrbEVRVlI0bk8zZHk1SGIxaFpBVWJaTE13MlVRRDlWdlR3Y2lzSlRLQzhQVjlsS1FBT045VWEwMjYzKzhBUGdBbmV2TlpjRndFV2N6VU9LZURpeG1jZkh6ejlISHdQQTNuMzc5dWZENkdNb2NKRVhaTUFEckU4Z0xNTkZ2SkZoRDdBZm91QjZMdGlGREh5QTR4QUU3M09CM21Eb0F4eWZHSGlaaS9LTW9ROHdMekh3RHhmaVpPZ0RGTlZqSUgzeUJqOEExUkRJbmJTaEQ4QnJTakdRT1ZHREg0QkxGVUpnK2hNMCtBRzQxY3doTU8ySkdmd0FMR1hHRUpqdWhBeCtBTll5VXdoTWN5SUdQd0JibVNFRWZodDlBRXN3L0FIWTBneHo1OUFGTThQL0FBQ083YWpiZ0VNZXRNRVB3TjRjTFFRTzl4R0E0US9BSGgxdFBoMHFBSTUyY1FGb09kS2NPc1M2NGtnWEZBQk9wLzEvSkxEN0RZRGhEOEFSN1gxKzdUb0E5bjd4QU9BdGU1NWp1MXhQN1BtQ0FjQXQ5dmFSd080MkFJWS9BRFBhMjN6YlZRRHM3ZUlBd0pMMk5PZDJFd0I3dWlnQXNKYTl6THRkQk1CZUxnWUFiR0VQYzI5NEFPemhJZ0RBMWtiUHY2RUJNUHJrQVdDa2tYTndXQUFZL2dBd2JoNE9DUURESHdEK01XSXViaDRBaGo4QS9HcnIrYmhwQUJqK0FQQzZMZWZrWmdGZytBUEErN2FhbDVzRWdPRVBBSmZiWW02dUhnQ0dQd0JjYiszNXVXb0FHUDRBY0xzMTUraHFBV0Q0QThEOTFwcW53MzhLR0FEWTNpb0I0TjAvQUN4bmpibTZlQUFZL2dDd3ZLWG42NklCWVBnRHdIcVduTE8rQXdBQVFZc0ZnSGYvQUxDK3BlYnRJZ0ZnK0FQQWRwYVl1M2NIZ09FUEFOdTdkLzc2RGdBQUJOMFZBTjc5QThBNDk4eGhHd0FBQ0xvNUFMejdCNER4YnAzSE53V0E0UThBKzNITFhQWVJBQUFFWFIwQTN2MER3UDVjTzU5dEFBQWc2S29BOE80ZkFQYnJtamx0QXdBQVFSY0hnSGYvQUxCL2w4NXJHd0FBQ0xvb0FMejdCNERqdUdSdTJ3QUFRTkM3QWVEZFB3QWN6M3Z6MndZQUFJSUVBQUFFdlJrQTF2OEFjRnh2elhFYkFBQUllalVBdlBzSGdPTjdiWjdiQUFCQWtBQUFnS0FYQThENkh3RG04ZEpjdHdFQWdDQUJBQUJCdndTQTlUOEF6T2Y1ZkxjQkFJQWdBUUFBUWY4S0FPdC9BSmpYMHpsdkF3QUFRUUlBQUlJRUFBQUUvUjBBUHY4SGdQbWQ1NzBOQUFBRUNRQUFDQklBQUJBa0FBQWc2T0YwOGdWQUFLaXhBUUNBSUFFQUFFRUNBQUNDQkFBQUJBa0FBQWdTQUFBUUpBQUFJT2czdndFQUFEMDJBQUFRSkFBQUlFZ0FBRUNRQUFDQUlBRUFBRUVDQUFDQ0JBQUFCQWtBQUFnU0FBQVFKQUFBSUVnQUFFQ1FBQUNBSUFFQUFFRUNBQUNDQkFBQUJBa0FBQWdTQUFBUUpBQUFJRWdBQUVDUUFBQ0FJQUVBQUVFQ0FBQ0NCQUFBQkFrQUFBZ1NBQUFRSkFBQUlFZ0FBRUNRQUFDQUlBRUFBRUVDQUFDQ0JBQUFCQWtBQUFnU0FBQVFKQUFBSUVnQUFFQ1FBQUNBSUFFQUFFRUNBQUNDUG93K0FQYmg2OGRQb3c4QjJOQ1hIOTlISHdLRFBUdytmdjQ1K2lEWW5vRVBQQ1VJZWdSQWpNRVB2RVVJZEFpQUNJTWZ1SVlRbUo4dkFRWVkvc0MxM0RmbVp3TXdNUzlnWUFtMkFYT3lBWmlVNFE4c3hmMWtUZ0pnUWw2c3dOTGNWK1lqQUNialJRcXN4ZjFsTGdKZ0lsNmN3TnJjWitZaEFBQWdTQUJNUXBVRFczRy9tWU1BbUlBWEk3QTE5NTNqRXdBQUVDUUFEazZGQTZPNC94eWJBQUNBSUQ4RmZHQnIxTGVmL0lTNXVXOXc5bUgwQWJBUFhzRFFjSDZ0Vzk4akFPSU1mbWdTQXZnT0FBQUVDWUNEV3FMYXZmc0hscmdQMkNJY2t3QUFnQ0FCRU9YZFAzRG1mdEFrQUFBZ1NBQUFRSkFBQUlBZ0FRQUFRUUlBQUlJRUFBQUVDUUFBQ0JJQUFCQWtBQUFnU0FBQVFKQUFBSUFnQVFBQVFRSUFBSUlFQUFBRUNRQUFDQklBQUJBa0FBQWdTQUFBUUpBQUFJQWdBUUFBUVFJQUFJSUVBQUFFQ1FBQUNCSUFBQkFrQUFBZ1NBQUFRSkFBQUlBZ0FRQUFRUUlBQUlJRUFBQUVDUUFBQ0JJQUFCQWtBQUFnU0FBQVFKQUFBSUFnQVFBQVFRSUFBSUkrakQ0QXVNVFhqNTlHSDBMR2x4L2ZSeDhDc0FFYkFBQUlFZ0FBRUNRQUFDQklBQUJBa0FBQWdDQUJBQUJCQWdBQWdnUUFBQVFKQUFBSUVnQUFFQ1FBQUNCSUFBQkFrQUFBZ0NBQkFBQkJIZ2ZNOU81NXZPMDlqeUVlOWZjQ1hNSUdBQUNDQkFBQUJBa0FBQWdTQUFBUUpBQUFJRWdBQUVDUUFBQ0FJQUVBQUVFQ0FBQ0NCQUFBQkFrQUFBZ1NBQUFRSkFBQUlFZ0FBRUNReHdFenZWR1AxcDM1a2I3Lys4OS9SeC9DN3YzKzF4K2pEd0hlWkFNQUFFRUNBQUNDQkFBQUJBa0FBQWdTQUFBUUpBQUFJRWdBQUVDUUFBQ0FJQUVBQUVFQ0FBQ0NCQUFBQkFrQUFBZ1NBQUFRSkFBQUlNampnSm5lbHgvZmIvNno5enpTZDlUZmUwVDNQRHJYbzRuaE5qWUFBQkFrQUFBZ1NBQUFRSkFBQUlBZ0FRQUFRUUlBQUlJRUFBQUVDUUFBQ0JJQUFCQWtBQUFnU0FBQVFKQUFBSUFnQVFBQVFRSUFBSUk4RHBqcGpYcTBidTJSdnZmd1NGL1luZzBBQUFRSkFBQUlFZ0FBRUNRQUFDQklBQUJBa0FBQWdDQUJBQUJCQWdBQWdnUUFBQVFKQUFBSUVnQUFFQ1FBQUNCSUFBQkFrQUFBZ0NDUEEyWjZYMzU4di9uUDN2TkkzMUYvN3hIOS90Y2ZOLzlaanhLRzI5Z0FBRUNRQUFDQUlBRUFBRUVDQUFDQ0JBQUFCQWtBQUFnU0FBQVFKQUFBSUVnQUFFQ1FBQUNBSUFFQUFFRUNBQUNDQkFBQUJBa0FBQWp5T0dDbU4rclJ1clZIK3Q3REkzMWhlellBQUJBa0FBQWdTQUFBUUpBQUFJQWdBUUFBUVFJQUFJSUVBQUFFQ1FBQUNCSUFBQkFrQUFBZ1NBQUFRSkFBQUlBZ0FRQUFRUUlBQUlJRUFBQUVDUUFBQ0JJQUFCQWtBQUFnU0FBQVFKQUFBSUNnRDZNUEFDN3g1Y2YzMFlmQUU3Ly85Y2ZvUXdEdVpBTUFBRUVDQUFDQ0JBQUFCQWtBQUFnU0FBQVFKQUFBSUVnQUFFQ1FBQUNBSUFFQUFFRUNBQUNDQkFBQUJBa0FBQWdTQUFBUUpBQUFJRWdBQUVDUUFBQ0FJQUVBQUVFQ0lPcnJ4MCtqRHdIWUNmZURKZ0VBQUVFQzRLQysvUGgrOTM5RDlRTkwzQWVXdUIreFBRRUFBRUVmUmg4QVk1M3JYOEZEaXcwZ0FvRFQ2U1FFb01MZzUremg4Zkh6ejlFSHdlMjhtSUdSdkdrNEx0OEJBSUFnQVhCdzZoc1l4ZjNuMkFRQUFBUUpnQW1vY0dCcjdqdkhKd0FtNGNVSWJNWDlaZzRDQUFDQ0JNQkVWRG13TnZlWmVRaUF5WGh4QW10eGY1bUxBSmlRRnltd05QZVYrUWlBU1hteEFrdHhQNW1UbndJTzhIUEJ3QzBNL3JuWkFBUjRFUVBYY3QrWW53MUFqRzBBOEJhRHYwTUFSQWtCNENtRHYwY0FjRHFkQkFIVUdQZ0lBRGlRSTRTYXdRTEg0RXVBQUJBa0FBQWdTQUFBUUpBQUFJQWdBUUFBUVFJQUFJSUVBQUFFQ1FBQUNCSUFBQkFrQUFBZ1NBQUFRSkFBQUlBZ0FRQUFRUUlBQUlJRUFBQUVDUUFBQ0JJQUFCQWtBQUFnU0FBQVFKQUFBSUFnQVFBQVFRSUFBSUlFQUFBRUNRQUFDQklBQUJBa0FBQWdTQUFBUUpBQUFJQWdBUUFBUVFJQUFJSUVBQUFFQ1FBQUNCSUFBQkFrQUFBZ1NBQUFRSkFBQUlBZ0FRQUFRUUlBQUlJZUhoOC8veHg5RUxDMXJ4OC9qVDRFZHViTGorK2pEd0UyWlFNQUFFRUNBQUNDQkFBQUJBa0FBQWdTQUFBUUpBQUFJRWdBQUVDUUFBQ0FJQUVBQUVFQ0FBQ0NCQUFBQkFrQUFBZ1NBQUFRSkFBQUlFZ0FBRUNRQUFDQUlBRUFBRUVDQUFDQ0JBQUFCQWtBQUFnU0FBQVFKQUFBSUVnQUFFQ1FBQUNBb0lmSHg4OC9SeDhFQUxBdEd3QUFDQklBQUJBa0FBQWdTQUFBUUpBQUFJQWdBUUFBUVFJQUFJSUVBQUFFQ1FBQUNCSUFBQkFrQUFBZ1NBQUFRSkFBQUlBZ0FRQUFRUUlBQUlJRUFBQUUvZmJ0MjU4UG93OENBTmlXRFFBQUJBa0FBQWdTQUFBUUpBQUFJRWdBQUVDUUFBQ0FJQUVBQUVHL25VNm5rOThDQUlDT2I5LytmTEFCQUlBZ0FRQUFRUUlBQUlJRUFBQUUvUjBBdmdnSUFQTTd6M3NiQUFBSUVnQUFFQ1FBQUNEb1h3SGdld0FBTUsrbmM5NEdBQUNDQkFBQUJQMFNBRDRHQUlENVBKL3ZOZ0FBRUNRQUFDRG94UUR3TVFBQXpPT2x1VzREQUFCQkFnQUFnbDROQUI4REFNRHh2VGJQYlFBQUlPak5BTEFGQUlEamVtdU8yd0FBUUpBQUFJQ2dkd1BBeHdBQWNEenZ6VzhiQUFBSXVpZ0FiQUVBNERndW1kczJBQUFRZEhFQTJBSUF3UDVkT3E5dEFBQWc2S29Bc0FVQWdQMjZaazdiQUFCQTBOVUJZQXNBQVB0ejdYeTJBUUNBb0pzQ3dCWUFBUGJqbHJsODh3WkFCQURBZUxmT1l4OEJBRURRWFFGZ0N3QUE0OXd6aDIwQUFDRG83Z0N3QlFDQTdkMDdmeGZaQUlnQUFOak9Fbk4zc1k4QVJBQUFyRytwZWVzN0FBQVF0R2dBMkFJQXdIcVduTE9MYndCRUFBQXNiK241dXNwSEFDSUFBSmF6eGx6MUhRQUFDRm90QUd3QkFPQithODNUVlRjQUlnQUFicmZtSEYzOUl3QVJBQURYVzN0K2J2SWRBQkVBQUpmYlltNXU5aVZBRVFBQTc5dHFYbTc2cndCRUFBQzhic3M1dWZrL0F4UUJBUENycmVmamtOOEJFQUVBOEk4UmMzSFlEd0dKQUFBWU53K0gvaEtnQ0FDZ2JPUWNIUDVUd0NJQWdLTFI4Mjk0QUp4TzR5OENBR3hwRDNOdkZ3RndPdTNqWWdEQTJ2WXk3M1lUQUtmVGZpNEtBS3hoVDNOdVZ3RndPdTNyNGdEQVV2WTIzM1oxTU04OVBuNytPZm9ZQU9BZWV4djhaN3ZiQUR5MTE0c0dBSmZZOHh6YmRRQ2NUdnUrZUFEd21yM1ByMTBmM0hNK0VnQmc3L1krK005MnZ3RjQ2aWdYRllDbUk4MnBRd1hBNlhTc2l3dEF4OUhtMDZFTzlqa2ZDUUF3MnRFRy85a2hEL281SVFEQTFvNDYrTThPOXhIQVM0NytQd0dBWTVsaDdoeitCSjZ6RFFCZ0xUTU0vck5wVHVRNUlRREFVbVlhL0dmVG5kQnpRZ0NBVzgwNCtNK21QYkhuaEFBQWw1cDU4SjlOZjRMUENRRUFYbE1ZL0dlWkUzMkpHQUNnTlBTZlNwNzBjMElBb0tjNitNL1NKLzhTTVFBd3IvclFmOHFGZUlNWUFEZytRLzlsTHNxRnhBREFjUmo2NzNPQmJpUUlBUGJEd0wrZUM3WWdVUUN3UHNOK0dmOEhWSzZPdmVsM1hha0FBQUFBU1VWT1JLNUNZSUk9IiwgInNpemVzIjogIjUxMng1MTIiLCAidHlwZSI6ICJpbWFnZS9wbmciLCAicHVycG9zZSI6ICJtYXNrYWJsZSJ9XX0=">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Vistoria Quartel">
+<meta name="theme-color" content="#C0272D">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root{
+    --bg:#101012; --card:#1C1C1E; --card2:#242427; --red:#C0272D; --red2:#E0393F;
+    --txt:#F2F2F4; --sub:#9A9AA0; --verde:#34C759; --amar:#FF9F0A; --border:#2C2C2E;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+  #app{display:flex;height:100vh;}
+
+  aside{width:220px;flex:0 0 auto;background:var(--card);border-right:1px solid var(--border);
+    display:flex;flex-direction:column;padding:18px 0;}
+  aside .brand{padding:0 20px 20px;font-weight:800;font-size:17px;}
+  aside .brand .sub{font-size:11px;color:var(--sub);font-weight:400;margin-top:2px;}
+  aside button{display:flex;align-items:center;gap:12px;background:none;border:none;color:var(--sub);
+    padding:12px 20px;font-size:14px;text-align:left;width:100%;cursor:pointer;border-left:3px solid transparent;}
+  aside button .ic{font-size:17px;width:20px;}
+  aside button.on{color:var(--txt);background:var(--card2);border-left-color:var(--red);font-weight:700;}
+  aside button .badge{margin-left:auto;background:var(--red);color:#fff;font-size:11px;font-weight:800;
+    border-radius:10px;padding:1px 7px;}
+
+  main{flex:1 1 auto;overflow-y:auto;padding:28px 34px;}
+  main h2{margin:0 0 4px;font-size:22px;font-weight:800;}
+  main .lead{color:var(--sub);font-size:13px;margin-bottom:22px;}
+
+  .empty{text-align:center;padding:80px 20px;color:var(--sub);}
+  .empty .ico{font-size:44px;margin-bottom:12px;}
+
+  .grid-campo{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;}
+  .pcard{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;}
+  .pcard .tipo{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--sub);margin-bottom:8px;}
+  .pcard .tipo .ic{font-size:18px;}
+  .pcard .nome{font-weight:700;font-size:15px;margin-bottom:6px;}
+  .pcard .meta{font-size:12px;color:var(--sub);line-height:1.6;}
+  .pcard .obs{font-size:12px;color:var(--txt);background:var(--card2);border-radius:10px;padding:8px 10px;margin-top:8px;}
+  .pcard img{width:100%;border-radius:10px;margin-top:10px;max-height:150px;object-fit:cover;}
+  .pcard .actions{display:flex;gap:8px;margin-top:14px;}
+
+  .btn{border:none;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;color:#fff;
+    background:var(--card2);cursor:pointer;}
+  .btn.primary{background:var(--red);}
+  .btn:hover{opacity:.9;}
+
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;display:flex;
+    align-items:center;justify-content:center;}
+  .modal{background:var(--card);border-radius:18px;padding:26px;width:560px;max-width:92vw;
+    max-height:88vh;overflow-y:auto;}
+  .modal h3{margin:0 0 4px;font-size:18px;}
+  .modal .sub{font-size:12px;color:var(--sub);margin-bottom:20px;}
+  .frow{display:flex;gap:12px;margin-bottom:12px;}
+  .fcol{flex:1;}
+  label.lbl{font-size:12px;color:var(--sub);display:block;margin-bottom:5px;}
+  input[type=text], select{width:100%;background:var(--card2);border:1px solid var(--border);
+    border-radius:10px;padding:10px 12px;color:var(--txt);font-size:13px;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;}
+  .modal.lg{width:760px;}
+
+  .toolbar{display:flex;gap:10px;margin-bottom:18px;align-items:center;}
+  .toolbar input[type=text]{flex:1;}
+
+  .sec-title{font-size:12px;font-weight:800;color:var(--red2);text-transform:uppercase;
+    letter-spacing:.4px;margin:20px 0 10px;}
+  .sec-title:first-child{margin-top:0;}
+
+  .prev-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
+  .prev-item{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:8px 10px;
+    display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .prev-item .name{font-size:12px;}
+  .prev-item.on{border-color:var(--red);background:rgba(192,39,45,.12);}
+  .prev-qty{width:56px;background:var(--bg);border:1px solid var(--border);border-radius:6px;
+    padding:4px 6px;color:var(--txt);font-size:12px;text-align:center;}
+
+  .pav-card{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px;}
+  .pav-card .pav-h{font-size:12px;font-weight:700;margin-bottom:8px;}
+  .pav-sist-row{display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 0;}
+  .pav-sist-row label{flex:1;color:var(--sub);}
+
+  .rowlist-item{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .rowlist-item input{flex:1;}
+  .rowlist-del{background:var(--card2);border:none;color:var(--red2);width:32px;height:32px;
+    border-radius:8px;flex-shrink:0;}
+
+  .elist-item{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;
+    margin-bottom:10px;cursor:pointer;}
+  .elist-row{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+  .elist-badge{width:30px;height:30px;border-radius:50%;color:#fff;font-size:12px;font-weight:800;
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .elist-t{font-weight:700;font-size:14px;}
+  .elist-s{font-size:12px;color:var(--sub);margin-top:2px;}
+
+  .vist-item{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;}
+  .vfilter{display:flex;gap:8px;margin-bottom:16px;}
+  .vfilter button{background:var(--card2);border:1px solid var(--border);color:var(--sub);
+    border-radius:20px;padding:6px 14px;font-size:12px;}
+  .vfilter button.on{background:var(--red);color:#fff;border-color:var(--red);}
+
+  .rep-grp{font-size:12px;font-weight:800;color:var(--sub);margin:14px 0 6px;text-transform:uppercase;}
+  .rep-item{padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;}
+  .rep-item .st{font-weight:700;margin-right:6px;}
+  .rep-item.nc{color:var(--red2);}
+
+  #qmapWrap{height:calc(100vh - 220px);border-radius:14px;overflow:hidden;border:1px solid var(--border);}
+  #qmap{width:100%;height:100%;background:#1c1c1e;}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside>
+    <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div></div>
+    <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
+    <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
+    <button data-v="rotas" onclick="navTo('rotas')"><span class="ic">🧭</span>Rotas</button>
+    <button data-v="mapa" onclick="navTo('mapa')"><span class="ic">🗺️</span>Mapa</button>
+    <button data-v="campo" class="on" onclick="navTo('campo')"><span class="ic">📍</span>Campo
+      <span class="badge" id="badgeCampo" style="display:none">0</span></button>
+    <button data-v="dados" onclick="navTo('dados')"><span class="ic">💾</span>Dados</button>
+  </aside>
+
+  <main>
+    <div class="view" id="v-edif">
+      <h2>Edificações</h2><div class="lead">Cadastro completo e manutenção.</div>
+      <div class="toolbar">
+        <input type="text" id="edifBusca" placeholder="Buscar por RE, nome ou município..." oninput="renderEdificacoes()">
+        <button class="btn primary" onclick="abrirFormEdif(null)">+ Nova edificação</button>
+      </div>
+      <div id="edifGrid"></div>
+    </div>
+
+    <div class="view" id="v-vist">
+      <h2>Vistorias</h2><div class="lead">Planejamento, histórico e resultados.</div>
+      <div class="toolbar">
+        <div class="vfilter" id="vistFiltros">
+          <button class="on" data-f="todas" onclick="setFiltroVist('todas')">Todas</button>
+          <button data-f="pendentes" onclick="setFiltroVist('pendentes')">Pendentes</button>
+          <button data-f="concluidas" onclick="setFiltroVist('concluidas')">Concluídas</button>
+        </div>
+        <button class="btn primary" onclick="abrirPlanejarVist()">+ Planejar vistoria</button>
+      </div>
+      <div id="vistList"></div>
+    </div>
+
+    <div class="view" id="v-rotas">
+      <h2>Rotas</h2><div class="lead">Agrupe vistorias pendentes em um roteiro e otimize a ordem.</div>
+      <div class="toolbar">
+        <button class="btn primary" onclick="abrirFormRota()">+ Nova rota</button>
+      </div>
+      <div id="rotasList"></div>
+    </div>
+
+    <div class="view" id="v-mapa">
+      <h2>Mapa</h2><div class="lead">Edificações por risco e rotas planejadas.</div>
+      <div class="toolbar">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--sub)">
+          <input type="checkbox" id="qmLyEdif" checked onchange="atualizarCamadasQMapa()"> Edificações
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--sub)">
+          <input type="checkbox" id="qmLyRotas" checked onchange="atualizarCamadasQMapa()"> Rotas
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--sub)">
+          <input type="checkbox" id="qmLyPontos" onchange="atualizarCamadasQMapa()"> Pontos recebidos do Campo
+        </label>
+      </div>
+      <div id="qmapWrap"><div id="qmap"></div></div>
+    </div>
+
+    <div class="view on" id="v-campo">
+      <h2>Edificações Encontradas em Campo</h2>
+      <div class="lead">Pontos marcados no Vistoria Campo como "edificação desconhecida", aguardando cadastro completo.</div>
+      <div id="campoGrid"></div>
+    </div>
+
+    <div class="view" id="v-dados">
+      <h2>Dados</h2><div class="lead">Sincronização por arquivo (.vst) com o Vistoria Campo — funciona 100% offline, sem servidor.</div>
+
+      <div class="card2-box">
+        <div class="sec-title" style="margin-top:0">Enviar pro Campo</div>
+        <div class="sub" style="margin-bottom:14px">Gera um arquivo com edificações, vistorias planejadas e rotas — leve pro celular e importe lá em "Mais".</div>
+        <button class="btn primary" onclick="exportarParaCampo()">⬇️ Exportar pacote (.vst)</button>
+      </div>
+
+      <div class="card2-box" style="margin-top:16px">
+        <div class="sec-title" style="margin-top:0">Receber do Campo</div>
+        <div class="sub" style="margin-bottom:14px">Importa trajetórias, pontos, vistorias realizadas e edificações atualizadas vindas do celular.</div>
+        <input type="file" id="importInput" accept=".vst,.json" style="display:none" onchange="importarArquivo(this)">
+        <button class="btn primary" onclick="document.getElementById('importInput').click()">⬆️ Importar arquivo do Campo</button>
+      </div>
+
+      <div id="importResumo" style="margin-top:16px"></div>
+    </div>
+  </main>
+</div>
+
+<style>
+  .card2-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;}
+  .resumo-item{padding:6px 0;font-size:13px;}
+</style>
+
+<!-- MODAL: cadastrar edificação a partir do ponto -->
+<div id="modalCadastro" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h3>Cadastrar como Edificação</h3>
+    <div class="sub" id="modalCadastroSub"></div>
+
+    <div class="frow">
+      <div class="fcol">
+        <label class="lbl">RE</label>
+        <input type="text" id="f-re" placeholder="Ex: RE8013000123A">
+      </div>
+      <div class="fcol">
+        <label class="lbl">Grau de Risco</label>
+        <select id="f-risco">
+          <option value="">—</option>
+          <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+        </select>
+      </div>
+    </div>
+
+    <label class="lbl">Nome da edificação</label>
+    <input type="text" id="f-nome" style="margin-bottom:12px" placeholder="Ex: Mercado Central">
+
+    <label class="lbl">Endereço</label>
+    <input type="text" id="f-endereco" style="margin-bottom:12px" placeholder="Rua, número, bairro">
+
+    <div class="frow">
+      <div class="fcol">
+        <label class="lbl">Município</label>
+        <input type="text" id="f-municipio">
+      </div>
+      <div class="fcol">
+        <label class="lbl">Área (m²)</label>
+        <input type="text" id="f-area">
+      </div>
+    </div>
+
+    <div class="frow">
+      <div class="fcol">
+        <label class="lbl">Responsável</label>
+        <input type="text" id="f-resp-nome">
+      </div>
+      <div class="fcol">
+        <label class="lbl">Telefone</label>
+        <input type="text" id="f-resp-tel">
+      </div>
+    </div>
+
+    <div class="frow">
+      <div class="fcol">
+        <label class="lbl">Situação do funcionamento</label>
+        <select id="f-funcionamento">
+          <option value="">—</option>
+          <option value="valido">Válido</option>
+          <option value="vencido">Vencido</option>
+          <option value="nao_possui">Não possui</option>
+        </select>
+      </div>
+      <div class="fcol">
+        <label class="lbl">Vencimento (se válido)</label>
+        <input type="text" id="f-vencimento" placeholder="DD/MM/AAAA">
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="fecharModalCadastro()">Cancelar</button>
+      <button class="btn primary" onclick="salvarEdificacaoDoPonto()">Salvar edificação</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: cadastro completo de edificação (Fase 10) -->
+<div id="modalEdif" class="modal-overlay" style="display:none">
+  <div class="modal lg">
+    <h3 id="edifFormTitulo">Nova edificação</h3>
+    <div class="sub">Cadastro completo, sistemas preventivos e pavimentos.</div>
+
+    <div class="sec-title">Identificação</div>
+    <div class="frow">
+      <div class="fcol"><label class="lbl">RE</label><input type="text" id="ef-re" placeholder="Ex: RE8013000123A"></div>
+      <div class="fcol"><label class="lbl">Grau de Risco</label>
+        <select id="ef-risco"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+      </div>
+    </div>
+    <label class="lbl">Nome da edificação</label>
+    <input type="text" id="ef-nome" style="margin-bottom:12px">
+    <label class="lbl">Endereço</label>
+    <input type="text" id="ef-endereco" style="margin-bottom:12px">
+    <div class="frow">
+      <div class="fcol"><label class="lbl">Município</label><input type="text" id="ef-municipio"></div>
+      <div class="fcol"><label class="lbl">Área (m²)</label><input type="text" id="ef-area"></div>
+    </div>
+    <div class="frow">
+      <div class="fcol"><label class="lbl">Latitude</label><input type="text" id="ef-lat"></div>
+      <div class="fcol"><label class="lbl">Longitude</label><input type="text" id="ef-lng"></div>
+    </div>
+
+    <div class="sec-title">Responsável</div>
+    <div class="frow">
+      <div class="fcol"><label class="lbl">Nome</label><input type="text" id="ef-resp-nome"></div>
+      <div class="fcol"><label class="lbl">Telefone</label><input type="text" id="ef-resp-tel"></div>
+    </div>
+
+    <div class="sec-title">Habite-se</div>
+    <div class="frow">
+      <div class="fcol"><label class="lbl">Situação</label>
+        <select id="ef-hs-situacao" onchange="atualizarCamposHS()">
+          <option value="possui">Possui</option>
+          <option value="nao_possui">Não possui</option>
+          <option value="andamento">Em andamento</option>
+        </select>
+      </div>
+      <div class="fcol"><label class="lbl">Nº do protocolo</label><input type="text" id="ef-hs-protocolo" placeholder="Ex: 2024/001234"></div>
+    </div>
+    <div class="frow">
+      <div class="fcol"><label class="lbl">Data de emissão</label><input type="text" id="ef-hs-data" placeholder="DD/MM/AAAA"></div>
+      <div class="fcol"><label class="lbl">Observação</label><input type="text" id="ef-hs-obs" placeholder="Opcional"></div>
+    </div>
+
+    <div class="sec-title">Funcionamento e laudos</div>
+    <div class="frow">
+      <div class="fcol"><label class="lbl">Situação do funcionamento</label>
+        <select id="ef-funcionamento"><option value="">—</option><option value="valido">Válido</option><option value="vencido">Vencido</option><option value="nao_possui">Não possui</option></select>
+      </div>
+      <div class="fcol"><label class="lbl">Vencimento</label><input type="text" id="ef-vencimento" placeholder="DD/MM/AAAA"></div>
+    </div>
+    <div class="frow">
+      <div class="fcol"><label class="lbl">Laudo do Alarme</label><input type="text" id="ef-laudo-alarme" placeholder="Validade / observação"></div>
+      <div class="fcol"><label class="lbl">Laudo do Hidrante</label><input type="text" id="ef-laudo-hidrante" placeholder="Validade / observação"></div>
+    </div>
+
+    <div class="sec-title">Inquilinos</div>
+    <div id="ef-inquilinos"></div>
+    <button class="btn" style="margin-bottom:10px" onclick="addInquilinoRow()">+ Adicionar inquilino</button>
+
+    <div class="sec-title">Projetos / Habite-se</div>
+    <div id="ef-projetos"></div>
+    <button class="btn" style="margin-bottom:10px" onclick="addProjetoRow()">+ Adicionar projeto</button>
+
+    <div class="sec-title">Sistemas preventivos ativos</div>
+    <div class="prev-grid" id="ef-preventivos"></div>
+
+    <div class="sec-title">Pavimentos</div>
+    <div class="frow">
+      <div class="fcol"><label class="lbl">Nº de pavimentos (acima do térreo)</label><input type="text" id="ef-npav" placeholder="Ex: 3"></div>
+      <div class="fcol"><label class="lbl">Térreo</label>
+        <select id="ef-terreo"><option value="sim">Possui térreo</option><option value="nao">Sem térreo</option></select>
+      </div>
+    </div>
+    <button class="btn" style="margin-bottom:10px" onclick="gerarPavimentos()">Gerar / atualizar pavimentos</button>
+    <div id="ef-pavimentos"></div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="fecharFormEdif()">Cancelar</button>
+      <button class="btn" style="background:var(--red2)" id="ef-btn-excluir" onclick="excluirEdificacao()">Excluir</button>
+      <button class="btn primary" onclick="salvarFormEdif()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: planejar vistoria -->
+<div id="modalPlanVist" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h3>Planejar vistoria</h3>
+    <div class="sub">Fica pendente até ser executada no Vistoria Campo.</div>
+    <label class="lbl">Edificação</label>
+    <select id="pv-edif" style="margin-bottom:12px"></select>
+    <div class="frow">
+      <div class="fcol"><label class="lbl">Tipo</label>
+        <select id="pv-tipo"><option value="habite-se">Habite-se</option><option value="funcionamento">Funcionamento</option></select>
+      </div>
+      <div class="fcol"><label class="lbl">Motivo</label><input type="text" id="pv-motivo" placeholder="Ex: AF - hidrante vencido"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="document.getElementById('modalPlanVist').style.display='none'">Cancelar</button>
+      <button class="btn primary" onclick="salvarPlanejamentoVist()">Planejar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: relatório de vistoria concluída -->
+<div id="modalRelatorio" class="modal-overlay" style="display:none">
+  <div class="modal lg" id="relatorioBody"></div>
+</div>
+
+<!-- MODAL: nova rota -->
+<div id="modalRota" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h3>Nova rota</h3>
+    <label class="lbl">Nome da rota</label>
+    <input type="text" id="rt-nome" style="margin-bottom:12px" placeholder="Ex: Ronda Centro">
+    <label class="lbl">Data</label>
+    <input type="text" id="rt-data" style="margin-bottom:12px" placeholder="DD/MM/AAAA">
+    <label class="lbl">Vistorias pendentes</label>
+    <div id="rt-vist-list" style="max-height:260px;overflow-y:auto;margin-bottom:12px"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="document.getElementById('modalRota').style.display='none'">Cancelar</button>
+      <button class="btn primary" onclick="salvarRota()">Criar e otimizar rota</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var SIST = [
+  {id:'ext',l:'Extintores',n:'IN 6'},
+  {id:'shp',l:'Hidrante (SHP)',n:'IN 7'},
+  {id:'gas',l:'Instalação de Gás',n:'IN 8'},
+  {id:'sai',l:'Saídas de Emergência',n:'IN 9'},
+  {id:'fum',l:'Controle de Fumaça',n:'IN 10'},
+  {id:'ilu',l:'Iluminação de Emergência',n:'IN 11'},
+  {id:'ala',l:'Alarme de Incêndio (SDAI)',n:'IN 12'},
+  {id:'sal',l:'Sinalização de Abandono',n:'IN 13'},
+  {id:'com',l:'Compartimentação/TRF',n:'IN 14'},
+  {id:'spr',l:'Sprinklers',n:'IN 15'},
+  {id:'cmar',l:'Materiais de Acabamento',n:'IN 18'},
+  {id:'ele',l:'Instalações Elétricas',n:'IN 19'},
+  {id:'liq',l:'Líquidos Inflamáveis',n:'IN 20'},
+  {id:'bri',l:'Brigada de Incêndio',n:'IN 28'},
+  {id:'plano',l:'Plano de Emergência',n:'IN 31'},
+  {id:'pis',l:'Piscinas',n:'IN 33'},
+  {id:'aces',l:'Acesso de Viaturas',n:'IN 35'},
+  {id:'hidr',l:'Rede Pública Hidrantes',n:'IN 25'},
+  {id:'glp',l:'GLP Comercial',n:'IN 29'}
+];
+
+// ════════════════════════════════════════
+// CHECKLISTS
+// ════════════════════════════════════════
+var CL_HS = {
+  'Documentação': [
+    {id:'h1',obj:'DRT',c:'Taxa paga — comprovante de recolhimento apresentado',ca:'Comprovante de recolhimento da taxa referente ao Habite-se não apresentado.'},
+    {id:'h2',obj:'DRT',c:'DRT de execução de todos os SMSCI conforme PPCI aprovado',ca:'É necessário DRT de execução de todos os SMSCI executados na edificação, conforme o PPCI aprovado.'},
+    {id:'h3',obj:'DRT',c:'Relatório de conformidade dos SMSCI (Anexo I — IN 1 Parte 1)',ca:'Relatório de conformidade dos SMSCI não apresentado.'},
+    {id:'h4',obj:'DRT',c:'Autenticidade e validade dos DRTs',ca:'DRT sem comprovação de autenticidade/validade.'},
+    {id:'h5',obj:'PPCI',c:'PPCI aprovado e em condições para vistoria',ca:'O PPCI não está aprovado. Para Habite-se o PPCI deve estar aprovado.'}
+  ],
+  'Características Gerais do Bloco': [
+    {id:'h6',obj:'Bloco',c:'Imóvel construído e todos os SMSCI instalados e operantes',ca:'O imóvel não está construído ou SMSCI não foram executados.'},
+    {id:'h7',obj:'Bloco',c:'Endereço conforme PPCI',ca:'Endereço da edificação incorreto. Necessário corrigir no PPCI.'},
+    {id:'h8',obj:'Bloco',c:'Altura informada no PPCI corresponde ao constatado',ca:'A altura informada no PPCI não corresponde ao constatado em vistoria.'},
+    {id:'h9',obj:'Bloco',c:'Área informada no PPCI corresponde ao constatado',ca:'A área informada no PPCI não corresponde ao constatado em vistoria.'},
+    {id:'h10',obj:'Bloco',c:'Número de pavimentos conforme PPCI',ca:'O número de pavimentos informado no PPCI não corresponde ao constatado em vistoria.'},
+    {id:'h11',obj:'Planta',c:'Blocos na Planta de Locação condizem com os construídos',ca:'Os blocos indicados na Planta de Locação não condizem com os blocos construídos.'}
+  ],
+  'Extintores — IN 6': [
+    {id:'h12',obj:'IN 6',c:'Quantidade de extintores conforme PPCI (amostragem)',ca:'A quantidade de extintores instalados está em desacordo com o PPCI aprovado.'},
+    {id:'h13',obj:'IN 6',c:'Extintores em área de circulação/comum, fora de escadas e antecâmaras',ca:'Todos os extintores devem estar em área de circulação ou comum, fora das escadas, rampas, antecâmaras e patamares.'},
+    {id:'h14',obj:'IN 6',c:'Extintores pressurizados, lacre intacto e hidrostático válido (5 anos)',ca:'Todos os extintores devem estar com lacre intacto, pressurizados e teste hidrostático válido (5 anos).'}
+  ],
+  'Sistema Hidráulico Preventivo — IN 7': [
+    {id:'h15',obj:'IN 7',c:'Relatório de comissionamento do SHP com DRT (Art. 106)',ca:'Necessário apresentar o relatório de comissionamento do sistema, conforme Art. 106 da IN 7, com DRT.'},
+    {id:'h16',obj:'IN 7',c:'Tubulação metálica com diâmetro mínimo 65 mm',ca:'A canalização do SHP deve ser metálica.'},
+    {id:'h17',obj:'IN 7',c:'Válvula de retenção instalada corretamente',ca:'Necessário instalar válvula de retenção na saída do reservatório ou bombas, com sentido correto.'},
+    {id:'h18',obj:'IN 7',c:'Bombas de incêndio instaladas conforme PPCI',ca:'Necessário instalar as bombas de incêndio conforme PPCI.'},
+    {id:'h19',obj:'IN 7',c:'Quantidade de hidrantes/mangotinhos conforme PPCI (amostragem)',ca:'Quantidade de hidrantes ou mangotinhos em desacordo com o PPCI aprovado.'},
+    {id:'h20',obj:'IN 7',c:'Abrigos com mangueira, esguicho e conexão tipo storz',ca:'Todos os abrigos devem possuir mangueira(s), esguicho e conexão tipo storz.'},
+    {id:'h21',obj:'IN 7',c:'Hidrantes em área de circulação/comum; ao menos um por pavimento/setor',ca:'Os abrigos do SHP devem estar em área de circulação ou comum, fora de escadas e antecâmaras.'},
+    {id:'h22',obj:'IN 7',c:'Hidrante de recalque conforme PPCI (válvula storz, engate 45°)',ca:'Executar hidrante de recalque conforme o PPCI aprovado.'},
+    {id:'h23',obj:'IN 7',c:'Funcionamento: retirada de água pelo hidrante de recalque',ca:'Impossibilidade de retirada de água pelo hidrante de recalque. Verificar válvula de retenção ou obstruções.'}
+  ],
+  'Instalações de Gás — IN 8': [
+    {id:'h24',obj:'IN 8',c:'Laudo de estanqueidade com DRT (validade 5 anos — Art. 95)',ca:'Apresentar laudo ou ensaio de estanqueidade da rede de gás com DRT, conforme Art. 95 da IN 8.'},
+    {id:'h25',obj:'IN 8',c:'Manual do proprietário com instruções para aparelhos a gás (Art. 80)',ca:'Apresentar manual do proprietário com instruções para instalação dos aparelhos a gás, conforme Art. 80 da IN 8.'},
+    {id:'h26',obj:'IN 8',c:'Tipo de gás (GLP/GN) conforme PPCI',ca:'O tipo de gás combustível deve estar de acordo com o PPCI aprovado.'},
+    {id:'h27',obj:'IN 8',c:'Válvula de corte geral por bloco conforme PPCI',ca:'Executar Válvula de Corte Geral conforme o PPCI aprovado.'},
+    {id:'h28',obj:'IN 8',c:'Ventilação permanente nos locais com aparelhos de queima',ca:'Executar ventilação permanente nos ambientes com equipamentos de queima a gás.'},
+    {id:'h29',obj:'IN 8',c:'Central de GLP / Abrigo de Gás / CRM-ERPM conforme PPCI',ca:'Executar Central de GLP / Abrigo de Gás conforme o PPCI aprovado.'}
+  ],
+  'Saídas de Emergência — IN 9': [
+    {id:'h30',obj:'IN 9',c:'Quantidade e tipo das escadas conforme PPCI',ca:'A quantidade e tipo das escadas estão em desacordo com o PPCI aprovado.'},
+    {id:'h31',obj:'IN 9',c:'Largura das escadas conforme PPCI',ca:'A largura da escada está em desacordo com o PPCI aprovado.'},
+    {id:'h32',obj:'IN 9',c:'Corrimão instalado conforme PPCI',ca:'As escadas devem possuir corrimão conforme o PPCI aprovado.'},
+    {id:'h33',obj:'IN 9',c:'Guarda-corpo instalado onde necessário (desnível > 60 cm, alt. mín. 1,10 m)',ca:'Instalar guarda-corpo com no mínimo 1,10 m de altura em todos os locais com desnível superior a 60 cm.'},
+    {id:'h34',obj:'IN 9',c:'Escada termina no pavimento de descarga sem continuidade com subsolos',ca:'As escadas de emergência devem terminar no piso de descarga, sem comunicação com os pavimentos de subsolo.'},
+    {id:'h35',obj:'IN 9',c:'Portas corta-fogo instaladas conforme PPCI (amostragem)',ca:'Instalar portas corta-fogo conforme o PPCI aprovado.'},
+    {id:'h36',obj:'IN 9',c:'Rotas de fuga desobstruídas e sem dispositivos de bloqueio',ca:'As rotas de fuga devem permanecer destrancadas e desobstruídas.'},
+    {id:'h37',obj:'IN 9',c:'Largura das descargas: mín. 1,20 m (geral); 1,65 m (H-2); 2,20 m (H-3)',ca:'A largura das descargas não pode ser inferior ao disposto no Art. 131 da IN 09.'},
+    {id:'h38',obj:'IN 9',c:'Largura das portas de saída conforme PPCI',ca:'A largura das portas das saídas de emergência está em desacordo com o PPCI aprovado.'},
+    {id:'h39',obj:'IN 9',c:'Abertura das portas no sentido do fluxo de saída (escadas, antecâmaras)',ca:'As portas devem abrir no sentido do fluxo de saída nas escadas de emergência e antecâmaras.'},
+    {id:'h40',obj:'IN 9',c:'Quantidade de saídas de emergência conforme PPCI',ca:'A quantidade de saídas de emergência está em desacordo com o PPCI aprovado.'}
+  ],
+  'Controle de Fumaça — IN 10': [
+    {id:'h41',obj:'IN 10',c:'Relatório de comissionamento (profissional independente) + DRT',ca:'Apresentar relatório de comissionamento do controle de fumaça (sistema mecânico) por profissional independente com DRT, conforme Art. 41 da IN 10.'},
+    {id:'h42',obj:'IN 10',c:'Aberturas de ventilação e exaustão conforme PPCI',ca:'Providenciar as aberturas de introdução de ar e extração de fumaça conforme o PPCI.'},
+    {id:'h43',obj:'IN 10',c:'Funcionamento testado (acionamento via detecção/botoeira)',ca:'O controle de fumaça não funcionou adequadamente no teste de acionamento.'}
+  ],
+  'Iluminação de Emergência — IN 11': [
+    {id:'h44',obj:'IN 11',c:'Sistema de iluminação de emergência funcionando (teste amostragem)',ca:'As luminárias de emergência (todas ou algumas) não estão funcionando.'},
+    {id:'h45',obj:'IN 11',c:'Quantidade de pontos conforme PPCI (edificações horizontais)',ca:'Quantidade de pontos de iluminação de emergência em desacordo com o PPCI aprovado.'},
+    {id:'h46',obj:'IN 11',c:'Iluminação nos corredores e mínimo 1 ponto por lance de escada (verticalizadas)',ca:'Instalar iluminação de emergência nos corredores e ao menos uma luminária por lance de escada.'}
+  ],
+  'Detecção e Alarme — IN 12': [
+    {id:'h47',obj:'IN 12',c:'Relatório de comissionamento do SDAI (NBR 17240) com DRT (Art. 47)',ca:'Apresentar relatório de comissionamento do SDAI atendendo ao item 8 da NBR 17240, com DRT.'},
+    {id:'h48',obj:'IN 12',c:'Tipo de SDAI instalado conforme PPCI',ca:'O tipo de SDAI está divergente do projeto aprovado.'},
+    {id:'h49',obj:'IN 12',c:'ECI instalada em local de fácil acesso e com vigilância permanente',ca:'Instalar ECI de acordo com o PPCI aprovado.'},
+    {id:'h50',obj:'IN 12',c:'Funcionamento da ECI testado (painel + avisadores sonoros/luminosos)',ca:'O sistema de alarme não funcionou adequadamente.'},
+    {id:'h51',obj:'IN 12',c:'Quantidade de acionadores manuais conforme PPCI',ca:'Os acionadores manuais estão em desacordo com o PPCI aprovado.'},
+    {id:'h52',obj:'IN 12',c:'Quantidade de avisadores audiovisuais conforme PPCI',ca:'Quantidade de avisadores audiovisuais em desacordo com o PPCI aprovado.'},
+    {id:'h53',obj:'IN 12',c:'Quantidade de detectores automáticos conforme PPCI',ca:'A quantidade de detectores automáticos está em desacordo com o PPCI aprovado.'}
+  ],
+  'Sinalização de Abandono — IN 13': [
+    {id:'h54',obj:'IN 13',c:'Placas SAL nas mudanças de direção, saídas e acessos a escadas (amostragem)',ca:'Instalar sinalização de abandono nas mudanças de direção, saídas e acessos a escadas e rampas.'},
+    {id:'h55',obj:'IN 13',c:'Placas luminosas para F-6 (lotação > 200) e F-11',ca:'Para ocupações F-6 (lotação > 200) e F-11, as placas de SAL devem ser luminosas.'},
+    {id:'h56',obj:'IN 13',c:'Placas luminosas funcionando (amostragem)',ca:'As placas luminosas (todas ou algumas) não estão funcionando.'}
+  ],
+  'Compartimentação e TRF — IN 14': [
+    {id:'h57',obj:'IN 14',c:'Isolamento de risco por afastamento entre blocos conforme PPCI',ca:'Inexistência de afastamento horizontal entre os blocos considerados isolados.'},
+    {id:'h58',obj:'IN 14',c:'Aberturas entre áreas de compartimentação protegidas por elemento corta-fogo',ca:'As aberturas entre áreas de compartimentação devem ser protegidas por elementos corta-fogo ou para-chama.'}
+  ],
+  'Sprinklers — IN 15': [
+    {id:'h59',obj:'IN 15',c:'Relatório de comissionamento do SPK (Anexo B — IN 15) com DRT',ca:'Apresentar relatório de comissionamento do SPK conforme Art. 30 da IN 15, com DRT.'},
+    {id:'h60',obj:'IN 15',c:'Quantidade de chuveiros automáticos conforme PPCI',ca:'Quantidade de chuveiros automáticos em desacordo com o PPCI aprovado.'},
+    {id:'h61',obj:'IN 15',c:'Hidrante de recalque duplo exclusivo SPK com engates 45° e válvula de retenção',ca:'Instalar Hidrante de Recalque duplo exclusivo para o SPK conforme o PPCI aprovado.'},
+    {id:'h62',obj:'IN 15',c:'Bombas do SPK instaladas conforme PPCI',ca:'Instalar as bombas do sistema sprinkler conforme o PPCI.'}
+  ],
+  'Materiais de Acabamento — IN 18': [
+    {id:'h63',obj:'IN 18',c:'Declaração do RT de cumprimento integral dos requisitos de CMAR (Art. 14)',ca:'Apresentar declaração do RT informando o atendimento pleno dos requisitos de CMAR da IN 18.'}
+  ],
+  'Instalações Elétricas — IN 19': [
+    {id:'h64',obj:'IN 19',c:'DRT de execução da instalação elétrica de baixa tensão',ca:'Apresentar DRT de execução da instalação elétrica de baixa tensão.'},
+    {id:'h65',obj:'IN 19',c:'DRT de execução do aterramento elétrico',ca:'Apresentar DRT de execução do aterramento.'},
+    {id:'h66',obj:'IN 19',c:'DRT de verificação final da instalação elétrica',ca:'Apresentar DRT de verificação final da instalação elétrica de baixa tensão.'}
+  ],
+  'Plano de Emergência — IN 31': [
+    {id:'h67',obj:'IN 31',c:'Plantas de emergência elaboradas conforme Art. 18 da IN 31',ca:'As plantas de emergência devem ser elaboradas conforme o Art. 18 da IN 31.'},
+    {id:'h68',obj:'IN 31',c:'Plantas de emergência instaladas nos locais corretos (Art. 19)',ca:'As plantas de emergência devem ser instaladas nos locais estipulados no Art. 19 da IN 31.'}
+  ],
+  'Brigada de Incêndio — IN 28': [
+    {id:'h69',obj:'IN 28',c:'Dimensionamento de Brigadistas Orgânicos previsto no PPCI (Art. 16)',ca:'Apresentar dimensionamento de Brigadistas Orgânicos previstos para a edificação.'}
+  ],
+  'Acesso de Viaturas — IN 35': [
+    {id:'h70',obj:'IN 35',c:'Acesso de viaturas executado conforme PPCI',ca:'Executar o acesso de viaturas conforme o PPCI aprovado.'}
+  ]
+};
+
+var CL_FN = {
+  'Documentação': [
+    {id:'f1',obj:'DRT',c:'Comprovante de recolhimento da taxa de funcionamento',ca:'O comprovante de recolhimento da taxa de funcionamento não foi apresentado.'},
+    {id:'f2',obj:'DRT',c:'Declaração com Termo de Responsabilidade (Anexo G — IN 1 Parte 1)',ca:'Declaração com termo de responsabilidade não apresentada.'},
+    {id:'f3',obj:'PPCI',c:'PPCI aprovado e em condições para vistoria',ca:'O imóvel não possui PPCI aprovado.'}
+  ],
+  'Características Gerais': [
+    {id:'f4',obj:'Bloco',c:'Endereço da edificação correto conforme PPCI',ca:'Endereço da edificação incorreto. Necessário corrigir no PPCI.'},
+    {id:'f5',obj:'Bloco',c:'Altura, área e número de pavimentos conforme PPCI',ca:'As características gerais do bloco não correspondem ao PPCI.'},
+    {id:'f6',obj:'Bloco',c:'Ocupação do imóvel conforme PPCI',ca:'Foi identificada ocupação divergente do PPCI.'}
+  ],
+  'Extintores — IN 6': [
+    {id:'f7',obj:'IN 6',c:'Quantidade de extintores conforme PPCI',ca:'Quantidade de extintores em desacordo com o PPCI.'},
+    {id:'f8',obj:'IN 6',c:'Extintores em circulação/comum, fora de escadas e antecâmaras',ca:'Extintores devem estar em área de circulação ou comum, fora de escadas, rampas e antecâmaras.'},
+    {id:'f9',obj:'IN 6',c:'Extintores pressurizados, lacre intacto, hidrostático válido (5 anos)',ca:'Todos os extintores devem estar com lacre intacto, pressurizados e hidrostático válido (5 anos).'}
+  ],
+  'Sistema Hidráulico Preventivo — IN 7': [
+    {id:'f10',obj:'IN 7',c:'Inspeção do reservatório e tubulações a cada 5 anos por RT (DRT)',ca:'Necessário realizar inspeção do reservatório e tubulações por RT, com emissão de DRT.'},
+    {id:'f11',obj:'IN 7',c:'Manutenção das bombas de incêndio a cada 3 anos (DRT)',ca:'Necessário realizar manutenção das bombas de incêndio com DRT.'},
+    {id:'f12',obj:'IN 7',c:'Abrigos com mangueira, esguicho e conexão tipo storz',ca:'Todos os abrigos devem possuir mangueira(s), esguicho e conexão tipo storz.'},
+    {id:'f13',obj:'IN 7',c:'Hidrante de recalque com adaptador storz, tampão e livre de entulho',ca:'Falta adaptador storz / tampão no hidrante de recalque ou há sujeira/entulhos.'}
+  ],
+  'Instalações de Gás — IN 8': [
+    {id:'f14',obj:'IN 8',c:'Laudo de estanqueidade com DRT — a cada 5 anos',ca:'Apresentar laudo de estanqueidade da rede de gás com DRT.'}
+  ],
+  'Saídas de Emergência — IN 9': [
+    {id:'f15',obj:'IN 9',c:'Portas corta-fogo reguladas e fechando corretamente',ca:'Necessário realizar manutenção nas portas corta-fogo.'},
+    {id:'f16',obj:'IN 9',c:'Rotas de fuga desobstruídas e sem dispositivos de bloqueio',ca:'As rotas de fuga devem permanecer destrancadas e desobstruídas.'},
+    {id:'f17',obj:'IN 9',c:'Escada pressurizada: laudo de manutenção anual com DRT',ca:'Necessário apresentar laudo de manutenção anual do sistema de pressurização com DRT, conforme Art. 123 da IN 09.'}
+  ],
+  'Controle de Fumaça — IN 10': [
+    {id:'f18',obj:'IN 10',c:'Relatório de inspeção anual do controle de fumaça com DRT (Anexo C)',ca:'Necessário apresentar relatório de inspeção do controle de fumaça com DRT.'}
+  ],
+  'Iluminação de Emergência — IN 11': [
+    {id:'f19',obj:'IN 11',c:'Sistema funcionando (teste amostragem)',ca:'As luminárias de emergência não estão funcionando.'},
+    {id:'f20',obj:'IN 11',c:'Quantidade de pontos conforme PPCI',ca:'Quantidade de pontos de iluminação em desacordo com o PPCI.'}
+  ],
+  'Detecção e Alarme — IN 12': [
+    {id:'f21',obj:'IN 12',c:'Relatório de manutenção anual com DRT (com detectores automáticos)',ca:'Necessário apresentar relatório de manutenção anual com DRT, conforme Art. 48 da IN 12.'},
+    {id:'f22',obj:'IN 12',c:'Relatório de manutenção a cada 3 anos (sem detectores automáticos)',ca:'Necessário apresentar relatório de manutenção a cada 3 anos com DRT, conforme Art. 48 da IN 12.'}
+  ],
+  'Sinalização de Abandono — IN 13': [
+    {id:'f23',obj:'IN 13',c:'Placas de SAL nas mudanças de direção, saídas e acessos a escadas',ca:'Instalar sinalização de abandono nas mudanças de direção, saídas e acessos a escadas e rampas.'},
+    {id:'f24',obj:'IN 13',c:'Placas luminosas para F-6 (> 200) e F-11 funcionando',ca:'Para ocupações F-6 (lotação > 200) e F-11, as placas SAL devem ser luminosas.'}
+  ],
+  'Compartimentação/TRF — IN 14': [
+    {id:'f25',obj:'IN 14',c:'DRT de manutenção anual dos dispositivos automatizados de compartimentação',ca:'Apresentar DRT de manutenção dos dispositivos automatizados de compartimentação, conforme Art. 15 da IN 4.'}
+  ],
+  'Sprinklers — IN 15': [
+    {id:'f26',obj:'IN 15',c:'Relatório de inspeção técnica do SPK com DRT (Anexo C — IN 15)',ca:'Necessário apresentar inspeção técnica do SPK por profissional competente com DRT.'}
+  ],
+  'Instalações Elétricas — IN 19': [
+    {id:'f27',obj:'IN 19',c:'DRT de manutenção: Risco III → 10 anos; Risco IV → 5 anos; Risco V → 3 anos',ca:'Necessário apresentar DRT de manutenção/reforma das instalações elétricas, conforme Art. 19 da IN 19.'}
+  ],
+  'Brigada de Incêndio — IN 28': [
+    {id:'f28',obj:'IN 28',c:'PIBI apresentado com DRT (Anexo C — IN 28)',ca:'Necessário apresentar PIBI conforme a IN 28.'},
+    {id:'f29',obj:'IN 28',c:'Brigadistas Particulares presentes (se exigido)',ca:'Necessária a presença de Brigadistas Particulares conforme IN 28.'}
+  ],
+  'Plano de Emergência — IN 31': [
+    {id:'f30',obj:'IN 31',c:'Plano de emergência com DRT apresentado',ca:'Necessário apresentar plano de emergência conforme IN 31.'},
+    {id:'f31',obj:'IN 31',c:'Plantas de emergência instaladas nos locais corretos (Art. 19)',ca:'Necessário instalar as plantas de emergência conforme IN 31.'},
+    {id:'f32',obj:'IN 31',c:'Plantas de risco: escadas (> 750 m²) e hall dos andares de descarga',ca:'As plantas de risco devem ser instaladas conforme Art. 21 da IN 31.'}
+  ]
+};
+
+var PREV_GRUPOS = {
+  'ext': ['Extintores — IN 6'],
+  'shp': ['Sistema Hidráulico Preventivo — IN 7'],
+  'gas': ['Instalações de Gás — IN 8'],
+  'sai': ['Saídas de Emergência — IN 9'],
+  'fum': ['Controle de Fumaça — IN 10'],
+  'ilu': ['Iluminação de Emergência — IN 11'],
+  'ala': ['Detecção e Alarme — IN 12'],
+  'sal': ['Sinalização de Abandono — IN 13'],
+  'com': ['Compartimentação e TRF — IN 14','Compartimentação/TRF — IN 14'],
+  'spr': ['Sprinklers — IN 15'],
+  'cmar': ['Materiais de Acabamento — IN 18'],
+  'ele': ['Instalações Elétricas — IN 19'],
+  'bri': ['Brigada de Incêndio — IN 28'],
+  'plano': ['Plano de Emergência — IN 31'],
+  'aces': ['Acesso de Viaturas — IN 35'],
+  'hidr': [],
+  'glp': [],
+  'pis': [],
+  'liq': []
+};
+
+</script>
+
+<script>
+// ════════════════════════════════════════
+// NAVEGAÇÃO
+// ════════════════════════════════════════
+function navTo(v){
+  document.querySelectorAll('.view').forEach(function(el){el.classList.remove('on');});
+  document.getElementById('v-'+v).classList.add('on');
+  document.querySelectorAll('aside button').forEach(function(b){b.classList.toggle('on', b.dataset.v===v);});
+  if(v==='edif') renderEdificacoes();
+  if(v==='vist') renderVistorias();
+  if(v==='rotas') renderRotas();
+  if(v==='mapa'){
+    initQMapa();
+    setTimeout(function(){ if(qmap){ qmap.invalidateSize(); renderQMapaConteudo(); } }, 50);
+  }
+}
+
+// ════════════════════════════════════════
+// BASE DE DADOS COMPARTILHADA
+// Observação de teste: enquanto a Fase 11 (sincronização por arquivo .vst) não existe,
+// Campo e Quartel usando o MESMO navegador compartilham a mesma chave localStorage
+// só para facilitar o teste lado a lado. Em uso real (dois dispositivos), isso some
+// e passa a ser 100% via arquivo .vst.
+// ════════════════════════════════════════
+var DB_KEY = 'vistoria_unificado';
+function loadDB(){
+  try{ return JSON.parse(localStorage.getItem(DB_KEY)) || {edificacoes:[],vistorias:[],trajetorias:[],pontos:[],rotas:[]}; }
+  catch(e){ return {edificacoes:[],vistorias:[],trajetorias:[],pontos:[],rotas:[]}; }
+}
+function saveDB(db){ localStorage.setItem(DB_KEY, JSON.stringify(db)); }
+function novoId(prefixo){ return prefixo+'_'+Date.now()+'_'+Math.random().toString(36).slice(2,8); }
+
+// ════════════════════════════════════════
+// EDIFICAÇÕES — cadastro completo (Fase 10)
+// ════════════════════════════════════════
+var edifEmEdicaoId = null;
+var efInquilinos = [];
+var efProjetos = [];
+var efPreventivos = {};
+var efPavimentos = [];
+
+function corRisco(r){ return {1:'#34C759',2:'#A8D93A',3:'#FF9F0A',4:'#FF5E3A',5:'#C0272D'}[r] || '#8E8E93'; }
+
+function atualizarCamposHS(){
+  var situacao = document.getElementById('ef-hs-situacao').value;
+  var mostrar = situacao !== 'nao_possui';
+  document.getElementById('ef-hs-protocolo').closest('.fcol').style.display = mostrar ? 'block' : 'none';
+  document.getElementById('ef-hs-data').closest('.fcol').style.display = (situacao==='possui') ? 'block' : 'none';
+}
+
+function renderEdificacoes(){
+  var db = loadDB();
+  var busca = (document.getElementById('edifBusca').value||'').toLowerCase();
+  var lista = (db.edificacoes||[]).filter(function(e){
+    if(!busca) return true;
+    return (e.re||'').toLowerCase().indexOf(busca)>=0 ||
+           (e.nome||'').toLowerCase().indexOf(busca)>=0 ||
+           (e.municipio||'').toLowerCase().indexOf(busca)>=0;
+  }).sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||''); });
+
+  var el = document.getElementById('edifGrid');
+  if(!lista.length){
+    el.innerHTML = '<div class="empty"><div class="ico">🏢</div>Nenhuma edificação cadastrada ainda.</div>';
+    return;
+  }
+  el.innerHTML = lista.map(function(e){
+    var venc = (e.vigenciaFuncionamento && e.vigenciaFuncionamento.vencimento) || '';
+    var hsMap = {possui:['✅','Possui HS'], andamento:['⏳','HS andamento'], nao_possui:['❌','Sem HS']};
+    var hsInfo = hsMap[(e.habiteSe&&e.habiteSe.situacao)] || ['❔','HS não informado'];
+    return '<div class="elist-item" onclick="abrirFormEdif(\''+e.id+'\')">'+
+      '<div class="elist-row">'+
+        '<div class="elist-badge" style="background:'+corRisco(e.grauRisco)+'">'+(e.grauRisco||'—')+'</div>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div class="elist-t">'+(e.nome||'Sem nome')+'</div>'+
+          '<div class="elist-s">'+(e.re||'Sem RE')+(e.municipio?' · '+e.municipio:'')+(venc?' · vence '+venc:'')+' · '+hsInfo[0]+' '+hsInfo[1]+'</div>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function addInquilinoRow(item){
+  var id = 'inq_'+Math.random().toString(36).slice(2,8);
+  efInquilinos.push({id:id, nome:(item&&item.nome)||'', tel:(item&&item.tel)||''});
+  renderInquilinos();
+}
+function renderInquilinos(){
+  document.getElementById('ef-inquilinos').innerHTML = efInquilinos.map(function(i){
+    return '<div class="rowlist-item">'+
+      '<input type="text" placeholder="Nome" value="'+(i.nome||'').replace(/"/g,'&quot;')+'" onchange="atualizarInquilino(\''+i.id+'\',\'nome\',this.value)">'+
+      '<input type="text" placeholder="Telefone" value="'+(i.tel||'').replace(/"/g,'&quot;')+'" onchange="atualizarInquilino(\''+i.id+'\',\'tel\',this.value)">'+
+      '<button class="rowlist-del" onclick="removerInquilino(\''+i.id+'\')">✕</button>'+
+    '</div>';
+  }).join('') || '<div class="sub" style="margin-bottom:8px">Nenhum inquilino cadastrado.</div>';
+}
+function atualizarInquilino(id,campo,val){ var i=efInquilinos.find(function(x){return x.id===id;}); if(i) i[campo]=val; }
+function removerInquilino(id){ efInquilinos = efInquilinos.filter(function(x){return x.id!==id;}); renderInquilinos(); }
+
+function addProjetoRow(item){
+  var id = 'proj_'+Math.random().toString(36).slice(2,8);
+  efProjetos.push({id:id, tipo:(item&&item.tipo)||'habite-se', num:(item&&item.num)||'', hs:(item&&item.hs)||''});
+  renderProjetos();
+}
+function renderProjetos(){
+  document.getElementById('ef-projetos').innerHTML = efProjetos.map(function(p){
+    return '<div class="rowlist-item">'+
+      '<select onchange="atualizarProjeto(\''+p.id+'\',\'tipo\',this.value)" style="flex:0 0 140px">'+
+        '<option value="habite-se" '+(p.tipo==='habite-se'?'selected':'')+'>Habite-se</option>'+
+        '<option value="funcionamento" '+(p.tipo==='funcionamento'?'selected':'')+'>Funcionamento</option>'+
+      '</select>'+
+      '<input type="text" placeholder="Nº do projeto" value="'+(p.num||'').replace(/"/g,'&quot;')+'" onchange="atualizarProjeto(\''+p.id+'\',\'num\',this.value)">'+
+      '<input type="text" placeholder="Situação" value="'+(p.hs||'').replace(/"/g,'&quot;')+'" onchange="atualizarProjeto(\''+p.id+'\',\'hs\',this.value)">'+
+      '<button class="rowlist-del" onclick="removerProjeto(\''+p.id+'\')">✕</button>'+
+    '</div>';
+  }).join('') || '<div class="sub" style="margin-bottom:8px">Nenhum projeto cadastrado.</div>';
+}
+function atualizarProjeto(id,campo,val){ var p=efProjetos.find(function(x){return x.id===id;}); if(p) p[campo]=val; }
+function removerProjeto(id){ efProjetos = efProjetos.filter(function(x){return x.id!==id;}); renderProjetos(); }
+
+function renderPreventivosForm(){
+  document.getElementById('ef-preventivos').innerHTML = SIST.map(function(s){
+    var p = efPreventivos[s.id] || {ativo:false, qty:1};
+    return '<div class="prev-item '+(p.ativo?'on':'')+'">'+
+      '<span class="name" style="cursor:pointer" onclick="togglePrevForm(\''+s.id+'\')">'+s.l+' <span class="sub">('+s.n+')</span></span>'+
+      (p.ativo ? '<input type="text" class="prev-qty" value="'+(p.qty||1)+'" onchange="setPrevQty(\''+s.id+'\',this.value)">' : '')+
+    '</div>';
+  }).join('');
+}
+function togglePrevForm(sid){
+  if(!efPreventivos[sid]) efPreventivos[sid]={ativo:false,qty:1};
+  efPreventivos[sid].ativo = !efPreventivos[sid].ativo;
+  renderPreventivosForm();
+}
+function setPrevQty(sid,val){ if(efPreventivos[sid]) efPreventivos[sid].qty = parseInt(val)||1; }
+
+function gerarPavimentos(){
+  var n = parseInt(document.getElementById('ef-npav').value,10) || 0;
+  var terreo = document.getElementById('ef-terreo').value;
+  var labels = [];
+  if(terreo==='sim') labels.push('Térreo');
+  for(var i=1;i<=n;i++) labels.push(i+'º pavimento');
+
+  var novos = labels.map(function(lbl, idx){
+    var existente = efPavimentos[idx];
+    return {label: lbl, sist: (existente && existente.sist) || {}};
+  });
+  efPavimentos = novos;
+  renderPavimentosForm();
+}
+function renderPavimentosForm(){
+  var ativos = Object.keys(efPreventivos).filter(function(sid){return efPreventivos[sid].ativo;});
+  var box = document.getElementById('ef-pavimentos');
+  if(!efPavimentos.length){ box.innerHTML = '<div class="sub">Nenhum pavimento gerado ainda.</div>'; return; }
+  if(!ativos.length){ box.innerHTML = '<div class="sub">Ative sistemas preventivos acima pra detalhar por pavimento.</div>'; return; }
+
+  box.innerHTML = efPavimentos.map(function(pav, i){
+    var rows = ativos.map(function(sid){
+      var s = SIST.find(function(x){return x.id===sid;});
+      var pd = pav.sist[sid] || {ativo:false, qty:0};
+      return '<div class="pav-sist-row">'+
+        '<label><input type="checkbox" '+(pd.ativo?'checked':'')+' onchange="setPavSistAtivo('+i+',\''+sid+'\',this.checked)"> '+s.l+'</label>'+
+        '<input type="text" class="prev-qty" value="'+(pd.qty||0)+'" onchange="setPavSistQty('+i+',\''+sid+'\',this.value)">'+
+      '</div>';
+    }).join('');
+    return '<div class="pav-card"><div class="pav-h">'+pav.label+'</div>'+rows+'</div>';
+  }).join('');
+}
+function setPavSistAtivo(i,sid,checked){
+  if(!efPavimentos[i].sist[sid]) efPavimentos[i].sist[sid]={ativo:false,qty:0};
+  efPavimentos[i].sist[sid].ativo = checked;
+}
+function setPavSistQty(i,sid,val){
+  if(!efPavimentos[i].sist[sid]) efPavimentos[i].sist[sid]={ativo:false,qty:0};
+  efPavimentos[i].sist[sid].qty = parseInt(val)||0;
+}
+
+function abrirFormEdif(id){
+  edifEmEdicaoId = id;
+  var e = null;
+  if(id){
+    var db = loadDB();
+    e = db.edificacoes.find(function(x){return x.id===id;});
+  }
+  document.getElementById('edifFormTitulo').textContent = e ? 'Editar edificação' : 'Nova edificação';
+  document.getElementById('ef-btn-excluir').style.display = e ? 'inline-block' : 'none';
+
+  document.getElementById('ef-re').value = e ? (e.re||'') : '';
+  document.getElementById('ef-risco').value = e ? (e.grauRisco||'') : '';
+  document.getElementById('ef-nome').value = e ? (e.nome||'') : '';
+  document.getElementById('ef-endereco').value = e ? (e.endereco||'') : '';
+  document.getElementById('ef-municipio').value = e ? (e.municipio||'') : '';
+  document.getElementById('ef-area').value = e ? (e.area||'') : '';
+  document.getElementById('ef-lat').value = e ? (e.lat||'') : '';
+  document.getElementById('ef-lng').value = e ? (e.lng||'') : '';
+  document.getElementById('ef-resp-nome').value = e ? ((e.responsavel&&e.responsavel.nome)||'') : '';
+  document.getElementById('ef-resp-tel').value = e ? ((e.responsavel&&e.responsavel.tel)||'') : '';
+  document.getElementById('ef-hs-situacao').value = e && e.habiteSe ? (e.habiteSe.situacao||'possui') : 'possui';
+  document.getElementById('ef-hs-protocolo').value = e && e.habiteSe ? (e.habiteSe.protocolo||'') : '';
+  document.getElementById('ef-hs-data').value = e && e.habiteSe ? (e.habiteSe.dataEmissao||'') : '';
+  document.getElementById('ef-hs-obs').value = e && e.habiteSe ? (e.habiteSe.obs||'') : '';
+  atualizarCamposHS();
+  document.getElementById('ef-funcionamento').value = e ? ((e.vigenciaFuncionamento&&e.vigenciaFuncionamento.situacao)||'') : '';
+  document.getElementById('ef-vencimento').value = e ? ((e.vigenciaFuncionamento&&e.vigenciaFuncionamento.vencimento)||'') : '';
+  document.getElementById('ef-laudo-alarme').value = e ? (e.laudoAlarme||'') : '';
+  document.getElementById('ef-laudo-hidrante').value = e ? (e.laudoHidrante||'') : '';
+  document.getElementById('ef-npav').value = e ? (e.nPavimentos||'') : '';
+  document.getElementById('ef-terreo').value = e ? (e.terreoCfg||'sim') : 'sim';
+
+  efInquilinos = e && e.inquilinos ? JSON.parse(JSON.stringify(e.inquilinos)).map(function(i){i.id=i.id||('inq_'+Math.random().toString(36).slice(2,8));return i;}) : [];
+  efProjetos = e && e.projetos ? JSON.parse(JSON.stringify(e.projetos)).map(function(p){p.id=p.id||('proj_'+Math.random().toString(36).slice(2,8));return p;}) : [];
+  efPreventivos = e && e.preventivos ? JSON.parse(JSON.stringify(e.preventivos)) : {};
+  efPavimentos = e && e.pavimentos ? JSON.parse(JSON.stringify(e.pavimentos)) : [];
+
+  renderInquilinos(); renderProjetos(); renderPreventivosForm(); renderPavimentosForm();
+  document.getElementById('modalEdif').style.display='flex';
+}
+function fecharFormEdif(){ document.getElementById('modalEdif').style.display='none'; edifEmEdicaoId=null; }
+
+function salvarFormEdif(){
+  var nome = document.getElementById('ef-nome').value.trim();
+  if(!nome){ alert('Informe o nome da edificação.'); return; }
+
+  var db = loadDB();
+  var dados = {
+    re: document.getElementById('ef-re').value.trim(),
+    municipio: document.getElementById('ef-municipio').value.trim(),
+    nome: nome,
+    endereco: document.getElementById('ef-endereco').value.trim(),
+    area: document.getElementById('ef-area').value.trim(),
+    lat: parseFloat(document.getElementById('ef-lat').value)||null,
+    lng: parseFloat(document.getElementById('ef-lng').value)||null,
+    responsavel: {
+      nome: document.getElementById('ef-resp-nome').value.trim(),
+      tel: document.getElementById('ef-resp-tel').value.trim()
+    },
+    habiteSe: {
+      situacao: document.getElementById('ef-hs-situacao').value,
+      protocolo: document.getElementById('ef-hs-protocolo').value.trim(),
+      dataEmissao: document.getElementById('ef-hs-data').value.trim(),
+      obs: document.getElementById('ef-hs-obs').value.trim()
+    },
+    laudoAlarme: document.getElementById('ef-laudo-alarme').value.trim(),
+    laudoHidrante: document.getElementById('ef-laudo-hidrante').value.trim(),
+    inquilinos: efInquilinos,
+    projetos: efProjetos,
+    preventivos: efPreventivos,
+    nPavimentos: parseInt(document.getElementById('ef-npav').value,10)||0,
+    terreoCfg: document.getElementById('ef-terreo').value,
+    pavimentos: efPavimentos,
+    grauRisco: document.getElementById('ef-risco').value || null,
+    vigenciaFuncionamento: {
+      situacao: document.getElementById('ef-funcionamento').value || '',
+      vencimento: document.getElementById('ef-vencimento').value.trim()
+    },
+    atualizadoEm: new Date().toISOString()
+  };
+
+  if(edifEmEdicaoId){
+    var idx = db.edificacoes.findIndex(function(x){return x.id===edifEmEdicaoId;});
+    if(idx>=0) db.edificacoes[idx] = Object.assign({}, db.edificacoes[idx], dados);
+  } else {
+    dados.id = novoId('edif');
+    dados.origem = 'cadastro';
+    dados.criadoEm = new Date().toISOString();
+    db.edificacoes.push(dados);
+  }
+  saveDB(db);
+  fecharFormEdif();
+  renderEdificacoes();
+}
+
+function excluirEdificacao(){
+  if(!edifEmEdicaoId) return;
+  if(!confirm('Excluir esta edificação? Vistorias associadas não serão apagadas.')) return;
+  var db = loadDB();
+  db.edificacoes = db.edificacoes.filter(function(x){return x.id!==edifEmEdicaoId;});
+  saveDB(db);
+  fecharFormEdif();
+  renderEdificacoes();
+}
+
+// ════════════════════════════════════════
+// CAMPO — Edificações Encontradas (Fase 5)
+// ════════════════════════════════════════
+var pontoAtualId = null;
+
+function renderCampo(){
+  var db = loadDB();
+  var pendentes = (db.pontos||[]).filter(function(p){
+    return p.tipo==='edificacao_desconhecida' && p.status==='pendente';
+  }).sort(function(a,b){ return new Date(b.dataHora)-new Date(a.dataHora); });
+
+  var badge = document.getElementById('badgeCampo');
+  if(pendentes.length){ badge.style.display='inline-block'; badge.textContent=pendentes.length; }
+  else { badge.style.display='none'; }
+
+  var grid = document.getElementById('campoGrid');
+  if(!pendentes.length){
+    grid.innerHTML = '<div class="empty"><div class="ico">📍</div>Nenhuma edificação desconhecida pendente de cadastro.<br>'+
+      'Marque uma no Vistoria Campo (categoria "Edificação desconhecida") pra ela aparecer aqui.</div>';
+    return;
+  }
+
+  grid.innerHTML = '<div class="grid-campo">'+pendentes.map(function(p){
+    var traj = (db.trajetorias||[]).find(function(t){return t.id===p.trajetoriaId;});
+    var data = new Date(p.dataHora).toLocaleString('pt-BR');
+    return '<div class="pcard">'+
+      '<div class="tipo"><span class="ic">🏢</span>Edificação desconhecida</div>'+
+      '<div class="nome">'+(p.nome || p.numeroProvisorio || 'Sem nome provisório')+'</div>'+
+      '<div class="meta">'+
+        '📅 '+data+'<br>'+
+        '📌 '+p.lat.toFixed(6)+', '+p.lng.toFixed(6)+'<br>'+
+        (traj ? '🧭 Trajetória: '+traj.nome : '')+
+      '</div>'+
+      (p.descricao ? '<div class="obs">"'+p.descricao+'"</div>' : '')+
+      (p.foto ? '<img src="'+p.foto+'">' : '')+
+      '<div class="actions">'+
+        '<button class="btn primary" onclick="abrirModalCadastro(\''+p.id+'\')">Cadastrar como Edificação</button>'+
+      '</div>'+
+    '</div>';
+  }).join('')+'</div>';
+}
+
+function abrirModalCadastro(pontoId){
+  pontoAtualId = pontoId;
+  var db = loadDB();
+  var p = db.pontos.find(function(x){return x.id===pontoId;});
+  if(!p) return;
+
+  document.getElementById('modalCadastroSub').textContent =
+    'Aproveitando dados capturados em campo: coordenadas, data de descoberta'+(p.foto?', foto':'')+
+    (p.trajetoriaId?' e trajetória relacionada':'')+'.';
+
+  document.getElementById('f-re').value = p.numeroProvisorio || '';
+  document.getElementById('f-nome').value = p.nome || '';
+  document.getElementById('f-endereco').value = '';
+  document.getElementById('f-municipio').value = '';
+  document.getElementById('f-area').value = '';
+  document.getElementById('f-risco').value = '';
+  document.getElementById('f-resp-nome').value = '';
+  document.getElementById('f-resp-tel').value = '';
+  document.getElementById('f-funcionamento').value = '';
+  document.getElementById('f-vencimento').value = '';
+
+  document.getElementById('modalCadastro').style.display='flex';
+}
+function fecharModalCadastro(){
+  document.getElementById('modalCadastro').style.display='none';
+  pontoAtualId = null;
+}
+
+function salvarEdificacaoDoPonto(){
+  if(!pontoAtualId) return;
+  var db = loadDB();
+  var idx = db.pontos.findIndex(function(x){return x.id===pontoAtualId;});
+  if(idx<0) return;
+  var p = db.pontos[idx];
+
+  var nome = document.getElementById('f-nome').value.trim();
+  if(!nome){ alert('Informe ao menos o nome da edificação.'); return; }
+
+  var edif = {
+    id: novoId('edif'),
+    re: document.getElementById('f-re').value.trim(),
+    municipio: document.getElementById('f-municipio').value.trim(),
+    nome: nome,
+    endereco: document.getElementById('f-endereco').value.trim(),
+    lat: p.lat, lng: p.lng,
+    responsavel: {
+      nome: document.getElementById('f-resp-nome').value.trim(),
+      tel: document.getElementById('f-resp-tel').value.trim()
+    },
+    laudoAlarme:'', laudoHidrante:'',
+    inquilinos:[], projetos:[], preventivos:{},
+    nPavimentos:0, terreoCfg:'sim', pavimentos:[],
+    grauRisco: document.getElementById('f-risco').value || null,
+    vigenciaFuncionamento: {
+      situacao: document.getElementById('f-funcionamento').value || '',
+      vencimento: document.getElementById('f-vencimento').value.trim()
+    },
+    origem: 'campo',
+    pontoOrigemId: p.id,
+    dataDescoberta: p.dataHora,
+    fotoDescoberta: p.foto || null,
+    trajetoriaOrigemId: p.trajetoriaId || null,
+    criadoEm: new Date().toISOString(),
+    atualizadoEm: new Date().toISOString()
+  };
+
+  db.edificacoes.push(edif);
+  db.pontos[idx].status = 'convertido';
+  db.pontos[idx].edificacaoGeradaId = edif.id;
+  db.pontos[idx].atualizadoEm = new Date().toISOString();
+  saveDB(db);
+
+  fecharModalCadastro();
+  renderCampo();
+}
+
+// ════════════════════════════════════════
+// VISTORIAS — planejamento, histórico, relatório (Fase 10)
+// ════════════════════════════════════════
+var filtroVist = 'todas';
+function setFiltroVist(f){
+  filtroVist = f;
+  document.querySelectorAll('#vistFiltros button').forEach(function(b){b.classList.toggle('on', b.dataset.f===f);});
+  renderVistorias();
+}
+
+function renderVistorias(){
+  var db = loadDB();
+  var lista = (db.vistorias||[]).filter(function(v){
+    if(filtroVist==='pendentes') return !v.concluida;
+    if(filtroVist==='concluidas') return v.concluida;
+    return true;
+  }).sort(function(a,b){ return new Date(b.criadoEm||0)-new Date(a.criadoEm||0); });
+
+  var el = document.getElementById('vistList');
+  if(!lista.length){
+    el.innerHTML = '<div class="empty"><div class="ico">✅</div>Nenhuma vistoria aqui ainda.</div>';
+    return;
+  }
+  el.innerHTML = lista.map(function(v){
+    var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
+    var cl = getCL(v.tipo);
+    var todos = Object.values(cl).reduce(function(a,b){return a.concat(b);},[]);
+    var nc = todos.filter(function(it){return v.checklist[it.id] && v.checklist[it.id].status==='nao';}).length;
+    var qtvIndef = false, qtvInfr = false;
+    if(v.qtv){
+      var qsist = ['ext','ilu','sal'].filter(function(sid){return v.qtv[sid] && v.qtv[sid].val!=null && v.qtv[sid].val!=='';});
+      var abaixo50 = qsist.some(function(sid){
+        var esperado = (e&&e.preventivos&&e.preventivos[sid]) ? e.preventivos[sid].qty : 0;
+        return esperado>0 && parseInt(v.qtv[sid].val,10) < esperado*0.5;
+      });
+      if(abaixo50 || (qsist.length && v.qtv.ano==='depois2013')) qtvIndef = true;
+      else if(qsist.length && v.qtv.ano==='antes2013') qtvInfr = true;
+    }
+    var statusTxt = v.concluida
+      ? (qtvIndef || nc>0 ? '<span style="color:var(--red2);font-weight:700">⚠️ '+(qtvIndef&&nc===0?'Indeferido (quantitativo)':nc+' não conf.')+'</span>'
+        : qtvInfr ? '<span style="color:var(--amar);font-weight:700">⚠️ Aprovado c/ Auto de Infração</span>'
+        : '<span style="color:var(--verde);font-weight:700">✅ Deferido</span>')
+      : '<span style="color:var(--amar);font-weight:700">⏳ Pendente</span>';
+    return '<div class="vist-item">'+
+      '<div class="elist-row">'+
+        '<div style="flex:1;min-width:0">'+
+          '<div class="elist-t">'+(e?e.nome:'Edificação removida')+'</div>'+
+          '<div class="elist-s">'+(e?e.re:'')+' · '+(v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+(v.motivo?' · '+v.motivo:'')+'</div>'+
+        '</div>'+
+        '<div style="text-align:right">'+statusTxt+'</div>'+
+      '</div>'+
+      (v.concluida ? '<div style="margin-top:10px"><button class="btn" onclick="abrirRelatorio(\''+v.id+'\')">Ver relatório</button></div>' : '')+
+    '</div>';
+  }).join('');
+}
+
+function abrirPlanejarVist(){
+  var db = loadDB();
+  var sel = document.getElementById('pv-edif');
+  sel.innerHTML = db.edificacoes.map(function(e){
+    return '<option value="'+e.id+'">'+(e.nome||'Sem nome')+' — '+(e.re||'sem RE')+'</option>';
+  }).join('') || '<option value="">Nenhuma edificação cadastrada</option>';
+  document.getElementById('pv-motivo').value='';
+  document.getElementById('modalPlanVist').style.display='flex';
+}
+function salvarPlanejamentoVist(){
+  var edifId = document.getElementById('pv-edif').value;
+  if(!edifId){ alert('Cadastre uma edificação primeiro.'); return; }
+  var db = loadDB();
+  var v = {
+    id: novoId('vis'), edificacaoId: edifId,
+    tipo: document.getElementById('pv-tipo').value,
+    motivo: document.getElementById('pv-motivo').value.trim(),
+    checklist:{}, situacaoHS:'', obs:'', concluida:false, concluidaEm:null,
+    trajetoriaId:null, rotaId:null, criadoEm:new Date().toISOString(), atualizadoEm:new Date().toISOString()
+  };
+  db.vistorias.push(v);
+  saveDB(db);
+  document.getElementById('modalPlanVist').style.display='none';
+  renderVistorias();
+}
+
+function abrirRelatorio(vistId){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===vistId;});
+  if(!v) return;
+  var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
+  var cl = getCL(v.tipo);
+  var gruposAtivos = GRUPOS_FIXOS.slice();
+  var prev = (e&&e.preventivos)||{};
+  Object.keys(prev).forEach(function(id){ if(prev[id]&&prev[id].ativo){ (PREV_GRUPOS[id]||[]).forEach(function(g){if(gruposAtivos.indexOf(g)<0)gruposAtivos.push(g);}); } });
+  var grupos = Object.keys(cl).filter(function(g){return gruposAtivos.indexOf(g)>=0;});
+
+  var html = '<h3>'+(e?e.nome:'—')+'</h3>'+
+    '<div class="sub">'+(e?e.re:'')+' · '+(v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+' · concluída em '+
+    (v.concluidaEm?new Date(v.concluidaEm).toLocaleString('pt-BR'):'—')+'</div>';
+
+  if(v.qtv){
+    var QTV_SIST = ['ext','ilu','sal'];
+    var linhas = QTV_SIST.filter(function(sid){return v.qtv[sid] && v.qtv[sid].val!=null && v.qtv[sid].val!=='';})
+      .map(function(sid){
+        var s = SIST.find(function(x){return x.id===sid;});
+        var esperado = (e&&e.preventivos&&e.preventivos[sid]) ? e.preventivos[sid].qty : '?';
+        return (s?s.l:sid)+': '+v.qtv[sid].val+' encontrado(s) / '+esperado+' esperado(s) no PPCI';
+      });
+    if(linhas.length){
+      html += '<div class="rep-grp">Verificação quantitativa (amostragem)</div>';
+      linhas.forEach(function(l){ html += '<div class="rep-item">'+l+'</div>'; });
+      if(v.qtv.ano){
+        html += '<div class="rep-item">Construção '+(v.qtv.ano==='antes2013'?'anterior a 2013 — aprovado com Auto de Infração (F)':'a partir de 2013 — exige atendimento pleno')+'</div>';
+      }
+    }
+  }
+
+  grupos.forEach(function(g){
+    var itens = cl[g];
+    html += '<div class="rep-grp">'+g+'</div>';
+    itens.forEach(function(it){
+      var st = (v.checklist[it.id]&&v.checklist[it.id].status) || 'naoAv';
+      var map = {ok:['✅','Conforme'], nao:['❌','Não conforme'], na:['➖','Não aplicável'], naoAv:['❔','Não avaliado']};
+      var extra = '';
+      if(st==='nao'){
+        var d = v.checklist[it.id];
+        extra = '<div class="sub" style="margin-left:20px">'+
+          (d.causa?'Causa: '+d.causa+'<br>':'')+
+          (d.local?'Local: '+d.local+'<br>':'')+
+          (d.obs?'Obs: '+d.obs:'')+
+        '</div>';
+      }
+      html += '<div class="rep-item '+(st==='nao'?'nc':'')+'"><span class="st">'+map[st][0]+'</span>'+it.c+extra+'</div>';
+    });
+  });
+
+  html += '<div class="modal-actions"><button class="btn primary" onclick="document.getElementById(\'modalRelatorio\').style.display=\'none\'">Fechar</button></div>';
+  document.getElementById('relatorioBody').innerHTML = html;
+  document.getElementById('modalRelatorio').style.display='flex';
+}
+
+// ════════════════════════════════════════
+// ROTAS — planejamento e otimização (Fase 10)
+// ════════════════════════════════════════
+function haversineKm(lat1,lng1,lat2,lng2){
+  var R=6371;
+  var dLat=(lat2-lat1)*Math.PI/180, dLng=(lng2-lng1)*Math.PI/180;
+  var a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function renderRotas(){
+  var db = loadDB();
+  var lista = (db.rotas||[]).sort(function(a,b){ return new Date(b.data||0)-new Date(a.data||0); });
+  var el = document.getElementById('rotasList');
+  if(!lista.length){
+    el.innerHTML = '<div class="empty"><div class="ico">🧭</div>Nenhuma rota criada ainda.</div>';
+    return;
+  }
+  el.innerHTML = lista.map(function(r){
+    return '<div class="vist-item"><div class="elist-row">'+
+      '<div><div class="elist-t">'+r.nome+'</div>'+
+      '<div class="elist-s">'+(r.data||'')+' · '+r.vistorias.length+' vistorias · ~'+(r.distanciaEstimadaKm||0).toFixed(1)+' km</div></div>'+
+      '<button class="btn" style="background:var(--red2)" onclick="excluirRota(\''+r.id+'\')">Excluir</button>'+
+    '</div></div>';
+  }).join('');
+}
+
+function abrirFormRota(){
+  var db = loadDB();
+  var pendentes = (db.vistorias||[]).filter(function(v){ return !v.concluida && !v.rotaId; });
+  var el = document.getElementById('rt-vist-list');
+  if(!pendentes.length){
+    el.innerHTML = '<div class="sub">Nenhuma vistoria pendente sem rota. Planeje vistorias primeiro.</div>';
+  } else {
+    el.innerHTML = pendentes.map(function(v){
+      var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
+      return '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px">'+
+        '<input type="checkbox" class="rt-check" value="'+v.id+'"> '+(e?e.nome:'—')+' ('+(e?e.re:'')+')'+
+      '</label>';
+    }).join('');
+  }
+  document.getElementById('rt-nome').value='';
+  document.getElementById('rt-data').value='';
+  document.getElementById('modalRota').style.display='flex';
+}
+
+function salvarRota(){
+  var nome = document.getElementById('rt-nome').value.trim();
+  if(!nome){ alert('Dê um nome à rota.'); return; }
+  var ids = Array.from(document.querySelectorAll('.rt-check:checked')).map(function(c){return c.value;});
+  if(!ids.length){ alert('Selecione ao menos uma vistoria.'); return; }
+
+  var db = loadDB();
+  var vists = ids.map(function(id){ return db.vistorias.find(function(x){return x.id===id;}); }).filter(Boolean);
+  var comCoord = vists.map(function(v){
+    var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
+    return {v:v, e:e};
+  }).filter(function(x){ return x.e && x.e.lat && x.e.lng; });
+  var semCoord = vists.filter(function(v){
+    var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
+    return !(e && e.lat && e.lng);
+  });
+
+  // otimização simples: vizinho mais próximo, com haversine real (corrige o bug do app atual)
+  var ordenados = [];
+  var restantes = comCoord.slice();
+  if(restantes.length){
+    var atual = restantes.shift();
+    ordenados.push(atual);
+    while(restantes.length){
+      restantes.sort(function(a,b){
+        return haversineKm(atual.e.lat,atual.e.lng,a.e.lat,a.e.lng) - haversineKm(atual.e.lat,atual.e.lng,b.e.lat,b.e.lng);
+      });
+      atual = restantes.shift();
+      ordenados.push(atual);
+    }
+  }
+  var dist = 0;
+  for(var i=0;i<ordenados.length-1;i++){
+    dist += haversineKm(ordenados[i].e.lat,ordenados[i].e.lng,ordenados[i+1].e.lat,ordenados[i+1].e.lng);
+  }
+
+  var rota = {
+    id: novoId('rot'), nome:nome, data: document.getElementById('rt-data').value.trim(),
+    vistorias: ordenados.map(function(x){return x.v.id;}).concat(semCoord.map(function(v){return v.id;})),
+    distanciaEstimadaKm: dist, ordemOtimizada: true, atualizadoEm: new Date().toISOString()
+  };
+  if(!db.rotas) db.rotas=[];
+  db.rotas.push(rota);
+  rota.vistorias.forEach(function(vid){
+    var idx = db.vistorias.findIndex(function(x){return x.id===vid;});
+    if(idx>=0) db.vistorias[idx].rotaId = rota.id;
+  });
+  saveDB(db);
+  document.getElementById('modalRota').style.display='none';
+  renderRotas();
+}
+function excluirRota(id){
+  if(!confirm('Excluir esta rota? As vistorias voltam a ficar sem rota.')) return;
+  var db = loadDB();
+  db.rotas = (db.rotas||[]).filter(function(r){return r.id!==id;});
+  db.vistorias.forEach(function(v){ if(v.rotaId===id) v.rotaId=null; });
+  saveDB(db);
+  renderRotas();
+}
+
+// ════════════════════════════════════════
+// MAPA (implementado agora, junto com as pendências)
+// ════════════════════════════════════════
+var qmap = null, qmapInited = false;
+var qlyEdif=null, qlyRotas=null, qlyPontos=null;
+
+function initQMapa(){
+  if(qmapInited) return;
+  qmapInited = true;
+  qmap = L.map('qmap', {zoomControl:true}).setView([-27.5,-49.0], 11);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
+    maxZoom:19, subdomains:'abcd', attribution:'© OpenStreetMap contributors © CARTO'
+  }).addTo(qmap);
+  qlyEdif = L.layerGroup().addTo(qmap);
+  qlyRotas = L.layerGroup().addTo(qmap);
+  qlyPontos = L.layerGroup();
+  renderQMapaConteudo();
+}
+
+function atualizarCamadasQMapa(){
+  if(!qmap) return;
+  document.getElementById('qmLyEdif').checked ? qmap.addLayer(qlyEdif) : qmap.removeLayer(qlyEdif);
+  document.getElementById('qmLyRotas').checked ? qmap.addLayer(qlyRotas) : qmap.removeLayer(qlyRotas);
+  document.getElementById('qmLyPontos').checked ? qmap.addLayer(qlyPontos) : qmap.removeLayer(qlyPontos);
+}
+
+function renderQMapaConteudo(){
+  if(!qmap) return;
+  var db = loadDB();
+  qlyEdif.clearLayers(); qlyRotas.clearLayers(); qlyPontos.clearLayers();
+
+  (db.edificacoes||[]).forEach(function(e){
+    if(!e.lat || !e.lng) return;
+    var cor = corRisco(e.grauRisco);
+    var mk = L.circleMarker([e.lat,e.lng], {radius:9, fillColor:cor, color:'#fff', weight:2, fillOpacity:.95}).addTo(qlyEdif);
+    mk.bindTooltip((e.re||'Sem RE')+' — '+e.nome, {direction:'top'});
+    mk.on('click', function(){ abrirFormEdif(e.id); });
+  });
+
+  (db.rotas||[]).forEach(function(r){
+    var pontos = r.vistorias.map(function(vid){
+      var v = db.vistorias.find(function(x){return x.id===vid;});
+      var e = v ? db.edificacoes.find(function(x){return x.id===v.edificacaoId;}) : null;
+      return (e && e.lat && e.lng) ? [e.lat,e.lng] : null;
+    }).filter(Boolean);
+    if(pontos.length>1){
+      L.polyline(pontos, {color:'#E0393F', weight:3, opacity:.8, dashArray:'6,6'}).addTo(qlyRotas)
+        .bindTooltip(r.nome, {sticky:true});
+    }
+  });
+
+  (db.pontos||[]).forEach(function(p){
+    if(p.tipo==='edificacao_desconhecida' && p.status==='convertido') return;
+    var icon = L.divIcon({html:'<div style="font-size:18px">📍</div>', className:'', iconSize:[20,20]});
+    L.marker([p.lat,p.lng], {icon:icon}).addTo(qlyPontos).bindTooltip(p.nome||p.tipo, {direction:'top'});
+  });
+}
+
+// ════════════════════════════════════════
+// SINCRONIZAÇÃO (.vst) — Fase 11
+// ════════════════════════════════════════
+function nomeArquivoVst(){
+  var d = new Date();
+  function p(n){return (n<10?'0':'')+n;}
+  return 'VISTORIA_'+d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'_'+p(d.getHours())+p(d.getMinutes())+'.vst';
+}
+function baixarPacote(pacote){
+  var blob = new Blob([JSON.stringify(pacote)], {type:'application/json'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = nomeArquivoVst();
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+function exportarParaCampo(){
+  var db = loadDB();
+  var pacote = {
+    versao: 1, geradoEm: new Date().toISOString(), direcao: 'quartel→campo',
+    edificacoes: db.edificacoes||[],
+    vistorias: (db.vistorias||[]).filter(function(v){return !v.concluida;}), // só as pendentes, pro campo executar
+    rotas: db.rotas||[],
+    pontos: [], trajetorias: []
+  };
+  baixarPacote(pacote);
+}
+
+function mergeArray(local, importados, contador){
+  local = local||[];
+  importados.forEach(function(item){
+    var idx = local.findIndex(function(x){return x.id===item.id;});
+    if(idx>=0){
+      var loc = local[idx];
+      if(loc.atualizadoEm && item.atualizadoEm && loc.atualizadoEm > item.atualizadoEm){
+        // versão local é mais recente que a do arquivo — não sobrescreve, sinaliza conflito
+        contador.conflitos++;
+      } else {
+        local[idx]=item; contador.atualizados++;
+      }
+    }
+    else { local.push(item); contador.novos++; }
+  });
+  return local;
+}
+
+function importarArquivo(input){
+  var file = input.files && input.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var pacote;
+    try{ pacote = JSON.parse(e.target.result); }
+    catch(err){ alert('Arquivo inválido ou corrompido.'); return; }
+
+    var db = loadDB();
+    var resumo = {};
+    ['edificacoes','vistorias','trajetorias','pontos','rotas'].forEach(function(tipo){
+      if(!pacote[tipo] || !pacote[tipo].length) return;
+      var c = {novos:0, atualizados:0, conflitos:0};
+      db[tipo] = mergeArray(db[tipo], pacote[tipo], c);
+      resumo[tipo]=c;
+    });
+    saveDB(db);
+
+    var labels = {edificacoes:'edificações', vistorias:'vistorias', trajetorias:'trajetórias', pontos:'pontos', rotas:'rotas'};
+    var html = '<div class="card2-box"><div class="sec-title" style="margin-top:0">Importação concluída</div>';
+    Object.keys(resumo).forEach(function(tipo){
+      var c = resumo[tipo];
+      html += '<div class="resumo-item">+ '+c.novos+' '+labels[tipo]+' novas · ↻ '+c.atualizados+' atualizadas'+(c.conflitos?' · ⚠ '+c.conflitos+' conflito(s) (versão local mais recente, mantida)':'')+'</div>';
+    });
+    if(!Object.keys(resumo).length) html += '<div class="resumo-item sub">Arquivo não continha dados reconhecidos.</div>';
+    html += '</div>';
+    document.getElementById('importResumo').innerHTML = html;
+
+    renderEdificacoes(); renderVistorias(); renderRotas(); renderCampo();
+    input.value = '';
+  };
+  reader.readAsText(file);
+}
+
+// ════════════════════════════════════════
+// PWA — service worker mínimo, escopo restrito
+// ════════════════════════════════════════
+if('serviceWorker' in navigator){
+  try{
+    var swCode = "self.addEventListener('fetch',function(e){e.respondWith(fetch(e.request).catch(function(){return caches.match(e.request);}));});";
+    var swBlob = new Blob([swCode], {type:'application/javascript'});
+    navigator.serviceWorker.register(URL.createObjectURL(swBlob), {scope: location.pathname}).catch(function(){});
+  }catch(e){}
+}
+
+// ════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════
+renderCampo();
+</script>
+</body>
+</html>
