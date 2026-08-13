@@ -341,13 +341,13 @@
       <div class="fcol"><label class="lbl">Laudo do Hidrante</label><input type="text" id="ef-laudo-hidrante" placeholder="Validade / observação"></div>
     </div>
 
+    <div class="sec-title">Projetos</div>
+    <div id="ef-projetos"></div>
+    <button class="btn" style="margin-bottom:10px" onclick="addProjetoRow()">+ Adicionar projeto</button>
+
     <div class="sec-title">Inquilinos</div>
     <div id="ef-inquilinos"></div>
     <button class="btn" style="margin-bottom:10px" onclick="addInquilinoRow()">+ Adicionar inquilino</button>
-
-    <div class="sec-title">Projetos / Habite-se</div>
-    <div id="ef-projetos"></div>
-    <button class="btn" style="margin-bottom:10px" onclick="addProjetoRow()">+ Adicionar projeto</button>
 
     <div class="sec-title">Sistemas preventivos ativos</div>
     <div class="prev-grid" id="ef-preventivos"></div>
@@ -734,13 +734,14 @@ function removerInquilino(id){ efInquilinos = efInquilinos.filter(function(x){re
 
 function addProjetoRow(item){
   var id = 'proj_'+Math.random().toString(36).slice(2,8);
-  efProjetos.push({id:id, tipo:(item&&item.tipo)||'habite-se', num:(item&&item.num)||'', hs:(item&&item.hs)||''});
+  efProjetos.push({id:id, tipo:(item&&item.tipo)||'projeto', num:(item&&item.num)||'', hs:(item&&item.hs)||''});
   renderProjetos();
 }
 function renderProjetos(){
   document.getElementById('ef-projetos').innerHTML = efProjetos.map(function(p){
     return '<div class="rowlist-item">'+
       '<select onchange="atualizarProjeto(\''+p.id+'\',\'tipo\',this.value)" style="flex:0 0 140px">'+
+        '<option value="projeto" '+(p.tipo==='projeto'?'selected':'')+'>Projeto</option>'+
         '<option value="habite-se" '+(p.tipo==='habite-se'?'selected':'')+'>Habite-se</option>'+
         '<option value="funcionamento" '+(p.tipo==='funcionamento'?'selected':'')+'>Funcionamento</option>'+
       '</select>'+
@@ -1311,7 +1312,12 @@ function renderQMapaConteudo(){
   (db.edificacoes||[]).forEach(function(e){
     if(!e.lat || !e.lng) return;
     var cor = corRisco(e.grauRisco);
-    var mk = L.circleMarker([e.lat,e.lng], {radius:9, fillColor:cor, color:'#fff', weight:2, fillOpacity:.95}).addTo(qlyEdif);
+    var num = e.grauRisco || '?';
+    var icon = L.divIcon({
+      html:'<div style="width:24px;height:24px;border-radius:50%;background:'+cor+';border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">'+num+'</div>',
+      className:'', iconSize:[24,24], iconAnchor:[12,12]
+    });
+    var mk = L.marker([e.lat,e.lng], {icon:icon}).addTo(qlyEdif);
     mk.bindTooltip((e.re||'Sem RE')+' — '+e.nome, {direction:'top'});
     mk.on('click', function(){ abrirFormEdif(e.id); });
   });

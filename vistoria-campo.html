@@ -1590,7 +1590,12 @@ function renderMapEdificacoes(){
   (db.edificacoes||[]).forEach(function(e){
     if(!e.lat || !e.lng) return;
     var cor = {1:'#34C759',2:'#A8D93A',3:'#FF9F0A',4:'#FF5E3A',5:'#C0272D'}[e.grauRisco] || '#8E8E93';
-    var mk = L.circleMarker([e.lat, e.lng], {radius:9, fillColor:cor, color:'#fff', weight:2, fillOpacity:.95}).addTo(lyrEdif);
+    var num = e.grauRisco || '?';
+    var icon = L.divIcon({
+      html:'<div style="width:24px;height:24px;border-radius:50%;background:'+cor+';border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">'+num+'</div>',
+      className:'', iconSize:[24,24], iconAnchor:[12,12]
+    });
+    var mk = L.marker([e.lat, e.lng], {icon:icon}).addTo(lyrEdif);
     mk.on('click', function(){ abrirCartaoEdificacao(e); });
   });
 }
