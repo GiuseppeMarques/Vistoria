@@ -35,6 +35,8 @@
     border-radius:10px;padding:1px 7px;}
 
   main{flex:1 1 auto;overflow-y:auto;padding:28px 34px;}
+  .view{display:none;}
+  .view.on{display:block;}
   main h2{margin:0 0 4px;font-size:22px;font-weight:800;}
   main .lead{color:var(--sub);font-size:13px;margin-bottom:22px;}
 
@@ -135,9 +137,19 @@
     <div class="view" id="v-edif">
       <h2>Edificações</h2><div class="lead">Cadastro completo e manutenção.</div>
       <div class="toolbar">
-        <input type="text" id="edifBusca" placeholder="Buscar por RE, nome ou município..." oninput="renderEdificacoes()">
+        <input type="text" id="edifBusca" placeholder="Buscar por RE, nome, endereço ou bairro..." oninput="renderEdificacoes()">
         <button class="btn primary" onclick="abrirFormEdif(null)">+ Nova edificação</button>
       </div>
+      <div class="toolbar" style="margin-top:-6px">
+        <select id="edifFiltroRisco" onchange="renderEdificacoes()" style="width:auto">
+          <option value="">Risco: todos</option>
+          <option value="1">Risco 1</option><option value="2">Risco 2</option><option value="3">Risco 3</option>
+          <option value="4">Risco 4</option><option value="5">Risco 5</option>
+        </select>
+        <select id="edifFiltroMunicipio" onchange="renderEdificacoes()" style="width:auto"><option value="">Município: todos</option></select>
+        <select id="edifFiltroBairro" onchange="renderEdificacoes()" style="width:auto"><option value="">Bairro: todos</option></select>
+      </div>
+      <div id="edifPendentesCampo"></div>
       <div id="edifGrid"></div>
     </div>
 
@@ -234,13 +246,20 @@
     <input type="text" id="f-nome" style="margin-bottom:12px" placeholder="Ex: Mercado Central">
 
     <label class="lbl">Endereço</label>
-    <input type="text" id="f-endereco" style="margin-bottom:12px" placeholder="Rua, número, bairro">
+    <input type="text" id="f-endereco" style="margin-bottom:12px" placeholder="Rua, número">
 
     <div class="frow">
+      <div class="fcol">
+        <label class="lbl">Bairro</label>
+        <input type="text" id="f-bairro">
+      </div>
       <div class="fcol">
         <label class="lbl">Município</label>
         <input type="text" id="f-municipio">
       </div>
+    </div>
+
+    <div class="frow">
       <div class="fcol">
         <label class="lbl">Área (m²)</label>
         <input type="text" id="f-area">
@@ -297,9 +316,12 @@
     <label class="lbl">Nome da edificação</label>
     <input type="text" id="ef-nome" style="margin-bottom:12px">
     <label class="lbl">Endereço</label>
-    <input type="text" id="ef-endereco" style="margin-bottom:12px">
+    <input type="text" id="ef-endereco" style="margin-bottom:12px" placeholder="Rua, número">
     <div class="frow">
+      <div class="fcol"><label class="lbl">Bairro</label><input type="text" id="ef-bairro"></div>
       <div class="fcol"><label class="lbl">Município</label><input type="text" id="ef-municipio"></div>
+    </div>
+    <div class="frow">
       <div class="fcol"><label class="lbl">Área (m²)</label><input type="text" id="ef-area"></div>
     </div>
     <div class="frow">
@@ -610,6 +632,8 @@ var CL_FN = {
   ]
 };
 
+function getCL(tipo){ return tipo==='funcionamento' ? CL_FN : CL_HS; }
+
 var PREV_GRUPOS = {
   'ext': ['Extintores — IN 6'],
   'shp': ['Sistema Hidráulico Preventivo — IN 7'],
@@ -684,19 +708,75 @@ function atualizarCamposHS(){
   document.getElementById('ef-hs-data').closest('.fcol').style.display = (situacao==='possui') ? 'block' : 'none';
 }
 
+function renderPendentesCampoNaEdif(db){
+  var pendentes = (db.pontos||[]).filter(function(p){
+    return p.tipo==='edificacao_desconhecida' && p.status==='pendente';
+  }).sort(function(a,b){ return new Date(b.dataHora)-new Date(a.dataHora); });
+
+  var el = document.getElementById('edifPendentesCampo');
+  if(!pendentes.length){ el.innerHTML=''; return; }
+
+  el.innerHTML = '<div class="card2-box" style="margin-bottom:16px;border-color:var(--amar)">'+
+    '<div class="sec-title" style="margin-top:0">📍 Levantadas em campo, aguardando cadastro ('+pendentes.length+')</div>'+
+    pendentes.map(function(p){
+      return '<div class="elist-item" style="cursor:pointer" onclick="navTo(\'campo\');abrirModalCadastro(\''+p.id+'\')">'+
+        '<div class="elist-row">'+
+          '<div style="flex:1;min-width:0">'+
+            '<div class="elist-t">'+(p.nome || p.numeroProvisorio || 'Sem nome provisório')+'</div>'+
+            '<div class="elist-s">📌 '+p.lat.toFixed(5)+', '+p.lng.toFixed(5)+' · '+new Date(p.dataHora).toLocaleDateString('pt-BR')+'</div>'+
+          '</div>'+
+          '<button class="btn primary" onclick="event.stopPropagation();navTo(\'campo\');abrirModalCadastro(\''+p.id+'\')">Cadastrar</button>'+
+        '</div>'+
+      '</div>';
+    }).join('')+
+  '</div>';
+}
+
+function popularFiltrosEdif(edificacoes){
+  var selMun = document.getElementById('edifFiltroMunicipio');
+  var selBai = document.getElementById('edifFiltroBairro');
+  var valMun = selMun.value, valBai = selBai.value;
+
+  var municipios = Array.from(new Set(edificacoes.map(function(e){return (e.municipio||'').trim();}).filter(Boolean))).sort();
+  var bairros = Array.from(new Set(edificacoes.map(function(e){return (e.bairro||'').trim();}).filter(Boolean))).sort();
+
+  selMun.innerHTML = '<option value="">Município: todos</option>' + municipios.map(function(m){
+    return '<option value="'+m.replace(/"/g,'&quot;')+'">'+m+'</option>';
+  }).join('');
+  selBai.innerHTML = '<option value="">Bairro: todos</option>' + bairros.map(function(b){
+    return '<option value="'+b.replace(/"/g,'&quot;')+'">'+b+'</option>';
+  }).join('');
+
+  if(municipios.indexOf(valMun)>=0) selMun.value = valMun;
+  if(bairros.indexOf(valBai)>=0) selBai.value = valBai;
+}
+
 function renderEdificacoes(){
   var db = loadDB();
+  var todas = db.edificacoes||[];
+  popularFiltrosEdif(todas);
+  renderPendentesCampoNaEdif(db);
+
   var busca = (document.getElementById('edifBusca').value||'').toLowerCase();
-  var lista = (db.edificacoes||[]).filter(function(e){
+  var fRisco = document.getElementById('edifFiltroRisco').value;
+  var fMunicipio = document.getElementById('edifFiltroMunicipio').value;
+  var fBairro = document.getElementById('edifFiltroBairro').value;
+
+  var lista = todas.filter(function(e){
+    if(fRisco && String(e.grauRisco||'')!==fRisco) return false;
+    if(fMunicipio && (e.municipio||'')!==fMunicipio) return false;
+    if(fBairro && (e.bairro||'')!==fBairro) return false;
     if(!busca) return true;
     return (e.re||'').toLowerCase().indexOf(busca)>=0 ||
            (e.nome||'').toLowerCase().indexOf(busca)>=0 ||
-           (e.municipio||'').toLowerCase().indexOf(busca)>=0;
+           (e.municipio||'').toLowerCase().indexOf(busca)>=0 ||
+           (e.endereco||'').toLowerCase().indexOf(busca)>=0 ||
+           (e.bairro||'').toLowerCase().indexOf(busca)>=0;
   }).sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||''); });
 
   var el = document.getElementById('edifGrid');
   if(!lista.length){
-    el.innerHTML = '<div class="empty"><div class="ico">🏢</div>Nenhuma edificação cadastrada ainda.</div>';
+    el.innerHTML = '<div class="empty"><div class="ico">🏢</div>'+(todas.length?'Nenhuma edificação encontrada com esses filtros.':'Nenhuma edificação cadastrada ainda.')+'</div>';
     return;
   }
   el.innerHTML = lista.map(function(e){
@@ -708,7 +788,7 @@ function renderEdificacoes(){
         '<div class="elist-badge" style="background:'+corRisco(e.grauRisco)+'">'+(e.grauRisco||'—')+'</div>'+
         '<div style="flex:1;min-width:0">'+
           '<div class="elist-t">'+(e.nome||'Sem nome')+'</div>'+
-          '<div class="elist-s">'+(e.re||'Sem RE')+(e.municipio?' · '+e.municipio:'')+(venc?' · vence '+venc:'')+' · '+hsInfo[0]+' '+hsInfo[1]+'</div>'+
+          '<div class="elist-s">'+(e.re||'Sem RE')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(venc?' · vence '+venc:'')+' · '+hsInfo[0]+' '+hsInfo[1]+'</div>'+
         '</div>'+
       '</div>'+
     '</div>';
@@ -825,6 +905,7 @@ function abrirFormEdif(id){
   document.getElementById('ef-risco').value = e ? (e.grauRisco||'') : '';
   document.getElementById('ef-nome').value = e ? (e.nome||'') : '';
   document.getElementById('ef-endereco').value = e ? (e.endereco||'') : '';
+  document.getElementById('ef-bairro').value = e ? (e.bairro||'') : '';
   document.getElementById('ef-municipio').value = e ? (e.municipio||'') : '';
   document.getElementById('ef-area').value = e ? (e.area||'') : '';
   document.getElementById('ef-lat').value = e ? (e.lat||'') : '';
@@ -861,6 +942,7 @@ function salvarFormEdif(){
   var dados = {
     re: document.getElementById('ef-re').value.trim(),
     municipio: document.getElementById('ef-municipio').value.trim(),
+    bairro: document.getElementById('ef-bairro').value.trim(),
     nome: nome,
     endereco: document.getElementById('ef-endereco').value.trim(),
     area: document.getElementById('ef-area').value.trim(),
@@ -971,6 +1053,7 @@ function abrirModalCadastro(pontoId){
   document.getElementById('f-re').value = p.numeroProvisorio || '';
   document.getElementById('f-nome').value = p.nome || '';
   document.getElementById('f-endereco').value = '';
+  document.getElementById('f-bairro').value = '';
   document.getElementById('f-municipio').value = '';
   document.getElementById('f-area').value = '';
   document.getElementById('f-risco').value = '';
@@ -1000,6 +1083,7 @@ function salvarEdificacaoDoPonto(){
     id: novoId('edif'),
     re: document.getElementById('f-re').value.trim(),
     municipio: document.getElementById('f-municipio').value.trim(),
+    bairro: document.getElementById('f-bairro').value.trim(),
     nome: nome,
     endereco: document.getElementById('f-endereco').value.trim(),
     lat: p.lat, lng: p.lng,
