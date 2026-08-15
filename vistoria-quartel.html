@@ -783,11 +783,12 @@ function renderEdificacoes(){
     var venc = (e.vigenciaFuncionamento && e.vigenciaFuncionamento.vencimento) || '';
     var hsMap = {possui:['✅','Possui HS'], andamento:['⏳','HS andamento'], nao_possui:['❌','Sem HS']};
     var hsInfo = hsMap[(e.habiteSe&&e.habiteSe.situacao)] || ['❔','HS não informado'];
+    var origemTag = e.origem==='campo' ? '<span style="font-size:10px;font-weight:700;color:#5AC8FA;border:1px solid #5AC8FA;border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle">📍 CAMPO</span>' : '';
     return '<div class="elist-item" onclick="abrirFormEdif(\''+e.id+'\')">'+
       '<div class="elist-row">'+
         '<div class="elist-badge" style="background:'+corRisco(e.grauRisco)+'">'+(e.grauRisco||'—')+'</div>'+
         '<div style="flex:1;min-width:0">'+
-          '<div class="elist-t">'+(e.nome||'Sem nome')+'</div>'+
+          '<div class="elist-t">'+(e.nome||'Sem nome')+origemTag+'</div>'+
           '<div class="elist-s">'+(e.re||'Sem RE')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(venc?' · vence '+venc:'')+' · '+hsInfo[0]+' '+hsInfo[1]+'</div>'+
         '</div>'+
       '</div>'+

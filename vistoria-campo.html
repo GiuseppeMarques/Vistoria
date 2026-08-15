@@ -55,9 +55,11 @@
   .gps-warn{background:rgba(255,159,10,.12);border:1px solid rgba(255,159,10,.4);color:var(--amar);
     border-radius:12px;padding:10px 12px;font-size:12px;margin-bottom:12px;}
 
-  input[type=text]{width:100%;background:var(--card2);border:1px solid var(--border);border-radius:12px;
+  input[type=text], select{width:100%;background:var(--card2);border:1px solid var(--border);border-radius:12px;
     padding:12px;color:var(--txt);font-size:14px;margin-bottom:10px;}
   label.lbl{font-size:12px;color:var(--sub);display:block;margin-bottom:6px;}
+  .frow{display:flex;gap:12px;margin-bottom:12px;}
+  .fcol{flex:1;}
 
   .hist-item{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);}
   .hist-item:last-child{border-bottom:none;}
@@ -228,12 +230,25 @@
       <div id="radarBox" style="display:none;margin-bottom:16px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <div style="font-weight:700;font-size:13px">📡 Radar de edificações</div>
-          <div class="btnrow" style="gap:6px">
-            <button class="chip on" id="radarBtnTodas" onclick="setRadarFiltro('todas')">Todas</button>
-            <button class="chip" id="radarBtnRisco" onclick="setRadarFiltro('risco45')">Risco 4-5</button>
-          </div>
+          <select id="radarRaioSel" onchange="setRadarRaio(this.value)" style="width:auto;margin-bottom:0;padding:6px 8px;font-size:12px">
+            <option value="50">50m</option>
+            <option value="100">100m</option>
+            <option value="150" selected>150m</option>
+            <option value="250">250m</option>
+            <option value="500">500m</option>
+            <option value="1000">1km</option>
+          </select>
+        </div>
+        <div class="btnrow" style="gap:6px;margin-bottom:10px;flex-wrap:wrap">
+          <button class="chip on" data-risco="" onclick="setRadarFiltro('')">Todas</button>
+          <button class="chip" data-risco="1" onclick="setRadarFiltro('1')">Risco 1+</button>
+          <button class="chip" data-risco="2" onclick="setRadarFiltro('2')">Risco 2+</button>
+          <button class="chip" data-risco="3" onclick="setRadarFiltro('3')">Risco 3+</button>
+          <button class="chip" data-risco="4" onclick="setRadarFiltro('4')">Risco 4+</button>
+          <button class="chip" data-risco="5" onclick="setRadarFiltro('5')">Só risco 5</button>
         </div>
         <div id="radarList"></div>
+        <button class="btn" style="margin-top:10px;width:100%" onclick="baixarRadarCSV()">⬇️ Baixar edificações capturadas (.csv)</button>
       </div>
 
       <div id="tNomeBox" style="display:none">
@@ -336,7 +351,7 @@
         <div class="sub" id="npCentroTxt" style="margin-bottom:12px">Ou toque no mapa (atrás deste painel) pra escolher o centro.</div>
 
         <label class="lbl">Raio (km): <span id="npRaioVal">3</span></label>
-        <input type="range" id="npRaio" min="1" max="15" value="3" style="width:100%;margin-bottom:16px" oninput="document.getElementById('npRaioVal').textContent=this.value">
+        <input type="range" id="npRaio" min="1" max="40" value="3" style="width:100%;margin-bottom:16px" oninput="document.getElementById('npRaioVal').textContent=this.value">
 
         <div id="npEstimativa" class="gps-warn" style="background:rgba(28,28,30,.4);border-color:var(--border);color:var(--sub)"></div>
 
@@ -1032,6 +1047,7 @@ function iniciarTrajetoria(){
     mostrarAvisoGPS('❌ Este dispositivo não tem GPS disponível.');
     return;
   }
+  radarEncontradas = {};
   traj = {
     id: novoId('trj'),
     nome: '',
@@ -1089,28 +1105,61 @@ function onGPS(pos){
 // ════════════════════════════════════════
 // RADAR DE EDIFICAÇÕES PRÓXIMAS (durante a trajetória)
 // ════════════════════════════════════════
-var RADAR_RAIO_M = 150;
-var radarFiltro = 'todas'; // 'todas' | 'risco45'
+var radarFiltro = ''; // '' = todas, ou '1'..'5' = risco mínimo
+var radarRaioM = 150;
 var radarLista = [];
+var radarEncontradas = {}; // acumula tudo que o radar já viu nesta trajetória: {edifId: {e, distM (mínima registrada)}}
 
 function atualizarRadar(lat, lng){
   var db = loadDB();
   var todas = (db.edificacoes||[]).filter(function(e){ return e.lat && e.lng; }).map(function(e){
     return {e:e, distM: haversineKm(lat, lng, e.lat, e.lng)*1000};
-  }).filter(function(x){ return x.distM <= RADAR_RAIO_M; });
+  }).filter(function(x){ return x.distM <= radarRaioM; });
 
-  radarLista = (radarFiltro==='risco45'
-    ? todas.filter(function(x){ return x.e.grauRisco===4 || x.e.grauRisco===5 || x.e.grauRisco==='4' || x.e.grauRisco==='5'; })
+  todas.forEach(function(x){
+    var atual = radarEncontradas[x.e.id];
+    if(!atual || x.distM < atual.distM) radarEncontradas[x.e.id] = {e:x.e, distM:x.distM};
+  });
+
+  radarLista = (radarFiltro
+    ? todas.filter(function(x){ return Number(x.e.grauRisco) >= Number(radarFiltro); })
     : todas
   ).sort(function(a,b){ return a.distM - b.distM; });
 
   renderRadar();
 }
 
+function setRadarRaio(v){
+  radarRaioM = Number(v);
+  var ultimo = traj && traj.pontosGPS.length ? traj.pontosGPS[traj.pontosGPS.length-1] : null;
+  if(ultimo) atualizarRadar(ultimo.lat, ultimo.lng);
+}
+
+function baixarRadarCSV(){
+  var itens = Object.keys(radarEncontradas).map(function(id){ return radarEncontradas[id]; })
+    .sort(function(a,b){ return a.distM - b.distM; });
+  if(!itens.length){ alert('O radar ainda não capturou nenhuma edificação nesta trajetória.'); return; }
+
+  var linhas = ['RE;Nome;Risco;Municipio;Bairro;Endereco;Distancia_m;Latitude;Longitude'];
+  itens.forEach(function(x){
+    var e = x.e;
+    linhas.push([
+      e.re||'', e.nome||'', e.grauRisco||'', e.municipio||'', e.bairro||'', (e.endereco||'').replace(/;/g,','),
+      Math.round(x.distM), e.lat, e.lng
+    ].join(';'));
+  });
+  var blob = new Blob([linhas.join('\n')], {type:'text/csv;charset=utf-8'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'radar_'+(traj?traj.nome||traj.id:'trajetoria')+'.csv'.replace(/\s+/g,'_');
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
 function setRadarFiltro(f){
   radarFiltro = f;
-  document.getElementById('radarBtnTodas').classList.toggle('on', f==='todas');
-  document.getElementById('radarBtnRisco').classList.toggle('on', f==='risco45');
+  document.querySelectorAll('#radarBox .chip').forEach(function(btn){
+    btn.classList.toggle('on', btn.getAttribute('data-risco')===f);
+  });
   var ultimo = traj && traj.pontosGPS.length ? traj.pontosGPS[traj.pontosGPS.length-1] : null;
   if(ultimo) atualizarRadar(ultimo.lat, ultimo.lng);
 }
@@ -1124,7 +1173,7 @@ function renderRadar(){
   if(pts) pts.textContent = radarLista.length;
 
   if(!radarLista.length){
-    el.innerHTML = '<div class="sub" style="padding:6px 0">Nenhuma edificação num raio de '+RADAR_RAIO_M+'m.</div>';
+    el.innerHTML = '<div class="sub" style="padding:6px 0">Nenhuma edificação num raio de '+radarRaioM+'m.</div>';
     return;
   }
   el.innerHTML = radarLista.map(function(x){
@@ -1217,7 +1266,7 @@ function renderTrajUI(){
   var ativo = !!traj;
   document.getElementById('tDist').textContent = ativo ? traj.distanciaKm.toFixed(2) : '0,00';
   document.getElementById('tTime').textContent = ativo ? fmtTempo(duracaoAtualMs()) : '00:00:00';
-  document.getElementById('tPts').textContent = ativo ? traj.pontosGPS.length : '0';
+  if(!ativo) document.getElementById('tPts').textContent = '0';
 
   var dot = document.getElementById('tDot');
   var txt = document.getElementById('tStatusTxt');
@@ -1355,10 +1404,26 @@ function abrirModalDetalhes(ponto){
   var extra = document.getElementById('detCamposExtra');
   if(ponto.tipo==='edificacao_desconhecida'){
     extra.innerHTML =
-      '<label class="lbl">RE / Número (se souber)</label>'+
-      '<input type="text" id="detNumero" placeholder="Deixe em branco se não souber">'+
+      '<div class="frow">'+
+        '<div class="fcol"><label class="lbl">RE / Número (se souber)</label><input type="text" id="detNumero" placeholder="—"></div>'+
+        '<div class="fcol"><label class="lbl">Grau de Risco</label><select id="detRisco"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>'+
+      '</div>'+
+      '<label class="lbl">Endereço</label>'+
+      '<input type="text" id="detEndereco" placeholder="Rua, número">'+
+      '<div class="frow">'+
+        '<div class="fcol"><label class="lbl">Bairro</label><input type="text" id="detBairro"></div>'+
+        '<div class="fcol"><label class="lbl">Município</label><input type="text" id="detMunicipio"></div>'+
+      '</div>'+
+      '<div class="frow">'+
+        '<div class="fcol"><label class="lbl">Responsável</label><input type="text" id="detResponsavel"></div>'+
+        '<div class="fcol"><label class="lbl">Telefone</label><input type="text" id="detTelefone"></div>'+
+      '</div>'+
+      '<div class="frow">'+
+        '<div class="fcol"><label class="lbl">Área (m²)</label><input type="text" id="detArea"></div>'+
+        '<div class="fcol"><label class="lbl">Situação funcionamento</label><select id="detFuncSituacao"><option value="">—</option><option value="valido">Válido</option><option value="vencido">Vencido</option><option value="nao_possui">Não possui</option></select></div>'+
+      '</div>'+
       '<div class="gps-warn" style="background:rgba(28,28,30,.4);border-color:var(--border);color:var(--sub)">'+
-      'Não precisa cadastrar tudo agora — fica pendente e você completa depois no Vistoria Quartel.</div>';
+      'Preencha o que tiver à mão. O que ficar em branco dá pra completar depois, no Vistoria Quartel.</div>';
   } else {
     extra.innerHTML = '';
   }
@@ -1388,12 +1453,45 @@ function fecharModalDet(salvar){
     var db = loadDB();
     var idx = db.pontos.findIndex(function(p){return p.id===pontoEmEdicaoId;});
     if(idx>=0){
-      db.pontos[idx].nome = document.getElementById('detNome').value.trim();
-      db.pontos[idx].descricao = document.getElementById('detObs').value.trim();
-      if(fotoBase64Atual) db.pontos[idx].foto = fotoBase64Atual;
+      var ponto = db.pontos[idx];
+      ponto.nome = document.getElementById('detNome').value.trim();
+      ponto.descricao = document.getElementById('detObs').value.trim();
+      if(fotoBase64Atual) ponto.foto = fotoBase64Atual;
       var numEl = document.getElementById('detNumero');
-      if(numEl) db.pontos[idx].numeroProvisorio = numEl.value.trim();
-      db.pontos[idx].atualizadoEm = new Date().toISOString();
+      if(numEl) ponto.numeroProvisorio = numEl.value.trim();
+      ponto.atualizadoEm = new Date().toISOString();
+
+      if(ponto.tipo==='edificacao_desconhecida'){
+        var re = (document.getElementById('detNumero').value||'').trim();
+        var risco = document.getElementById('detRisco').value;
+        var endereco = document.getElementById('detEndereco').value.trim();
+        var bairro = document.getElementById('detBairro').value.trim();
+        var municipio = document.getElementById('detMunicipio').value.trim();
+        var responsavel = document.getElementById('detResponsavel').value.trim();
+        var telefone = document.getElementById('detTelefone').value.trim();
+        var area = document.getElementById('detArea').value.trim();
+        var funcSituacao = document.getElementById('detFuncSituacao').value;
+        var temInfo = re||risco||endereco||bairro||municipio||responsavel||telefone||area||funcSituacao||ponto.nome;
+
+        if(temInfo){
+          var edifId = ponto.edificacaoGeradaId;
+          var e = edifId ? db.edificacoes.find(function(x){return x.id===edifId;}) : null;
+          if(!e){
+            e = {id: novoId('edif'), origem:'campo', lat:ponto.lat, lng:ponto.lng};
+            db.edificacoes.push(e);
+            ponto.edificacaoGeradaId = e.id;
+          }
+          e.re = re; e.nome = ponto.nome || e.nome || '';
+          e.grauRisco = risco || null;
+          e.endereco = endereco; e.bairro = bairro; e.municipio = municipio;
+          e.responsavel = {nome: responsavel, tel: telefone};
+          e.area = area;
+          e.vigenciaFuncionamento = e.vigenciaFuncionamento || {};
+          e.vigenciaFuncionamento.situacao = funcSituacao || null;
+          e.atualizadoEm = new Date().toISOString();
+          ponto.status = 'convertido';
+        }
+      }
       saveDB(db);
       renderPontosSessao();
     }
@@ -1770,8 +1868,10 @@ function atualizarEstimativaPacote(){
   var raio = parseInt(document.getElementById('npRaio').value,10);
   var tiles = calcularTilesPacote(centroSelecionadoPacote, raio, 13, 17);
   var mb = (tiles.length * 18 / 1024).toFixed(1); // ~18KB médio por tile
-  document.getElementById('npEstimativa').textContent =
-    '≈ '+tiles.length+' tiles · ≈ '+mb+' MB estimados (zoom 13–17)';
+  var minEst = Math.ceil(tiles.length * 0.18 / 60); // throttle de 180ms entre tiles
+  var aviso = document.getElementById('npEstimativa');
+  aviso.textContent = '≈ '+tiles.length+' tiles · ≈ '+mb+' MB · ≈ '+minEst+' min de download (zoom 13–17)';
+  aviso.style.color = minEst>30 ? 'var(--red2)' : 'var(--sub)';
 }
 
 function iniciarDownloadPacote(){
