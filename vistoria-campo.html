@@ -312,6 +312,7 @@
         <div class="sheet-handle"></div>
         <div class="sheet-title">Camadas do mapa</div>
         <div class="layer-row"><span>🏢 Edificações</span><label class="sw"><input type="checkbox" id="lyEdif" checked onchange="atualizarCamadas()"><span class="sl"></span></label></div>
+        <div class="layer-row"><span>🚫 Fora de competência</span><label class="sw"><input type="checkbox" id="lyForaComp" checked onchange="atualizarCamadas()"><span class="sl"></span></label></div>
         <div class="layer-row"><span>📍 Pontos marcados</span><label class="sw"><input type="checkbox" id="lyPontos" checked onchange="atualizarCamadas()"><span class="sl"></span></label></div>
         <div class="layer-row"><span>🧭 Trajetória atual</span><label class="sw"><input type="checkbox" id="lyTrajAtual" checked onchange="atualizarCamadas()"><span class="sl"></span></label></div>
         <div class="layer-row"><span>〰️ Trajetórias anteriores</span><label class="sw"><input type="checkbox" id="lyTrajAnt" onchange="atualizarCamadas()"><span class="sl"></span></label></div>
@@ -397,6 +398,7 @@
           <button class="btn stop" onclick="fecharModalDet(false)">Pular</button>
           <button class="btn primary" onclick="fecharModalDet(true)">Salvar detalhes</button>
         </div>
+        <button class="btn" id="detBtnForaComp" style="display:none;width:100%;margin-top:10px" onclick="marcarPontoForaCompetencia()">🚫 Não é caso de Bombeiro</button>
       </div>
     </div>
 
@@ -1427,6 +1429,7 @@ function abrirModalDetalhes(ponto){
   } else {
     extra.innerHTML = '';
   }
+  document.getElementById('detBtnForaComp').style.display = ponto.tipo==='edificacao_desconhecida' ? 'block' : 'none';
 
   document.getElementById('modalDet').style.display='flex';
 }
@@ -1443,6 +1446,44 @@ function previewFoto(input){
     img.style.display='block';
   };
   reader.readAsDataURL(file);
+}
+
+function marcarPontoForaCompetencia(){
+  if(!pontoEmEdicaoId) return;
+  var db = loadDB();
+  var idx = db.pontos.findIndex(function(p){return p.id===pontoEmEdicaoId;});
+  if(idx<0) return;
+  var ponto = db.pontos[idx];
+
+  var motivo = prompt('Motivo (opcional) — por que não é caso do Corpo de Bombeiros:', '') || '';
+  var nomeEl = document.getElementById('detNome');
+  var numEl = document.getElementById('detNumero');
+  if(nomeEl) ponto.nome = nomeEl.value.trim();
+  if(numEl) ponto.numeroProvisorio = numEl.value.trim();
+  ponto.atualizadoEm = new Date().toISOString();
+
+  var edifId = ponto.edificacaoGeradaId;
+  var e = edifId ? db.edificacoes.find(function(x){return x.id===edifId;}) : null;
+  if(!e){
+    e = {id: novoId('edif'), origem:'campo', lat:ponto.lat, lng:ponto.lng};
+    db.edificacoes.push(e);
+    ponto.edificacaoGeradaId = e.id;
+  }
+  e.re = ponto.numeroProvisorio||e.re||'';
+  e.nome = ponto.nome || e.nome || 'Sem nome';
+  e.competencia = 'fora';
+  e.competenciaMotivo = motivo.trim();
+  e.competenciaData = new Date().toISOString();
+  e.atualizadoEm = new Date().toISOString();
+  ponto.status = 'convertido';
+
+  saveDB(db);
+  document.getElementById('modalDet').style.display='none';
+  pontoEmEdicaoId = null;
+  fotoBase64Atual = null;
+  renderPontosSessao();
+  renderMapPontos();
+  if(map) renderMapEdif();
 }
 
 function fecharModalDet(salvar){
@@ -1543,7 +1584,7 @@ function tentarRecuperarTrajAtiva(){
 // ════════════════════════════════════════
 var map = null;
 var mapInited = false;
-var lyrEdif=null, lyrPontos=null, lyrTrajAtual=null, lyrTrajAnt=null;
+var lyrEdif=null, lyrPontos=null, lyrTrajAtual=null, lyrTrajAnt=null, lyrForaComp=null;
 var meuMarcador = null;
 var centroSelecionadoPacote = null; // {lat,lng} durante fluxo de download
 var modoEscolherCentro = false;
@@ -1612,6 +1653,7 @@ function initMap(){
   }).addTo(map);
 
   lyrEdif = L.layerGroup().addTo(map);
+  lyrForaComp = L.layerGroup().addTo(map);
   lyrPontos = L.layerGroup().addTo(map);
   lyrTrajAtual = L.layerGroup().addTo(map);
   lyrTrajAnt = L.layerGroup();
@@ -1670,10 +1712,12 @@ function abrirCamadas(){ document.getElementById('modalCamadas').style.display='
 function atualizarCamadas(){
   if(!map) return;
   var edif=document.getElementById('lyEdif').checked;
+  var fora=document.getElementById('lyForaComp').checked;
   var pts=document.getElementById('lyPontos').checked;
   var ta=document.getElementById('lyTrajAtual').checked;
   var tant=document.getElementById('lyTrajAnt').checked;
   if(edif) map.addLayer(lyrEdif); else map.removeLayer(lyrEdif);
+  if(fora) map.addLayer(lyrForaComp); else map.removeLayer(lyrForaComp);
   if(pts) map.addLayer(lyrPontos); else map.removeLayer(lyrPontos);
   if(ta) map.addLayer(lyrTrajAtual); else map.removeLayer(lyrTrajAtual);
   if(tant){ map.addLayer(lyrTrajAnt); renderMapTrajAnteriores(); } else map.removeLayer(lyrTrajAnt);
@@ -1683,10 +1727,20 @@ function riskClass(r){ return r ? 'risk-'+r : 'risk-none'; }
 
 function renderMapEdificacoes(){
   if(!map) return;
-  lyrEdif.clearLayers();
+  lyrEdif.clearLayers(); lyrForaComp.clearLayers();
   var db = loadDB();
   (db.edificacoes||[]).forEach(function(e){
     if(!e.lat || !e.lng) return;
+    if(e.competencia==='fora'){
+      var iconFora = L.divIcon({
+        html:'<div style="width:24px;height:24px;border-radius:50%;background:#6b6b70;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:12px">🚫</div>',
+        className:'', iconSize:[24,24], iconAnchor:[12,12]
+      });
+      var mkFora = L.marker([e.lat, e.lng], {icon:iconFora}).addTo(lyrForaComp);
+      mkFora.bindTooltip((e.nome||'Sem nome')+' (fora de competência)', {direction:'top'});
+      mkFora.on('click', function(){ abrirCartaoEdificacao(e); });
+      return;
+    }
     var cor = {1:'#34C759',2:'#A8D93A',3:'#FF9F0A',4:'#FF5E3A',5:'#C0272D'}[e.grauRisco] || '#8E8E93';
     var num = e.grauRisco || '?';
     var icon = L.divIcon({
