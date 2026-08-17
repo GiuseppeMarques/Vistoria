@@ -84,7 +84,7 @@
     display:flex;align-items:center;justify-content:space-between;gap:8px;}
   .prev-item .name{font-size:12px;}
   .prev-item.on{border-color:var(--red);background:rgba(192,39,45,.12);}
-  .prev-qty{width:56px;background:var(--bg);border:1px solid var(--border);border-radius:6px;
+  input[type=text].prev-qty{width:56px;background:var(--bg);border:1px solid var(--border);border-radius:6px;
     padding:4px 6px;color:var(--txt);font-size:12px;text-align:center;}
 
   .pav-card{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px;}
@@ -148,6 +148,9 @@
         </select>
         <select id="edifFiltroMunicipio" onchange="renderEdificacoes()" style="width:auto"><option value="">Município: todos</option></select>
         <select id="edifFiltroBairro" onchange="renderEdificacoes()" style="width:auto"><option value="">Bairro: todos</option></select>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--sub);white-space:nowrap">
+          <input type="checkbox" id="edifFiltroForaComp" checked onchange="renderEdificacoes()"> Mostrar fora de competência
+        </label>
       </div>
       <div id="edifPendentesCampo"></div>
       <div id="edifGrid"></div>
@@ -185,6 +188,9 @@
         </label>
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--sub)">
           <input type="checkbox" id="qmLyPontos" onchange="atualizarCamadasQMapa()"> Pontos recebidos do Campo
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--sub)">
+          <input type="checkbox" id="qmLyForaComp" checked onchange="atualizarCamadasQMapa()"> Fora de competência do CBM
         </label>
       </div>
       <div id="qmapWrap"><div id="qmap"></div></div>
@@ -305,6 +311,17 @@
   <div class="modal lg">
     <h3 id="edifFormTitulo">Nova edificação</h3>
     <div class="sub">Cadastro completo, sistemas preventivos e pavimentos.</div>
+
+    <div class="card2-box" style="margin-bottom:16px;padding:12px 16px">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="ef-fora-comp" onchange="document.getElementById('ef-fora-comp-motivo-box').style.display=this.checked?'block':'none'">
+        🚫 Fora da competência do Corpo de Bombeiros (fica visível no mapa, fora da lista normal de vistoria)
+      </label>
+      <div id="ef-fora-comp-motivo-box" style="display:none;margin-top:10px">
+        <label class="lbl">Motivo</label>
+        <input type="text" id="ef-fora-comp-motivo" placeholder="Ex: imóvel residencial unifamiliar, não sujeito a PPCI">
+      </div>
+    </div>
 
     <div class="sec-title">Identificação</div>
     <div class="frow">
@@ -761,8 +778,10 @@ function renderEdificacoes(){
   var fRisco = document.getElementById('edifFiltroRisco').value;
   var fMunicipio = document.getElementById('edifFiltroMunicipio').value;
   var fBairro = document.getElementById('edifFiltroBairro').value;
+  var fMostrarForaComp = document.getElementById('edifFiltroForaComp').checked;
 
   var lista = todas.filter(function(e){
+    if(e.competencia==='fora' && !fMostrarForaComp) return false;
     if(fRisco && String(e.grauRisco||'')!==fRisco) return false;
     if(fMunicipio && (e.municipio||'')!==fMunicipio) return false;
     if(fBairro && (e.bairro||'')!==fBairro) return false;
@@ -784,12 +803,14 @@ function renderEdificacoes(){
     var hsMap = {possui:['✅','Possui HS'], andamento:['⏳','HS andamento'], nao_possui:['❌','Sem HS']};
     var hsInfo = hsMap[(e.habiteSe&&e.habiteSe.situacao)] || ['❔','HS não informado'];
     var origemTag = e.origem==='campo' ? '<span style="font-size:10px;font-weight:700;color:#5AC8FA;border:1px solid #5AC8FA;border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle">📍 CAMPO</span>' : '';
+    var foraCompTag = e.competencia==='fora' ? '<span style="font-size:10px;font-weight:700;color:#8E8E93;border:1px solid #8E8E93;border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle">🚫 FORA CBM</span>' : '';
+    var badge = e.competencia==='fora' ? '<div class="elist-badge" style="background:#6b6b70">🚫</div>' : '<div class="elist-badge" style="background:'+corRisco(e.grauRisco)+'">'+(e.grauRisco||'—')+'</div>';
     return '<div class="elist-item" onclick="abrirFormEdif(\''+e.id+'\')">'+
       '<div class="elist-row">'+
-        '<div class="elist-badge" style="background:'+corRisco(e.grauRisco)+'">'+(e.grauRisco||'—')+'</div>'+
+        badge+
         '<div style="flex:1;min-width:0">'+
-          '<div class="elist-t">'+(e.nome||'Sem nome')+origemTag+'</div>'+
-          '<div class="elist-s">'+(e.re||'Sem RE')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(venc?' · vence '+venc:'')+' · '+hsInfo[0]+' '+hsInfo[1]+'</div>'+
+          '<div class="elist-t">'+(e.nome||'Sem nome')+origemTag+foraCompTag+'</div>'+
+          '<div class="elist-s">'+(e.competencia==='fora' ? (e.competenciaMotivo||'Sem motivo informado') : (e.re||'Sem RE')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(venc?' · vence '+venc:'')+' · '+hsInfo[0]+' '+hsInfo[1])+'</div>'+
         '</div>'+
       '</div>'+
     '</div>';
@@ -903,6 +924,9 @@ function abrirFormEdif(id){
   document.getElementById('ef-btn-excluir').style.display = e ? 'inline-block' : 'none';
 
   document.getElementById('ef-re').value = e ? (e.re||'') : '';
+  document.getElementById('ef-fora-comp').checked = !!(e && e.competencia==='fora');
+  document.getElementById('ef-fora-comp-motivo').value = e ? (e.competenciaMotivo||'') : '';
+  document.getElementById('ef-fora-comp-motivo-box').style.display = (e && e.competencia==='fora') ? 'block' : 'none';
   document.getElementById('ef-risco').value = e ? (e.grauRisco||'') : '';
   document.getElementById('ef-nome').value = e ? (e.nome||'') : '';
   document.getElementById('ef-endereco').value = e ? (e.endereco||'') : '';
@@ -942,6 +966,8 @@ function salvarFormEdif(){
   var db = loadDB();
   var dados = {
     re: document.getElementById('ef-re').value.trim(),
+    competencia: document.getElementById('ef-fora-comp').checked ? 'fora' : 'bombeiro',
+    competenciaMotivo: document.getElementById('ef-fora-comp-motivo').value.trim(),
     municipio: document.getElementById('ef-municipio').value.trim(),
     bairro: document.getElementById('ef-bairro').value.trim(),
     nome: nome,
@@ -1036,9 +1062,40 @@ function renderCampo(){
       (p.foto ? '<img src="'+p.foto+'">' : '')+
       '<div class="actions">'+
         '<button class="btn primary" onclick="abrirModalCadastro(\''+p.id+'\')">Cadastrar como Edificação</button>'+
+        '<button class="btn" onclick="marcarForaCompetencia(\''+p.id+'\')" title="Fica registrada no mapa, fora da lista de pendências">🚫 Não é caso de Bombeiro</button>'+
+        '<button class="btn" style="color:var(--red2)" onclick="excluirPontoCampo(\''+p.id+'\')">🗑️ Excluir</button>'+
       '</div>'+
     '</div>';
   }).join('')+'</div>';
+}
+
+function marcarForaCompetencia(pontoId){
+  var db = loadDB();
+  var p = db.pontos.find(function(x){return x.id===pontoId;});
+  if(!p) return;
+  var motivo = prompt('Motivo (opcional) — por que não é caso do Corpo de Bombeiros:', '') || '';
+
+  var e = {
+    id: novoId('edif'), origem:'campo', lat:p.lat, lng:p.lng,
+    re: p.numeroProvisorio||'', nome: p.nome || 'Sem nome',
+    competencia: 'fora', competenciaMotivo: motivo.trim(), competenciaData: new Date().toISOString(),
+    atualizadoEm: new Date().toISOString()
+  };
+  db.edificacoes.push(e);
+  p.status = 'convertido';
+  p.edificacaoGeradaId = e.id;
+  p.atualizadoEm = new Date().toISOString();
+  saveDB(db);
+  renderCampo(); renderEdificacoes();
+  if(qmap) renderQMapaConteudo();
+}
+
+function excluirPontoCampo(pontoId){
+  if(!confirm('Excluir esse ponto de vez? Essa ação não pode ser desfeita.')) return;
+  var db = loadDB();
+  db.pontos = db.pontos.filter(function(x){return x.id!==pontoId;});
+  saveDB(db);
+  renderCampo();
 }
 
 function abrirModalCadastro(pontoId){
@@ -1367,7 +1424,7 @@ function excluirRota(id){
 // MAPA (implementado agora, junto com as pendências)
 // ════════════════════════════════════════
 var qmap = null, qmapInited = false;
-var qlyEdif=null, qlyRotas=null, qlyPontos=null;
+var qlyEdif=null, qlyRotas=null, qlyPontos=null, qlyForaComp=null;
 
 function initQMapa(){
   if(qmapInited) return;
@@ -1379,6 +1436,7 @@ function initQMapa(){
   qlyEdif = L.layerGroup().addTo(qmap);
   qlyRotas = L.layerGroup().addTo(qmap);
   qlyPontos = L.layerGroup();
+  qlyForaComp = L.layerGroup().addTo(qmap);
   renderQMapaConteudo();
 }
 
@@ -1387,15 +1445,26 @@ function atualizarCamadasQMapa(){
   document.getElementById('qmLyEdif').checked ? qmap.addLayer(qlyEdif) : qmap.removeLayer(qlyEdif);
   document.getElementById('qmLyRotas').checked ? qmap.addLayer(qlyRotas) : qmap.removeLayer(qlyRotas);
   document.getElementById('qmLyPontos').checked ? qmap.addLayer(qlyPontos) : qmap.removeLayer(qlyPontos);
+  document.getElementById('qmLyForaComp').checked ? qmap.addLayer(qlyForaComp) : qmap.removeLayer(qlyForaComp);
 }
 
 function renderQMapaConteudo(){
   if(!qmap) return;
   var db = loadDB();
-  qlyEdif.clearLayers(); qlyRotas.clearLayers(); qlyPontos.clearLayers();
+  qlyEdif.clearLayers(); qlyRotas.clearLayers(); qlyPontos.clearLayers(); qlyForaComp.clearLayers();
 
   (db.edificacoes||[]).forEach(function(e){
     if(!e.lat || !e.lng) return;
+    if(e.competencia==='fora'){
+      var iconFora = L.divIcon({
+        html:'<div style="width:24px;height:24px;border-radius:50%;background:#6b6b70;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:12px">🚫</div>',
+        className:'', iconSize:[24,24], iconAnchor:[12,12]
+      });
+      var mkFora = L.marker([e.lat,e.lng], {icon:iconFora}).addTo(qlyForaComp);
+      mkFora.bindTooltip((e.re||'Sem RE')+' — '+(e.nome||'')+' (fora de competência)', {direction:'top'});
+      mkFora.on('click', function(){ abrirFormEdif(e.id); });
+      return;
+    }
     var cor = corRisco(e.grauRisco);
     var num = e.grauRisco || '?';
     var icon = L.divIcon({
