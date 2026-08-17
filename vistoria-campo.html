@@ -325,6 +325,11 @@
       <div class="sheet" id="edifCard"></div>
     </div>
 
+    <!-- MODAL: detalhes completos da edificação -->
+    <div id="modalEdifDetalhes" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+      <div class="sheet" id="edifDetalhesConteudo"></div>
+    </div>
+
     <!-- MODAL: mapas offline -->
     <div id="modalOffline" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
       <div class="sheet">
@@ -1819,12 +1824,81 @@ function abrirCartaoEdificacao(e){
       '<div class="ecard-row" style="border-bottom:none"><span class="l">Endereço</span><span style="text-align:right">'+(e.endereco||'—')+'</span></div>'+
     '</div>'+
     '<div class="btnrow">'+
-      '<button class="btn" onclick="alert(\'Detalhes completos chegam na Fase 10 (Quartel).\')">Detalhes</button>'+
+      '<button class="btn" onclick="abrirDetalhesCompletos(\''+e.id+'\')">Detalhes</button>'+
       '<button class="btn primary" onclick="document.getElementById(\'modalEdif\').style.display=\'none\';abrirExecucao(\''+e.id+'\')">Vistoriar</button>'+
     '</div>'+
     '<button class="btn stop" style="width:100%;margin-top:8px" onclick="window.open(\'https://www.google.com/maps/dir/?api=1&destination='+e.lat+','+e.lng+'\',\'_blank\')">🧭 Navegar</button>';
 
   document.getElementById('modalEdif').style.display='flex';
+}
+
+function abrirDetalhesCompletos(id){
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===id;});
+  if(!e) return;
+
+  var risco = e.grauRisco || '—';
+  var cor = {1:'#34C759',2:'#A8D93A',3:'#FF9F0A',4:'#FF5E3A',5:'#C0272D'}[e.grauRisco] || '#8E8E93';
+  var hs = infoHabiteSe(e);
+  var resp = e.responsavel || {};
+  var func = e.vigenciaFuncionamento || {};
+  var funcMap = {valido:'✅ Válido', vencido:'⚠️ Vencido', nao_possui:'❌ Não possui'};
+
+  var linhas = [];
+  function linha(label, valor){
+    if(!valor) return;
+    linhas.push('<div class="ecard-row"><span class="l">'+label+'</span><span style="text-align:right">'+valor+'</span></div>');
+  }
+
+  var html = '<div class="sheet-handle"></div>'+
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">'+
+      '<div class="ecard-badge" style="background:'+cor+'">'+risco+'</div>'+
+      '<div><div style="font-weight:800;font-size:15px">'+(e.re||'Sem RE')+'</div>'+
+      '<div style="font-size:12px;color:var(--sub)">'+(e.nome||'Sem nome')+'</div></div>'+
+    '</div>';
+
+  if(e.competencia==='fora'){
+    html += '<div class="hs-banner" style="margin:12px 0;background:rgba(107,107,112,.2);border-color:#6b6b70;color:#c8c8cc">🚫 Fora de competência do CBM'+(e.competenciaMotivo?' — '+e.competenciaMotivo:'')+'</div>';
+  } else {
+    html += '<div class="hs-banner '+hs.classe+'" style="margin:12px 0">'+hs.icone+' Habite-se: '+hs.texto+(hs.protocolo?' · '+hs.protocolo:'')+(hs.data?' · '+hs.data:'')+'</div>';
+  }
+
+  html += '<div style="margin:14px 0">';
+  linha('Endereço', e.endereco);
+  linha('Bairro', e.bairro);
+  linha('Município', e.municipio);
+  linha('Área', e.area ? e.area+' m²' : '');
+  linha('Responsável', resp.nome);
+  linha('Telefone', resp.tel);
+  linha('Funcionamento', func.situacao ? funcMap[func.situacao]||func.situacao : '');
+  linha('Vencimento', func.vencimento);
+  linha('Origem do cadastro', e.origem==='campo' ? '📍 Vistoria Campo' : '🏢 Vistoria Quartel');
+  if(!linhas.length) linhas.push('<div class="ecard-row" style="border-bottom:none"><span class="l">—</span><span>Sem mais informações cadastradas.</span></div>');
+  html += linhas.join('') + '</div>';
+
+  if(e.projetos && e.projetos.length){
+    html += '<div class="sec-title" style="margin-top:4px">Projetos</div>';
+    e.projetos.forEach(function(p){
+      var tipoMap = {projeto:'Projeto', 'habite-se':'Habite-se', funcionamento:'Funcionamento'};
+      html += '<div class="ecard-row"><span class="l">'+(tipoMap[p.tipo]||p.tipo)+'</span><span>'+(p.num||'—')+'</span></div>';
+    });
+  }
+
+  var prevAtivos = SIST.filter(function(s){ return e.preventivos && e.preventivos[s.id] && e.preventivos[s.id].ativo; });
+  if(prevAtivos.length){
+    html += '<div class="sec-title" style="margin-top:4px">Sistemas preventivos ativos</div>';
+    prevAtivos.forEach(function(s){
+      var qty = e.preventivos[s.id].qty;
+      html += '<div class="ecard-row"><span class="l">'+s.l+' <span style="color:var(--sub)">('+s.n+')</span></span><span>'+(qty?qty+'x':'—')+'</span></div>';
+    });
+  } else {
+    html += '<div class="sec-title" style="margin-top:4px">Sistemas preventivos</div><div class="ecard-row" style="border-bottom:none"><span class="l">—</span><span>Nenhum cadastrado ainda</span></div>';
+  }
+
+  html += '<button class="btn stop" style="width:100%;margin-top:16px" onclick="document.getElementById(\'modalEdifDetalhes\').style.display=\'none\'">Fechar</button>';
+
+  document.getElementById('edifDetalhesConteudo').innerHTML = html;
+  document.getElementById('modalEdifDetalhes').style.display='flex';
 }
 
 // --- Mapas offline (pacotes nomeados) ---
