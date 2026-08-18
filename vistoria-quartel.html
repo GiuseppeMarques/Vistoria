@@ -171,10 +171,44 @@
 
     <div class="view" id="v-rotas">
       <h2>Rotas</h2><div class="lead">Agrupe vistorias pendentes em um roteiro e otimize a ordem.</div>
+
+      <div class="sec-title" style="margin-top:0">Rotas fixas (recorrentes)</div>
+      <div style="font-size:11px;color:var(--sub);margin:-4px 0 10px">Modelos salvos por critério (ex: "risco 4-5 anual") — a qualquer momento, gera vistorias pendentes pras edificações que se encaixam e ainda não foram vistoriadas dentro do ciclo.</div>
+      <div id="rotasFixasList" style="margin-bottom:10px"></div>
+      <button class="btn" style="margin-bottom:20px" onclick="abrirFormRotaFixa()">+ Novo modelo de rota fixa</button>
+
+      <div class="sec-title">Rotas avulsas</div>
       <div class="toolbar">
         <button class="btn primary" onclick="abrirFormRota()">+ Nova rota</button>
       </div>
       <div id="rotasList"></div>
+    </div>
+
+    <div id="modalRotaFixa" class="modal-overlay" style="display:none">
+      <div class="modal">
+        <h3>Modelo de rota fixa</h3>
+        <div class="sub">Salva o critério; gera vistorias pendentes sob demanda, sempre que precisar.</div>
+        <label class="lbl">Nome do modelo</label>
+        <input type="text" id="rf-nome" style="margin-bottom:12px" placeholder="Ex: Risco alto - anual">
+        <div class="frow">
+          <div class="fcol"><label class="lbl">Risco mínimo</label>
+            <select id="rf-risco-min"><option value="1">1+</option><option value="2">2+</option><option value="3">3+</option><option value="4" selected>4+</option><option value="5">5 (só o máximo)</option></select>
+          </div>
+          <div class="fcol"><label class="lbl">Tipo de vistoria a gerar</label>
+            <select id="rf-tipo"><option value="habite-se">Habite-se</option><option value="funcionamento">Funcionamento</option></select>
+          </div>
+        </div>
+        <div class="frow">
+          <div class="fcol"><label class="lbl">Município (opcional)</label><input type="text" id="rf-municipio" list="dlMunicipios"></div>
+          <div class="fcol"><label class="lbl">Bairro (opcional)</label><input type="text" id="rf-bairro" list="dlBairros"></div>
+        </div>
+        <label class="lbl">Ciclo (dias sem vistoria pra considerar vencida)</label>
+        <input type="text" id="rf-ciclo" style="margin-bottom:12px" placeholder="Ex: 365 (anual)" value="365">
+        <div class="modal-actions">
+          <button class="btn" onclick="document.getElementById('modalRotaFixa').style.display='none'">Cancelar</button>
+          <button class="btn primary" onclick="salvarRotaFixa()">Salvar modelo</button>
+        </div>
+      </div>
     </div>
 
     <div class="view" id="v-mapa">
@@ -685,7 +719,7 @@ function navTo(v){
   document.querySelectorAll('aside button').forEach(function(b){b.classList.toggle('on', b.dataset.v===v);});
   if(v==='edif') renderEdificacoes();
   if(v==='vist') renderVistorias();
-  if(v==='rotas') renderRotas();
+  if(v==='rotas'){ renderRotas(); renderRotasFixas(); }
   if(v==='mapa'){
     initQMapa();
     setTimeout(function(){ if(qmap){ qmap.invalidateSize(); renderQMapaConteudo(); } }, 50);
@@ -1442,6 +1476,110 @@ function haversineKm(lat1,lng1,lat2,lng2){
   var dLat=(lat2-lat1)*Math.PI/180, dLng=(lng2-lng1)*Math.PI/180;
   var a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+// ════════════════════════════════════════
+// ROTAS FIXAS — modelos recorrentes por critério de risco
+// ════════════════════════════════════════
+function ultimaVistoriaConcluida(db, edifId){
+  var vs = (db.vistorias||[]).filter(function(v){ return v.edificacaoId===edifId && v.concluida && v.concluidaEm; });
+  if(!vs.length) return null;
+  return vs.reduce(function(max,v){ return new Date(v.concluidaEm) > new Date(max) ? v.concluidaEm : max; }, vs[0].concluidaEm);
+}
+
+function edificacoesElegiveisRotaFixa(db, tpl){
+  var hoje = new Date();
+  return (db.edificacoes||[]).filter(function(e){
+    if(e.competencia==='fora') return false;
+    if(riscoEfetivo(e) < Number(tpl.riscoMin)) return false;
+    if(tpl.municipio && (e.municipio||'').toLowerCase()!==tpl.municipio.toLowerCase()) return false;
+    if(tpl.bairro && (e.bairro||'').toLowerCase()!==tpl.bairro.toLowerCase()) return false;
+
+    var jaTemPendente = (db.vistorias||[]).some(function(v){ return v.edificacaoId===e.id && !v.concluida && v.tipo===tpl.tipo; });
+    if(jaTemPendente) return false;
+
+    var ultima = ultimaVistoriaConcluida(db, e.id);
+    if(!ultima) return true; // nunca vistoriada -> elegível
+    var diasDesde = (hoje - new Date(ultima)) / 86400000;
+    return diasDesde >= Number(tpl.cicloDias||365);
+  });
+}
+
+function abrirFormRotaFixa(){
+  document.getElementById('rf-nome').value='';
+  document.getElementById('rf-risco-min').value='4';
+  document.getElementById('rf-tipo').value='habite-se';
+  document.getElementById('rf-municipio').value='';
+  document.getElementById('rf-bairro').value='';
+  document.getElementById('rf-ciclo').value='365';
+  popularDatalistsEdif();
+  document.getElementById('modalRotaFixa').style.display='flex';
+}
+function salvarRotaFixa(){
+  var nome = document.getElementById('rf-nome').value.trim();
+  if(!nome){ alert('Dê um nome pro modelo.'); return; }
+  var db = loadDB();
+  if(!db.rotasFixas) db.rotasFixas=[];
+  db.rotasFixas.push({
+    id: novoId('rf'), nome: nome,
+    riscoMin: document.getElementById('rf-risco-min').value,
+    tipo: document.getElementById('rf-tipo').value,
+    municipio: document.getElementById('rf-municipio').value.trim(),
+    bairro: document.getElementById('rf-bairro').value.trim(),
+    cicloDias: parseInt(document.getElementById('rf-ciclo').value,10)||365,
+    criadoEm: new Date().toISOString()
+  });
+  saveDB(db);
+  document.getElementById('modalRotaFixa').style.display='none';
+  renderRotasFixas();
+}
+function excluirRotaFixa(id){
+  if(!confirm('Excluir este modelo de rota fixa? (não afeta vistorias já geradas)')) return;
+  var db = loadDB();
+  db.rotasFixas = (db.rotasFixas||[]).filter(function(r){return r.id!==id;});
+  saveDB(db);
+  renderRotasFixas();
+}
+function gerarVistoriasRotaFixa(id){
+  var db = loadDB();
+  var tpl = (db.rotasFixas||[]).find(function(r){return r.id===id;});
+  if(!tpl) return;
+  var elegiveis = edificacoesElegiveisRotaFixa(db, tpl);
+  if(!elegiveis.length){ alert('Nenhuma edificação elegível agora — todas dentro do ciclo ou já com vistoria pendente.'); return; }
+  elegiveis.forEach(function(e){
+    db.vistorias.push({
+      id: novoId('vis'), edificacaoId: e.id, tipo: tpl.tipo, motivo: 'Rota fixa: '+tpl.nome,
+      checklist:{}, situacaoHS:'', obs:'', concluida:false, concluidaEm:null,
+      trajetoriaId:null, rotaId:null,
+      criadoEm: new Date().toISOString(), atualizadoEm: new Date().toISOString()
+    });
+  });
+  saveDB(db);
+  alert(elegiveis.length+' vistoria(s) pendente(s) gerada(s). Agora é só criar uma rota avulsa normal pra agrupar e otimizar o trajeto.');
+  renderRotasFixas();
+}
+function renderRotasFixas(){
+  var db = loadDB();
+  var lista = db.rotasFixas||[];
+  var el = document.getElementById('rotasFixasList');
+  if(!lista.length){
+    el.innerHTML = '<div class="sub">Nenhum modelo de rota fixa salvo ainda.</div>';
+    return;
+  }
+  el.innerHTML = lista.map(function(tpl){
+    var elegiveis = edificacoesElegiveisRotaFixa(db, tpl);
+    var criterios = 'Risco '+tpl.riscoMin+'+'+(tpl.municipio?' · '+tpl.municipio:'')+(tpl.bairro?' · '+tpl.bairro:'')+' · ciclo '+tpl.cicloDias+'d · '+(tpl.tipo==='funcionamento'?'Funcionamento':'Habite-se');
+    return '<div class="vist-item"><div class="elist-row">'+
+      '<div><div class="elist-t">'+tpl.nome+'</div><div class="elist-s">'+criterios+'</div></div>'+
+      '<div style="text-align:right">'+
+        '<div style="font-weight:700;color:'+(elegiveis.length?'var(--red2)':'var(--sub)')+'">'+elegiveis.length+' vencida(s)</div>'+
+      '</div>'+
+    '</div>'+
+    '<div class="btnrow" style="gap:8px;margin-top:8px">'+
+      '<button class="btn primary" style="flex:1" onclick="gerarVistoriasRotaFixa(\''+tpl.id+'\')" '+(elegiveis.length?'':'disabled')+'>Gerar '+elegiveis.length+' vistoria(s) pendente(s)</button>'+
+      '<button class="btn" style="background:var(--red2)" onclick="excluirRotaFixa(\''+tpl.id+'\')">Excluir</button>'+
+    '</div></div>';
+  }).join('');
 }
 
 function renderRotas(){
