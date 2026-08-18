@@ -1124,11 +1124,17 @@ function onGPS(pos){
 // RADAR DE EDIFICAÇÕES PRÓXIMAS (durante a trajetória)
 // ════════════════════════════════════════
 function riscoEfetivo(e){
-  var todosPav = [];
-  (e.blocos||[]).forEach(function(b){ todosPav = todosPav.concat(b.pavimentos||[]); });
-  if(!e.blocos && e.pavimentos) todosPav = e.pavimentos; // compat com cadastros antigos (sem blocos)
-  var riscos = todosPav.map(function(p){ return Number(p.grauRisco)||0; }).filter(function(r){ return r>0; });
-  if(riscos.length) return Math.max.apply(null, riscos);
+  if(e.blocos && e.blocos.length){
+    var riscosB = e.blocos.map(function(b){ return Number(b.grauRisco)||0; }).filter(function(r){ return r>0; });
+    if(riscosB.length) return Math.max.apply(null, riscosB);
+    var riscosPav = [];
+    e.blocos.forEach(function(b){ (b.pavimentos||[]).forEach(function(p){ if(p.grauRisco) riscosPav.push(Number(p.grauRisco)); }); });
+    if(riscosPav.length) return Math.max.apply(null, riscosPav);
+  }
+  if(!e.blocos && e.pavimentos){
+    var riscosFlat = e.pavimentos.map(function(p){ return Number(p.grauRisco)||0; }).filter(function(r){ return r>0; });
+    if(riscosFlat.length) return Math.max.apply(null, riscosFlat);
+  }
   return e.grauRisco || null;
 }
 
@@ -1910,26 +1916,32 @@ function abrirDetalhesCompletos(id){
   if(prevAtivos.length){
     html += '<div class="sec-title" style="margin-top:4px">Sistemas preventivos ativos</div>';
     prevAtivos.forEach(function(s){
-      var qty = e.preventivos[s.id].qty;
-      html += '<div class="ecard-row"><span class="l">'+s.l+' <span style="color:var(--sub)">('+s.n+')</span></span><span>'+(qty?qty+'x':'—')+'</span></div>';
+      var pd = e.preventivos[s.id];
+      html += '<div class="ecard-row"><span class="l">'+s.l+' <span style="color:var(--sub)">('+s.n+')</span></span><span>'+(pd.qty?pd.qty+'x':'—')+'</span></div>';
+      if(pd.info) html += '<div style="font-size:12px;color:var(--sub);margin:-4px 0 6px">'+pd.info+'</div>';
     });
   } else {
     html += '<div class="sec-title" style="margin-top:4px">Sistemas preventivos</div><div class="ecard-row" style="border-bottom:none"><span class="l">—</span><span>Nenhum cadastrado ainda</span></div>';
   }
 
-  var blocosParaMostrar = e.blocos && e.blocos.length ? e.blocos : (e.pavimentos && e.pavimentos.length ? [{nome:null, pavimentos:e.pavimentos}] : []);
+  var blocosParaMostrar = e.blocos && e.blocos.length ? e.blocos : (e.pavimentos && e.pavimentos.length ? [{nome:null, grauRisco:e.grauRisco, pavimentos:e.pavimentos}] : []);
   if(blocosParaMostrar.length){
     html += '<div class="sec-title" style="margin-top:4px">Blocos / Pavimentos</div>';
     blocosParaMostrar.forEach(function(bloco){
-      if(bloco.nome) html += '<div style="font-weight:700;font-size:13px;margin:10px 0 6px;color:var(--red2)">'+bloco.nome+'</div>';
+      var corBloco = {1:'#34C759',2:'#A8D93A',3:'#FF9F0A',4:'#FF5E3A',5:'#C0272D'}[bloco.grauRisco] || '#8E8E93';
+      if(bloco.nome) html += '<div style="display:flex;justify-content:space-between;align-items:center;margin:10px 0 6px">'+
+        '<span style="font-weight:700;font-size:13px;color:var(--red2)">'+bloco.nome+'</span>'+
+        '<span style="background:'+corBloco+';color:#fff;border-radius:8px;padding:1px 8px;font-size:11px;font-weight:700">Risco '+(bloco.grauRisco||'—')+'</span>'+
+      '</div>';
       (bloco.pavimentos||[]).forEach(function(pav){
         var sistPav = Object.keys(pav.sist||{}).filter(function(sid){ return pav.sist[sid].ativo; })
-          .map(function(sid){ var s=SIST.find(function(x){return x.id===sid;}); return (s?s.l:sid)+(pav.sist[sid].qty?' ('+pav.sist[sid].qty+'x)':''); });
-        var corPav = {1:'#34C759',2:'#A8D93A',3:'#FF9F0A',4:'#FF5E3A',5:'#C0272D'}[pav.grauRisco] || '#8E8E93';
-        html += '<div class="pav-card"><div class="pav-h" style="display:flex;justify-content:space-between;align-items:center">'+
-          '<span>'+pav.label+'</span>'+
-          '<span style="background:'+corPav+';color:#fff;border-radius:8px;padding:1px 8px;font-size:11px;font-weight:700">Risco '+(pav.grauRisco||'—')+'</span>'+
-        '</div>'+
+          .map(function(sid){
+            var s=SIST.find(function(x){return x.id===sid;});
+            var pd = pav.sist[sid];
+            var txt = (s?s.l:sid)+(pd.qty?' ('+pd.qty+'x)':'');
+            return pd.info ? txt+' — '+pd.info : txt;
+          });
+        html += '<div class="pav-card"><div class="pav-h">'+pav.label+'</div>'+
           (sistPav.length ? '<div style="font-size:12px;color:var(--sub)">'+sistPav.join(' · ')+'</div>' : '<div style="font-size:12px;color:var(--sub)">Sem sistemas detalhados neste pavimento</div>')+
         '</div>';
       });

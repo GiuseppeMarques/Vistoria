@@ -309,6 +309,8 @@
 <!-- MODAL: cadastro completo de edificação (Fase 10) -->
 <div id="modalEdif" class="modal-overlay" style="display:none">
   <div class="modal lg">
+    <datalist id="dlMunicipios"></datalist>
+    <datalist id="dlBairros"></datalist>
     <h3 id="edifFormTitulo">Nova edificação</h3>
     <div class="sub">Cadastro completo, sistemas preventivos e pavimentos.</div>
 
@@ -336,8 +338,8 @@
     <label class="lbl">Endereço</label>
     <input type="text" id="ef-endereco" style="margin-bottom:12px" placeholder="Rua, número">
     <div class="frow">
-      <div class="fcol"><label class="lbl">Bairro</label><input type="text" id="ef-bairro"></div>
-      <div class="fcol"><label class="lbl">Município</label><input type="text" id="ef-municipio"></div>
+      <div class="fcol"><label class="lbl">Bairro</label><input type="text" id="ef-bairro" list="dlBairros"></div>
+      <div class="fcol"><label class="lbl">Município</label><input type="text" id="ef-municipio" list="dlMunicipios"></div>
     </div>
     <div class="frow">
       <div class="fcol"><label class="lbl">Área (m²)</label><input type="text" id="ef-area"></div>
@@ -715,11 +717,18 @@ var efBlocos = [];
 function corRisco(r){ return {1:'#34C759',2:'#A8D93A',3:'#FF9F0A',4:'#FF5E3A',5:'#C0272D'}[r] || '#8E8E93'; }
 
 function riscoEfetivo(e){
-  var todosPav = [];
-  (e.blocos||[]).forEach(function(b){ todosPav = todosPav.concat(b.pavimentos||[]); });
-  if(!e.blocos && e.pavimentos) todosPav = e.pavimentos; // compat com cadastros antigos (sem blocos)
-  var riscos = todosPav.map(function(p){ return Number(p.grauRisco)||0; }).filter(function(r){ return r>0; });
-  if(riscos.length) return Math.max.apply(null, riscos);
+  if(e.blocos && e.blocos.length){
+    var riscosB = e.blocos.map(function(b){ return Number(b.grauRisco)||0; }).filter(function(r){ return r>0; });
+    if(riscosB.length) return Math.max.apply(null, riscosB);
+    // compat: blocos antigos que tinham risco só no pavimento
+    var riscosPav = [];
+    e.blocos.forEach(function(b){ (b.pavimentos||[]).forEach(function(p){ if(p.grauRisco) riscosPav.push(Number(p.grauRisco)); }); });
+    if(riscosPav.length) return Math.max.apply(null, riscosPav);
+  }
+  if(!e.blocos && e.pavimentos){
+    var riscosFlat = e.pavimentos.map(function(p){ return Number(p.grauRisco)||0; }).filter(function(r){ return r>0; });
+    if(riscosFlat.length) return Math.max.apply(null, riscosFlat);
+  }
   return e.grauRisco || null;
 }
 
@@ -864,23 +873,32 @@ function removerProjeto(id){ efProjetos = efProjetos.filter(function(x){return x
 
 function renderPreventivosForm(){
   document.getElementById('ef-preventivos').innerHTML = SIST.map(function(s){
-    var p = efPreventivos[s.id] || {ativo:false, qty:1};
-    return '<div class="prev-item '+(p.ativo?'on':'')+'">'+
-      '<span class="name" style="cursor:pointer" onclick="togglePrevForm(\''+s.id+'\')">'+s.l+' <span class="sub">('+s.n+')</span></span>'+
-      (p.ativo ? '<input type="text" class="prev-qty" value="'+(p.qty||1)+'" onchange="setPrevQty(\''+s.id+'\',this.value)">' : '')+
+    var p = efPreventivos[s.id] || {ativo:false, qty:1, info:''};
+    if(!p.ativo){
+      return '<div class="prev-item">'+
+        '<span class="name" style="cursor:pointer" onclick="togglePrevForm(\''+s.id+'\')">'+s.l+' <span class="sub">('+s.n+')</span></span>'+
+      '</div>';
+    }
+    return '<div class="prev-item on" style="grid-column:1/-1;flex-direction:column;align-items:stretch;gap:6px">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">'+
+        '<span class="name" style="cursor:pointer" onclick="togglePrevForm(\''+s.id+'\')">'+s.l+' <span class="sub">('+s.n+')</span></span>'+
+        '<input type="text" class="prev-qty" value="'+(p.qty||1)+'" onchange="setPrevQty(\''+s.id+'\',this.value)">'+
+      '</div>'+
+      '<input type="text" placeholder="Detalhe / observação (opcional)" value="'+(p.info||'').replace(/"/g,'&quot;')+'" onchange="setPrevInfo(\''+s.id+'\',this.value)">'+
     '</div>';
   }).join('');
 }
 function togglePrevForm(sid){
-  if(!efPreventivos[sid]) efPreventivos[sid]={ativo:false,qty:1};
+  if(!efPreventivos[sid]) efPreventivos[sid]={ativo:false,qty:1,info:''};
   efPreventivos[sid].ativo = !efPreventivos[sid].ativo;
   renderPreventivosForm();
 }
 function setPrevQty(sid,val){ if(efPreventivos[sid]) efPreventivos[sid].qty = parseInt(val)||1; }
+function setPrevInfo(sid,val){ if(efPreventivos[sid]) efPreventivos[sid].info = val; }
 
 function addBloco(){
   var letra = String.fromCharCode(65 + efBlocos.length); // A, B, C...
-  efBlocos.push({nome: 'Bloco '+letra, nPavimentos: 0, terreoCfg: 'sim', pavimentos: []});
+  efBlocos.push({nome: 'Bloco '+letra, grauRisco: null, nPavimentos: 0, terreoCfg: 'sim', pavimentos: []});
   renderBlocosForm();
 }
 function removerBloco(bi){
@@ -889,6 +907,7 @@ function removerBloco(bi){
   renderBlocosForm();
 }
 function setBlocoNome(bi, val){ efBlocos[bi].nome = val; }
+function setBlocoRisco(bi, val){ efBlocos[bi].grauRisco = val || null; }
 function gerarPavimentosBloco(bi){
   var bloco = efBlocos[bi];
   var n = parseInt(document.getElementById('bloco-npav-'+bi).value,10) || 0;
@@ -900,20 +919,25 @@ function gerarPavimentosBloco(bi){
 
   bloco.pavimentos = labels.map(function(lbl, idx){
     var existente = bloco.pavimentos[idx];
-    return {label: lbl, sist: (existente && existente.sist) || {}, grauRisco: (existente && existente.grauRisco) || null};
+    return {label: lbl, sist: (existente && existente.sist) || {}};
   });
   renderBlocosForm();
 }
-function setPavRiscoBloco(bi, pi, val){ efBlocos[bi].pavimentos[pi].grauRisco = val || null; renderBlocosForm(); }
 function setPavSistAtivoBloco(bi, pi, sid, checked){
   var sist = efBlocos[bi].pavimentos[pi].sist;
-  if(!sist[sid]) sist[sid]={ativo:false,qty:0};
+  if(!sist[sid]) sist[sid]={ativo:false,qty:0,info:''};
   sist[sid].ativo = checked;
+  renderBlocosForm();
 }
 function setPavSistQtyBloco(bi, pi, sid, val){
   var sist = efBlocos[bi].pavimentos[pi].sist;
-  if(!sist[sid]) sist[sid]={ativo:false,qty:0};
+  if(!sist[sid]) sist[sid]={ativo:false,qty:0,info:''};
   sist[sid].qty = parseInt(val)||0;
+}
+function setPavSistInfoBloco(bi, pi, sid, val){
+  var sist = efBlocos[bi].pavimentos[pi].sist;
+  if(!sist[sid]) sist[sid]={ativo:false,qty:0,info:''};
+  sist[sid].info = val;
 }
 function renderBlocosForm(){
   var ativos = Object.keys(efPreventivos).filter(function(sid){return efPreventivos[sid].ativo;});
@@ -922,24 +946,29 @@ function renderBlocosForm(){
 
   box.innerHTML = efBlocos.map(function(bloco, bi){
     var pavsHtml = bloco.pavimentos.map(function(pav, pi){
-      var riscoSel = '<select style="width:auto;margin-bottom:0;padding:4px 8px;font-size:12px" onchange="setPavRiscoBloco('+bi+','+pi+',this.value)">'+
-        '<option value="">Risco: —</option>'+
-        [1,2,3,4,5].map(function(n){ return '<option value="'+n+'" '+(String(pav.grauRisco)===String(n)?'selected':'')+'>Risco '+n+'</option>'; }).join('')+
-        '</select>';
       var rows = ativos.length ? ativos.map(function(sid){
         var s = SIST.find(function(x){return x.id===sid;});
-        var pd = pav.sist[sid] || {ativo:false, qty:0};
-        return '<div class="pav-sist-row">'+
-          '<label><input type="checkbox" '+(pd.ativo?'checked':'')+' onchange="setPavSistAtivoBloco('+bi+','+pi+',\''+sid+'\',this.checked)"> '+s.l+'</label>'+
-          '<input type="text" class="prev-qty" value="'+(pd.qty||0)+'" onchange="setPavSistQtyBloco('+bi+','+pi+',\''+sid+'\',this.value)">'+
+        var pd = pav.sist[sid] || {ativo:false, qty:0, info:''};
+        return '<div class="pav-sist-row" style="flex-direction:column;align-items:stretch;gap:4px">'+
+          '<div style="display:flex;align-items:center;gap:8px">'+
+            '<label style="flex:1"><input type="checkbox" '+(pd.ativo?'checked':'')+' onchange="setPavSistAtivoBloco('+bi+','+pi+',\''+sid+'\',this.checked)"> '+s.l+'</label>'+
+            (pd.ativo ? '<input type="text" class="prev-qty" value="'+(pd.qty||0)+'" onchange="setPavSistQtyBloco('+bi+','+pi+',\''+sid+'\',this.value)">' : '')+
+          '</div>'+
+          (pd.ativo ? '<input type="text" placeholder="Detalhe / observação (opcional)" value="'+(pd.info||'').replace(/"/g,'&quot;')+'" onchange="setPavSistInfoBloco('+bi+','+pi+',\''+sid+'\',this.value)">' : '')+
         '</div>';
       }).join('') : '<div class="sub" style="padding:2px 0">Ative sistemas preventivos acima pra detalhar por pavimento.</div>';
-      return '<div class="pav-card" style="margin-left:14px;background:var(--bg)"><div class="pav-h" style="display:flex;justify-content:space-between;align-items:center">'+pav.label+riscoSel+'</div>'+rows+'</div>';
+      return '<div class="pav-card" style="margin-left:14px;background:var(--bg)"><div class="pav-h">'+pav.label+'</div>'+rows+'</div>';
     }).join('') || '<div class="sub" style="margin-left:14px">Nenhum pavimento gerado ainda pra este bloco.</div>';
+
+    var riscoSelBloco = '<select style="width:auto;margin-bottom:0;padding:4px 8px;font-size:12px" onchange="setBlocoRisco('+bi+',this.value)">'+
+      '<option value="">Risco: —</option>'+
+      [1,2,3,4,5].map(function(n){ return '<option value="'+n+'" '+(String(bloco.grauRisco)===String(n)?'selected':'')+'>Risco '+n+'</option>'; }).join('')+
+      '</select>';
 
     return '<div class="pav-card" style="border-color:var(--red);margin-bottom:14px">'+
       '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">'+
-        '<input type="text" value="'+bloco.nome+'" style="margin-bottom:0;font-weight:700" onchange="setBlocoNome('+bi+',this.value)">'+
+        '<input type="text" value="'+bloco.nome+'" style="margin-bottom:0;font-weight:700;flex:1" onchange="setBlocoNome('+bi+',this.value)">'+
+        riscoSelBloco+
         '<button class="btn" style="width:auto;padding:8px 12px" onclick="removerBloco('+bi+')">✕</button>'+
       '</div>'+
       '<div class="frow">'+
@@ -954,8 +983,17 @@ function renderBlocosForm(){
   }).join('');
 }
 
+function popularDatalistsEdif(){
+  var db = loadDB();
+  var municipios = Array.from(new Set((db.edificacoes||[]).map(function(e){return (e.municipio||'').trim();}).filter(Boolean))).sort();
+  var bairros = Array.from(new Set((db.edificacoes||[]).map(function(e){return (e.bairro||'').trim();}).filter(Boolean))).sort();
+  document.getElementById('dlMunicipios').innerHTML = municipios.map(function(m){ return '<option value="'+m.replace(/"/g,'&quot;')+'">'; }).join('');
+  document.getElementById('dlBairros').innerHTML = bairros.map(function(b){ return '<option value="'+b.replace(/"/g,'&quot;')+'">'; }).join('');
+}
+
 function abrirFormEdif(id){
   edifEmEdicaoId = id;
+  popularDatalistsEdif();
   var e = null;
   if(id){
     var db = loadDB();
@@ -994,9 +1032,22 @@ function abrirFormEdif(id){
 
   if(e && e.blocos){
     efBlocos = JSON.parse(JSON.stringify(e.blocos));
+    efBlocos.forEach(function(b){
+      if(b.grauRisco==null && b.pavimentos && b.pavimentos.length){
+        var riscosPav = b.pavimentos.map(function(p){return Number(p.grauRisco)||0;}).filter(function(r){return r>0;});
+        if(riscosPav.length) b.grauRisco = String(Math.max.apply(null, riscosPav));
+      }
+      b.pavimentos = (b.pavimentos||[]).map(function(p){ return {label:p.label, sist:p.sist||{}}; }); // risco não é mais por pavimento
+    });
   } else if(e && e.pavimentos && e.pavimentos.length){
     // migração de cadastro antigo (pavimentos soltos, sem bloco) pra um bloco único
-    efBlocos = [{nome:'Bloco A', nPavimentos: e.nPavimentos||0, terreoCfg: e.terreoCfg||'sim', pavimentos: JSON.parse(JSON.stringify(e.pavimentos))}];
+    var riscosFlat = e.pavimentos.map(function(p){return Number(p.grauRisco)||0;}).filter(function(r){return r>0;});
+    efBlocos = [{
+      nome:'Bloco A',
+      grauRisco: riscosFlat.length ? String(Math.max.apply(null, riscosFlat)) : (e.grauRisco||null),
+      nPavimentos: e.nPavimentos||0, terreoCfg: e.terreoCfg||'sim',
+      pavimentos: e.pavimentos.map(function(p){ return {label:p.label, sist:p.sist||{}}; })
+    }];
   } else {
     efBlocos = [];
   }
