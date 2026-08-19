@@ -70,6 +70,41 @@
   input[type=text], select{width:100%;background:var(--card2);border:1px solid var(--border);
     border-radius:10px;padding:10px 12px;color:var(--txt);font-size:13px;}
   .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;}
+
+  /* Execução de vistoria (copiado do Campo, pra manter a mesma cara/comportamento) */
+  .hs-banner{border-radius:12px;padding:10px 12px;font-size:13px;font-weight:700;}
+  .hs-ok{background:rgba(52,199,89,.15);color:var(--verde);border:1px solid rgba(52,199,89,.4);}
+  .hs-warn{background:rgba(255,159,10,.15);color:var(--amar);border:1px solid rgba(255,159,10,.4);}
+  .hs-bad{background:rgba(192,39,45,.18);color:var(--red2);border:1px solid rgba(192,39,45,.45);}
+  .hs-unk{background:rgba(142,142,147,.18);color:#8E8E93;border:1px solid rgba(142,142,147,.35);}
+  .tipo-row{display:flex;gap:8px;margin-bottom:14px;}
+  .tipo-btn{flex:1;padding:12px;border-radius:12px;background:var(--card2);border:1px solid var(--border);
+    color:var(--txt);font-size:13px;font-weight:700;}
+  .tipo-btn.on{background:var(--red);border-color:var(--red);}
+  .prev-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;}
+  .prev-chip{background:var(--card2);border:1px solid var(--border);border-radius:16px;padding:6px 10px;font-size:11px;}
+  .prev-chip.on{background:rgba(192,39,45,.25);border-color:var(--red2);color:#fff;}
+  .exec-ctrs{display:flex;gap:8px;margin-bottom:16px;}
+  .exec-ctr{flex:1;background:var(--card2);border-radius:12px;padding:10px 6px;text-align:center;}
+  .exec-ctr .v{font-size:18px;font-weight:800;}
+  .exec-ctr .l{font-size:10px;color:var(--sub);}
+  .resultado-banner{border-radius:14px;padding:14px;text-align:center;font-weight:800;font-size:15px;margin-bottom:18px;}
+  .resultado-banner.def{background:rgba(52,199,89,.15);color:var(--verde);border:1px solid rgba(52,199,89,.4);}
+  .resultado-banner.indef{background:rgba(192,39,45,.15);color:var(--red2);border:1px solid rgba(192,39,45,.4);}
+  .grupo-title{font-size:13px;font-weight:800;color:var(--sub);margin:18px 0 8px;text-transform:uppercase;letter-spacing:.3px;}
+  .item-card{background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:10px;}
+  .item-obj{font-size:10px;color:var(--red2);font-weight:800;margin-bottom:3px;}
+  .item-c{font-size:13px;line-height:1.4;margin-bottom:10px;}
+  .item-btns{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+  .item-btn{padding:9px 2px;border-radius:9px;background:var(--bg);border:1px solid var(--border);
+    color:var(--sub);font-size:16px;text-align:center;cursor:pointer;}
+  .item-btn.ok.on{background:rgba(52,199,89,.2);border-color:var(--verde);color:var(--verde);}
+  .item-btn.nao.on{background:rgba(192,39,45,.2);border-color:var(--red2);color:var(--red2);}
+  .item-btn.na.on{background:rgba(142,142,147,.25);border-color:#8E8E93;color:#fff;}
+  .item-btn.naoAv.on{background:rgba(255,159,10,.2);border-color:var(--amar);color:var(--amar);}
+  .item-extra{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+  .item-extra label.lbl{margin-bottom:4px;}
+  .item-extra input[type=text]{margin-bottom:8px;font-size:12px;padding:9px 10px;}
   .modal.lg{width:760px;}
 
   .toolbar{display:flex;gap:10px;margin-bottom:18px;align-items:center;}
@@ -467,6 +502,11 @@
   <div class="modal lg" id="relatorioBody"></div>
 </div>
 
+<!-- MODAL: executar vistoria -->
+<div id="modalExecucao" class="modal-overlay" style="display:none">
+  <div class="modal lg" id="execucaoBody"></div>
+</div>
+
 <!-- MODAL: nova rota -->
 <div id="modalRota" class="modal-overlay" style="display:none">
   <div class="modal">
@@ -684,6 +724,9 @@ var CL_FN = {
 };
 
 function getCL(tipo){ return tipo==='funcionamento' ? CL_FN : CL_HS; }
+
+// Grupos do checklist que aparecem sempre, independente de quais sistemas preventivos estão ativos
+var GRUPOS_FIXOS = ['Documentação', 'Características Gerais do Bloco', 'Características Gerais'];
 
 var PREV_GRUPOS = {
   'ext': ['Extintores — IN 6'],
@@ -1359,7 +1402,9 @@ function renderVistorias(){
         '</div>'+
         '<div style="text-align:right">'+statusTxt+'</div>'+
       '</div>'+
-      (v.concluida ? '<div style="margin-top:10px"><button class="btn" onclick="abrirRelatorio(\''+v.id+'\')">Ver relatório</button></div>' : '')+
+      (v.concluida
+        ? '<div style="margin-top:10px"><button class="btn" onclick="abrirRelatorio(\''+v.id+'\')">Ver relatório</button></div>'
+        : '<div style="margin-top:10px"><button class="btn primary" onclick="abrirExecucaoQuartel(\''+v.id+'\')">Executar vistoria</button></div>')+
     '</div>';
   }).join('');
 }
@@ -1466,6 +1511,198 @@ function abrirRelatorio(vistId){
   html += '<div class="modal-actions"><button class="btn primary" onclick="document.getElementById(\'modalRelatorio\').style.display=\'none\'">Fechar</button></div>';
   document.getElementById('relatorioBody').innerHTML = html;
   document.getElementById('modalRelatorio').style.display='flex';
+}
+
+function infoHabiteSe(e){
+  var hs = e.habiteSe || {};
+  if(hs.situacao==='possui'){
+    return {texto:'Possui', classe:'hs-ok', icone:'✅', protocolo: hs.protocolo ? 'Prot. '+hs.protocolo : ''};
+  } else if(hs.situacao==='andamento'){
+    return {texto:'Em andamento', classe:'hs-warn', icone:'⏳', protocolo: hs.protocolo ? 'Prot. '+hs.protocolo : ''};
+  } else if(hs.situacao==='nao_possui'){
+    return {texto:'Não possui', classe:'hs-bad', icone:'❌', protocolo:''};
+  }
+  return {texto:'Não informado', classe:'hs-unk', icone:'❔', protocolo:''};
+}
+
+// ════════════════════════════════════════
+// EXECUÇÃO DE VISTORIA NO QUARTEL — mesmo checklist do Campo, pra quando dá pra fazer sem sair do computador
+// ════════════════════════════════════════
+var quExecVistId = null;
+
+function abrirExecucaoQuartel(vistId){
+  quExecVistId = vistId;
+  document.getElementById('modalExecucao').style.display='flex';
+  renderExecucaoQuartel();
+}
+function fecharExecucaoQuartel(){
+  document.getElementById('modalExecucao').style.display='none';
+  quExecVistId = null;
+  renderVistorias();
+}
+function quSetItemStatus(itemId, status){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v) return;
+  if(!v.checklist[itemId]) v.checklist[itemId]={};
+  v.checklist[itemId].status = status;
+  v.atualizadoEm = new Date().toISOString();
+  saveDB(db);
+  renderExecucaoQuartel();
+}
+function quSetItemCampo(itemId, campo, val){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v) return;
+  if(!v.checklist[itemId]) v.checklist[itemId]={};
+  v.checklist[itemId][campo] = val;
+  saveDB(db);
+}
+function quSetQtv(sid, val){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v) return;
+  if(!v.qtv) v.qtv={};
+  if(!v.qtv[sid]) v.qtv[sid]={};
+  v.qtv[sid].val = val;
+  saveDB(db);
+  renderExecucaoQuartel();
+}
+function quSetQtvAno(ano){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v) return;
+  if(!v.qtv) v.qtv={};
+  v.qtv.ano = ano;
+  saveDB(db);
+  renderExecucaoQuartel();
+}
+function quConcluirExecucao(){
+  if(!confirm('Concluir esta vistoria? Isso fecha o checklist e calcula o resultado final.')) return;
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v) return;
+  v.concluida = true;
+  v.concluidaEm = new Date().toISOString();
+  saveDB(db);
+  renderExecucaoQuartel();
+}
+
+function renderExecucaoQuartel(){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v){ document.getElementById('modalExecucao').style.display='none'; return; }
+  var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
+  if(!e){ document.getElementById('execucaoBody').innerHTML='<div class="sub">Edificação não encontrada.</div>'; return; }
+
+  var html = '<h3>'+(e.nome||'Sem nome')+'</h3><div class="sub">'+(e.re||'Sem RE')+' · '+(v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+'</div>';
+
+  var hs = infoHabiteSe(e);
+  html += '<div class="hs-banner '+hs.classe+'" style="margin:14px 0">'+hs.icone+' Habite-se: '+hs.texto+(hs.protocolo?' · '+hs.protocolo:'')+'</div>';
+
+  html += '<div style="font-size:12px;color:var(--sub);margin-bottom:6px">Sistemas preventivos ativos nesta edificação:</div>';
+  html += '<div class="prev-chips">'+SIST.map(function(s){
+    var ativo = e.preventivos && e.preventivos[s.id] && e.preventivos[s.id].ativo;
+    return ativo ? '<span class="prev-chip on">'+s.l+'</span>' : '';
+  }).join('')+'</div>';
+
+  var cl = getCL(v.tipo);
+  var gruposAtivos = GRUPOS_FIXOS.slice();
+  var prev = e.preventivos||{};
+  Object.keys(prev).forEach(function(id){ if(prev[id]&&prev[id].ativo){ (PREV_GRUPOS[id]||[]).forEach(function(g){if(gruposAtivos.indexOf(g)<0)gruposAtivos.push(g);}); } });
+  var grupos = Object.keys(cl).filter(function(g){return gruposAtivos.indexOf(g)>=0;});
+
+  var todos = [];
+  grupos.forEach(function(g){ todos = todos.concat(cl[g]); });
+  var conf=0, nao=0, na=0, naoAv=0;
+  todos.forEach(function(it){
+    var st = v.checklist[it.id] && v.checklist[it.id].status;
+    if(st==='ok') conf++; else if(st==='nao') nao++; else if(st==='na') na++; else naoAv++;
+  });
+  html += '<div class="exec-ctrs">'+
+    '<div class="exec-ctr"><div class="v" style="color:var(--verde)">'+conf+'</div><div class="l">Conforme</div></div>'+
+    '<div class="exec-ctr"><div class="v" style="color:var(--red2)">'+nao+'</div><div class="l">Não conf.</div></div>'+
+    '<div class="exec-ctr"><div class="v" style="color:#8E8E93">'+na+'</div><div class="l">Não apl.</div></div>'+
+    '<div class="exec-ctr"><div class="v" style="color:var(--amar)">'+naoAv+'</div><div class="l">Não aval.</div></div>'+
+  '</div>';
+
+  var QTV_SIST = ['ext','ilu','sal'];
+  var qtvAtivos = QTV_SIST.filter(function(sid){ return e.preventivos && e.preventivos[sid] && e.preventivos[sid].ativo && e.preventivos[sid].qty>0; });
+  var qtvAbaixo50=false, qtvAcimaAlgum=false, qtvTodosPreenchidos=true;
+  if(qtvAtivos.length){
+    html += '<div class="sec-title" style="margin-top:0">Verificação quantitativa (amostragem)</div>';
+    qtvAtivos.forEach(function(sid){
+      var s = SIST.find(function(x){return x.id===sid;});
+      var esperado = e.preventivos[sid].qty;
+      var encontrado = (v.qtv && v.qtv[sid] && v.qtv[sid].val!=null) ? v.qtv[sid].val : '';
+      html += '<div class="item-card">'+
+        '<div class="item-c">'+s.l+' — esperado no PPCI: '+esperado+'</div>'+
+        '<label class="lbl">Quantidade encontrada</label>'+
+        '<input type="text" value="'+encontrado+'" onchange="quSetQtv(\''+sid+'\',this.value)">'+
+      '</div>';
+      var val = parseInt(encontrado,10);
+      if(!isNaN(val)){ if(val<esperado*0.5) qtvAbaixo50=true; else qtvAcimaAlgum=true; }
+      else { qtvTodosPreenchidos=false; }
+    });
+    if(qtvAcimaAlgum && qtvTodosPreenchidos && !qtvAbaixo50){
+      var ano = v.qtv && v.qtv.ano;
+      html += '<label class="lbl">Construção anterior a 2013?</label><div class="frow" style="margin-bottom:16px">'+
+        '<button class="btn '+(ano==='antes2013'?'primary':'')+'" onclick="quSetQtvAno(\'antes2013\')">Sim, anterior</button>'+
+        '<button class="btn '+(ano==='depois2013'?'primary':'')+'" onclick="quSetQtvAno(\'depois2013\')">Não, 2013+</button>'+
+      '</div>';
+    }
+  }
+
+  var qtvIndeferePorAno = qtvAcimaAlgum && qtvTodosPreenchidos && v.qtv && v.qtv.ano==='depois2013';
+  var qtvInfracaoPorAno = qtvAcimaAlgum && qtvTodosPreenchidos && !qtvAbaixo50 && v.qtv && v.qtv.ano==='antes2013';
+  var qtvForcaIndeferido = qtvAbaixo50 || qtvIndeferePorAno;
+  var deferido = nao===0 && !qtvForcaIndeferido;
+  var motivoQtv = qtvAbaixo50 ? ' — quantidade abaixo de 50% do exigido (amostragem)' : (qtvIndeferePorAno ? ' — construção 2013+ exige atendimento pleno na amostragem' : '');
+
+  if(qtvForcaIndeferido){
+    html += '<div class="resultado-banner indef">'+(v.concluida?'':'(parcial) ')+'⚠️ Indeferido'+motivoQtv+'</div>';
+  } else if(qtvInfracaoPorAno){
+    html += '<div class="resultado-banner" style="background:rgba(255,159,10,.15);color:var(--amar);border:1px solid rgba(255,159,10,.4)">'+
+      (v.concluida?'':'(parcial) ')+'⚠️ Aprovado com Auto de Infração (F) — construção anterior a 2013</div>';
+  } else {
+    html += '<div class="resultado-banner '+(deferido?'def':'indef')+'">'+
+      (v.concluida?'':'(parcial) ')+(deferido?'✅ Deferido':'⚠️ Indeferido — '+nao+' não conformidade(s)')+
+    '</div>';
+  }
+
+  grupos.forEach(function(g){
+    html += '<div class="grupo-title">'+g+'</div>';
+    cl[g].forEach(function(it){
+      var st = (v.checklist[it.id] && v.checklist[it.id].status) || '';
+      html += '<div class="item-card">'+
+        '<div class="item-obj">'+it.obj+'</div>'+
+        '<div class="item-c">'+it.c+'</div>'+
+        '<div class="item-btns">'+
+          '<button class="item-btn ok '+(st==='ok'?'on':'')+'" onclick="quSetItemStatus(\''+it.id+'\',\'ok\')">✅</button>'+
+          '<button class="item-btn nao '+(st==='nao'?'on':'')+'" onclick="quSetItemStatus(\''+it.id+'\',\'nao\')">❌</button>'+
+          '<button class="item-btn na '+(st==='na'?'on':'')+'" onclick="quSetItemStatus(\''+it.id+'\',\'na\')">➖</button>'+
+          '<button class="item-btn naoAv '+(st==='naoAv'?'on':'')+'" onclick="quSetItemStatus(\''+it.id+'\',\'naoAv\')">❔</button>'+
+        '</div>'+
+        (st==='nao' ? (
+          '<div class="item-extra">'+
+            '<label class="lbl">Causa da não conformidade</label>'+
+            '<input type="text" value="'+((v.checklist[it.id].causa||'').replace(/"/g,'&quot;'))+'" onchange="quSetItemCampo(\''+it.id+'\',\'causa\',this.value)">'+
+            '<label class="lbl">Local / pavimento (opcional)</label>'+
+            '<input type="text" value="'+((v.checklist[it.id].local||'').replace(/"/g,'&quot;'))+'" onchange="quSetItemCampo(\''+it.id+'\',\'local\',this.value)">'+
+            '<label class="lbl">Observação (opcional)</label>'+
+            '<input type="text" value="'+((v.checklist[it.id].obs||'').replace(/"/g,'&quot;'))+'" onchange="quSetItemCampo(\''+it.id+'\',\'obs\',this.value)">'+
+          '</div>'
+        ) : '')+
+      '</div>';
+    });
+  });
+
+  html += '<div class="modal-actions">'+
+    '<button class="btn" onclick="fecharExecucaoQuartel()">Fechar</button>'+
+    (v.concluida ? '<button class="btn" disabled>✅ Vistoria concluída</button>' : '<button class="btn primary" onclick="quConcluirExecucao()">Concluir vistoria</button>')+
+  '</div>';
+
+  document.getElementById('execucaoBody').innerHTML = html;
 }
 
 // ════════════════════════════════════════

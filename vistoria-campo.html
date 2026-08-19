@@ -658,6 +658,9 @@ var PREV_GRUPOS = {
 // ════════════════════════════════════════
 function getCL(tipo){ return tipo==='funcionamento' ? CL_FN : CL_HS; }
 
+// Grupos do checklist que aparecem sempre, independente de quais sistemas preventivos estão ativos
+var GRUPOS_FIXOS = ['Documentação', 'Características Gerais do Bloco', 'Características Gerais'];
+
 function getGruposAtivos(edif, tipo){
   var ativos = GRUPOS_FIXOS.slice();
   var prev = edif ? edif.preventivos||{} : {};
