@@ -223,6 +223,22 @@
       </div>
     </div>
 
+    <!-- EDIFICAÇÕES -->
+    <div class="view" id="v-edifs" style="padding:16px">
+      <h2 style="font-size:18px;margin-bottom:2px">Edificações</h2>
+      <div class="sub" style="margin-bottom:12px">Toque numa edificação pra ver, editar ou atualizar a localização.</div>
+      <input type="text" id="edifsBusca" placeholder="Buscar por RE, nome, endereço, bairro ou município..." style="margin-bottom:8px" oninput="renderEdifsCampo()">
+      <div class="btnrow" style="gap:6px;margin-bottom:12px;flex-wrap:wrap">
+        <button class="chip on" data-risco="" onclick="setEdifsFiltroRisco('')">Todas</button>
+        <button class="chip" data-risco="1" onclick="setEdifsFiltroRisco('1')">Risco 1+</button>
+        <button class="chip" data-risco="2" onclick="setEdifsFiltroRisco('2')">Risco 2+</button>
+        <button class="chip" data-risco="3" onclick="setEdifsFiltroRisco('3')">Risco 3+</button>
+        <button class="chip" data-risco="4" onclick="setEdifsFiltroRisco('4')">Risco 4+</button>
+        <button class="chip" data-risco="5" onclick="setEdifsFiltroRisco('5')">Só risco 5</button>
+      </div>
+      <div id="edifsLista"></div>
+    </div>
+
     <!-- TRAJETÓRIA -->
     <div class="view on" id="v-traj">
       <div id="gpsWarnBox"></div>
@@ -312,6 +328,7 @@
 
   <nav>
     <button data-v="mapa" onclick="navTo('mapa')"><span class="ic">🗺️</span>Mapa</button>
+    <button data-v="edifs" onclick="navTo('edifs')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="traj" class="on" onclick="navTo('traj')"><span class="ic">📍</span>Trajetória</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
     <button data-v="mais" onclick="navTo('mais')"><span class="ic">⚙️</span>Mais</button>
@@ -339,6 +356,47 @@
     <!-- MODAL: detalhes completos da edificação -->
     <div id="modalEdifDetalhes" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
       <div class="sheet" id="edifDetalhesConteudo"></div>
+    </div>
+
+    <!-- MODAL: editar edificação -->
+    <div id="modalEdifEditarCampo" class="modal-overlay" style="display:none">
+      <div class="sheet" style="max-height:92vh">
+        <div class="sheet-handle"></div>
+        <div class="sheet-title">Editar edificação</div>
+
+        <button class="btn primary" style="width:100%;margin-bottom:12px" onclick="capturarGPSEdif()" id="btnCapturarGPS">📍 Usar minha localização atual</button>
+        <div id="gpsEdifStatus" class="sub" style="margin:-6px 0 12px"></div>
+
+        <div class="frow">
+          <div class="fcol"><label class="lbl">RE</label><input type="text" id="ee-re"></div>
+          <div class="fcol"><label class="lbl">Grau de Risco (geral)</label>
+            <select id="ee-risco"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+          </div>
+        </div>
+        <label class="lbl">Nome da edificação</label>
+        <input type="text" id="ee-nome" style="margin-bottom:12px">
+        <label class="lbl">Endereço</label>
+        <input type="text" id="ee-endereco" style="margin-bottom:12px" placeholder="Rua, número">
+        <div class="frow">
+          <div class="fcol"><label class="lbl">Bairro</label><input type="text" id="ee-bairro"></div>
+          <div class="fcol"><label class="lbl">Município</label><input type="text" id="ee-municipio"></div>
+        </div>
+        <div class="frow">
+          <div class="fcol"><label class="lbl">Responsável</label><input type="text" id="ee-responsavel"></div>
+          <div class="fcol"><label class="lbl">Telefone</label><input type="text" id="ee-telefone"></div>
+        </div>
+        <div class="frow">
+          <div class="fcol"><label class="lbl">Área (m²)</label><input type="text" id="ee-area"></div>
+          <div class="fcol"><label class="lbl">Situação funcionamento</label>
+            <select id="ee-func-situacao"><option value="">—</option><option value="valido">Válido</option><option value="vencido">Vencido</option><option value="nao_possui">Não possui</option></select>
+          </div>
+        </div>
+
+        <div class="btnrow" style="gap:10px;margin-top:10px">
+          <button class="btn" style="flex:1" onclick="document.getElementById('modalEdifEditarCampo').style.display='none'">Cancelar</button>
+          <button class="btn primary" style="flex:1" onclick="salvarEdifEditCampo()">Salvar</button>
+        </div>
+      </div>
     </div>
 
     <!-- MODAL: mapas offline -->
@@ -996,7 +1054,7 @@ function concluirExecucao(){
 // ════════════════════════════════════════
 // NAVEGAÇÃO
 // ════════════════════════════════════════
-var TITULOS = {mapa:'Mapa', traj:'Trajetória', vist:'Vistorias', mais:'Mais'};
+var TITULOS = {mapa:'Mapa', edifs:'Edificações', traj:'Trajetória', vist:'Vistorias', mais:'Mais'};
 function navTo(v){
   document.querySelectorAll('.view').forEach(function(el){el.classList.remove('on');});
   document.getElementById('v-'+v).classList.add('on');
@@ -1009,6 +1067,8 @@ function navTo(v){
     }, 50);
   } else if(v==='vist'){
     renderVistoriasCampo();
+  } else if(v==='edifs'){
+    renderEdifsCampo();
   } else if(mapWatchId!==null){
     // saiu do mapa — para o acompanhamento contínuo de GPS pra economizar bateria
     navigator.geolocation.clearWatch(mapWatchId);
@@ -1145,6 +1205,131 @@ var radarFiltro = ''; // '' = todas, ou '1'..'5' = risco mínimo
 var radarRaioM = 150;
 var radarLista = [];
 var radarEncontradas = {}; // acumula tudo que o radar já viu nesta trajetória: {edifId: {e, distM (mínima registrada)}}
+
+// ════════════════════════════════════════
+// ABA EDIFICAÇÕES — listar, filtrar, editar, atualizar localização por GPS
+// ════════════════════════════════════════
+var edifsFiltroRisco = '';
+var edifEmEdicaoCampoId = null;
+
+function setEdifsFiltroRisco(f){
+  edifsFiltroRisco = f;
+  document.querySelectorAll('#v-edifs .chip').forEach(function(btn){
+    btn.classList.toggle('on', btn.getAttribute('data-risco')===f);
+  });
+  renderEdifsCampo();
+}
+
+function renderEdifsCampo(){
+  var db = loadDB();
+  var busca = (document.getElementById('edifsBusca').value||'').toLowerCase();
+  var lista = (db.edificacoes||[]).filter(function(e){
+    if(edifsFiltroRisco && riscoEfetivo(e) < Number(edifsFiltroRisco)) return false;
+    if(!busca) return true;
+    return (e.re||'').toLowerCase().indexOf(busca)>=0 || (e.nome||'').toLowerCase().indexOf(busca)>=0 ||
+      (e.endereco||'').toLowerCase().indexOf(busca)>=0 || (e.bairro||'').toLowerCase().indexOf(busca)>=0 ||
+      (e.municipio||'').toLowerCase().indexOf(busca)>=0;
+  }).sort(function(a,b){ return (a.re||'').localeCompare(b.re||'', undefined, {numeric:true}); });
+
+  var el = document.getElementById('edifsLista');
+  if(!lista.length){
+    el.innerHTML = '<div class="empty"><div class="ico">🏢</div>Nenhuma edificação encontrada.</div>';
+    return;
+  }
+  el.innerHTML = lista.map(function(e){
+    var risco = riscoEfetivo(e);
+    var cor = {1:'#34C759',2:'#A8D93A',3:'#FF9F0A',4:'#FF5E3A',5:'#C0272D'}[risco] || '#8E8E93';
+    var semGPS = !e.lat || !e.lng;
+    return '<div class="item-card" style="cursor:pointer" onclick="abrirEdifEditCampo(\''+e.id+'\')">'+
+      '<div style="display:flex;align-items:center;gap:10px">'+
+        '<div style="width:28px;height:28px;border-radius:50%;background:'+cor+';display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex:0 0 auto">'+(risco||'—')+'</div>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="font-weight:700;font-size:14px">'+(e.nome||'Sem nome')+'</div>'+
+          '<div style="font-size:12px;color:var(--sub)">'+(e.re||'Sem RE')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(semGPS?' · ⚠️ sem localização':'')+'</div>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function abrirEdifEditCampo(id){
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===id;});
+  if(!e) return;
+  edifEmEdicaoCampoId = id;
+
+  document.getElementById('ee-re').value = e.re||'';
+  document.getElementById('ee-risco').value = e.grauRisco||'';
+  document.getElementById('ee-nome').value = e.nome||'';
+  document.getElementById('ee-endereco').value = e.endereco||'';
+  document.getElementById('ee-bairro').value = e.bairro||'';
+  document.getElementById('ee-municipio').value = e.municipio||'';
+  document.getElementById('ee-responsavel').value = (e.responsavel&&e.responsavel.nome)||'';
+  document.getElementById('ee-telefone').value = (e.responsavel&&e.responsavel.tel)||'';
+  document.getElementById('ee-area').value = e.area||'';
+  document.getElementById('ee-func-situacao').value = (e.vigenciaFuncionamento&&e.vigenciaFuncionamento.situacao)||'';
+
+  var gpsStatus = document.getElementById('gpsEdifStatus');
+  delete gpsStatus.dataset.lat; delete gpsStatus.dataset.lng;
+  gpsStatus.textContent = (e.lat && e.lng)
+    ? 'Localização atual: '+e.lat.toFixed(5)+', '+e.lng.toFixed(5)
+    : '⚠️ Esta edificação ainda não tem localização no mapa.';
+
+  document.getElementById('modalEdifEditarCampo').style.display='flex';
+}
+
+function capturarGPSEdif(){
+  if(!navigator.geolocation){ alert('Este dispositivo não tem GPS disponível.'); return; }
+  var btn = document.getElementById('btnCapturarGPS');
+  btn.textContent = '📍 Capturando localização...';
+  btn.disabled = true;
+  navigator.geolocation.getCurrentPosition(function(pos){
+    btn.textContent = '📍 Usar minha localização atual';
+    btn.disabled = false;
+    var lat = pos.coords.latitude, lng = pos.coords.longitude;
+    document.getElementById('gpsEdifStatus').textContent = '✅ Nova localização capturada: '+lat.toFixed(5)+', '+lng.toFixed(5)+' (salva ao confirmar)';
+    document.getElementById('gpsEdifStatus').dataset.lat = lat;
+    document.getElementById('gpsEdifStatus').dataset.lng = lng;
+  }, function(err){
+    btn.textContent = '📍 Usar minha localização atual';
+    btn.disabled = false;
+    alert('Não foi possível capturar o GPS. Verifique se a localização está ativada.');
+  }, {enableHighAccuracy:true, timeout:15000});
+}
+
+function salvarEdifEditCampo(){
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===edifEmEdicaoCampoId;});
+  if(!e) return;
+
+  e.re = document.getElementById('ee-re').value.trim();
+  e.grauRisco = document.getElementById('ee-risco').value || null;
+  e.nome = document.getElementById('ee-nome').value.trim();
+  e.endereco = document.getElementById('ee-endereco').value.trim();
+  e.bairro = document.getElementById('ee-bairro').value.trim();
+  e.municipio = document.getElementById('ee-municipio').value.trim();
+  e.responsavel = {
+    nome: document.getElementById('ee-responsavel').value.trim(),
+    tel: document.getElementById('ee-telefone').value.trim()
+  };
+  e.area = document.getElementById('ee-area').value.trim();
+  e.vigenciaFuncionamento = e.vigenciaFuncionamento || {};
+  e.vigenciaFuncionamento.situacao = document.getElementById('ee-func-situacao').value || null;
+
+  var gpsStatus = document.getElementById('gpsEdifStatus');
+  if(gpsStatus.dataset.lat && gpsStatus.dataset.lng){
+    e.lat = parseFloat(gpsStatus.dataset.lat);
+    e.lng = parseFloat(gpsStatus.dataset.lng);
+    delete gpsStatus.dataset.lat;
+    delete gpsStatus.dataset.lng;
+  }
+
+  e.atualizadoEm = new Date().toISOString();
+  saveDB(db);
+  document.getElementById('modalEdifEditarCampo').style.display='none';
+  renderEdifsCampo();
+  if(map){ renderMapEdificacoes(); }
+}
 
 function atualizarRadar(lat, lng){
   var db = loadDB();
