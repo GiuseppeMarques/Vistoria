@@ -304,8 +304,9 @@
 
     
 
-    <!-- VISTORIAS (placeholder) -->
+    <!-- VISTORIAS -->
     <div class="view" id="v-vist">
+      <div id="vistRotaFiltro" style="margin-bottom:4px"></div>
       <div id="vistCampoList" style="padding-top:4px"></div>
     </div>
 
@@ -737,14 +738,39 @@ var execTipo = null;
 // ════════════════════════════════════════
 // ABA VISTORIAS — lista tudo que existe no aparelho
 // ════════════════════════════════════════
+var vistFiltroRota = ''; // '' = todas, 'sem' = sem rota, ou id da rota
+
+function renderVistRotaFiltro(){
+  var db = loadDB();
+  var rotas = db.rotas || [];
+  var el = document.getElementById('vistRotaFiltro');
+  if(!rotas.length){ el.innerHTML=''; return; }
+  var chips = '<button class="chip '+(vistFiltroRota===''?'on':'')+'" onclick="setVistFiltroRota(\'\')">Todas</button>'+
+    rotas.map(function(r){
+      return '<button class="chip '+(vistFiltroRota===r.id?'on':'')+'" onclick="setVistFiltroRota(\''+r.id+'\')">🧭 '+r.nome+'</button>';
+    }).join('')+
+    '<button class="chip '+(vistFiltroRota==='sem'?'on':'')+'" onclick="setVistFiltroRota(\'sem\')">Sem rota</button>';
+  el.innerHTML = '<div class="btnrow" style="gap:6px;flex-wrap:wrap">'+chips+'</div>';
+}
+function setVistFiltroRota(id){
+  vistFiltroRota = id;
+  renderVistRotaFiltro();
+  renderVistoriasCampo();
+}
+
 function renderVistoriasCampo(){
   var db = loadDB();
-  var lista = (db.vistorias||[]).slice().sort(function(a,b){
+  renderVistRotaFiltro();
+  var lista = (db.vistorias||[]).filter(function(v){
+    if(vistFiltroRota==='') return true;
+    if(vistFiltroRota==='sem') return !v.rotaId;
+    return v.rotaId===vistFiltroRota;
+  }).sort(function(a,b){
     return new Date(b.atualizadoEm || b.criadoEm || 0) - new Date(a.atualizadoEm || a.criadoEm || 0);
   });
   var el = document.getElementById('vistCampoList');
   if(!lista.length){
-    el.innerHTML = '<div class="empty"><div class="ico">✅</div>Nenhuma vistoria ainda.<br>Toque numa edificação no mapa e depois em "Vistoriar".</div>';
+    el.innerHTML = '<div class="empty"><div class="ico">✅</div>Nenhuma vistoria encontrada'+(vistFiltroRota?' nessa rota':' ainda')+'.<br>'+(vistFiltroRota?'':'Toque numa edificação no mapa e depois em "Vistoriar".')+'</div>';
     return;
   }
 
@@ -760,10 +786,13 @@ function renderVistoriasCampo(){
       else { statusCls='indef'; statusTxt='⚠️ '+nc+' não conf.'; }
     }
 
+    var rota = v.rotaId ? db.rotas.find(function(r){return r.id===v.rotaId;}) : null;
+    var rotaTag = rota ? ' · 🧭 '+rota.nome : '';
+
     return '<div class="vist-card" onclick="abrirExecucao(\''+v.edificacaoId+'\')">'+
       '<div class="vtop">'+
         '<div><div class="vnome">'+(e?e.nome:'Edificação removida')+'</div>'+
-        '<div class="vsub">'+(e?e.re:'')+' · '+(v.tipo==='funcionamento'?'Funcionamento':v.tipo==='habite-se'?'Habite-se':'Sem tipo escolhido')+(v.motivo?' · '+v.motivo:'')+'</div></div>'+
+        '<div class="vsub">'+(e?e.re:'')+' · '+(v.tipo==='funcionamento'?'Funcionamento':v.tipo==='habite-se'?'Habite-se':'Sem tipo escolhido')+(v.motivo?' · '+v.motivo:'')+rotaTag+'</div></div>'+
         '<span class="vist-status '+statusCls+'">'+statusTxt+'</span>'+
       '</div>'+
       '<div class="vsub">'+(v.concluida ? 'Concluída em '+new Date(v.concluidaEm).toLocaleString('pt-BR') : 'Toque pra continuar')+'</div>'+
