@@ -800,6 +800,8 @@ function abrirExecucao(edificacaoId){
 function fecharExecucao(){
   document.getElementById('execOverlay').style.display='none';
   execEdificacaoId = null; execVistoriaId = null; execTipo = null;
+  renderVistoriasCampo();
+  if(map){ renderMapEdificacoes(); }
 }
 
 function garantirVistoria(){
@@ -1257,14 +1259,15 @@ function renderEdifsCampo(){
     var risco = riscoEfetivo(e);
     var cor = {1:'#34C759',2:'#A8D93A',3:'#FF9F0A',4:'#FF5E3A',5:'#C0272D'}[risco] || '#8E8E93';
     var semGPS = !e.lat || !e.lng;
-    return '<div class="item-card" style="cursor:pointer" onclick="abrirEdifEditCampo(\''+e.id+'\')">'+
-      '<div style="display:flex;align-items:center;gap:10px">'+
+    return '<div class="item-card">'+
+      '<div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="abrirEdifEditCampo(\''+e.id+'\')">'+
         '<div style="width:28px;height:28px;border-radius:50%;background:'+cor+';display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex:0 0 auto">'+(risco||'—')+'</div>'+
         '<div style="flex:1;min-width:0">'+
           '<div style="font-weight:700;font-size:14px">'+(e.nome||'Sem nome')+'</div>'+
           '<div style="font-size:12px;color:var(--sub)">'+(e.re||'Sem RE')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(semGPS?' · ⚠️ sem localização':'')+'</div>'+
         '</div>'+
       '</div>'+
+      '<button class="btn primary" style="width:100%;margin-top:10px" onclick="event.stopPropagation();abrirExecucao(\''+e.id+'\')">✅ Vistoriar</button>'+
     '</div>';
   }).join('');
 }
