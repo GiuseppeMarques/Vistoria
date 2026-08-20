@@ -885,13 +885,21 @@ function setItemLocal(itemId, val){
   salvarVistoria(v);
 }
 
-function setQtv(sid, val){
+function ajustarQtv(sid, delta){
   var v = garantirVistoria();
   if(!v.qtv) v.qtv={};
   if(!v.qtv[sid]) v.qtv[sid]={};
-  v.qtv[sid].val = val;
+  var atual = v.qtv[sid].val!=null ? v.qtv[sid].val : 0;
+  v.qtv[sid].val = Math.max(0, atual + delta);
   salvarVistoria(v);
   renderExecucao();
+}
+function setQtvObs(sid, val){
+  var v = garantirVistoria();
+  if(!v.qtv) v.qtv={};
+  if(!v.qtv[sid]) v.qtv[sid]={};
+  v.qtv[sid].obs = val;
+  salvarVistoria(v);
 }
 function setQtvAno(ano){
   var v = garantirVistoria();
@@ -963,14 +971,23 @@ function renderExecucao(){
     qtvAtivos.forEach(function(sid){
       var s = SIST.find(function(x){return x.id===sid;});
       var esperado = e.preventivos[sid].qty;
-      var encontrado = (v.qtv && v.qtv[sid] && v.qtv[sid].val!=null) ? v.qtv[sid].val : '';
+      var qd = (v.qtv && v.qtv[sid]) || {};
+      var contado = qd.val!=null;
+      var val = contado ? qd.val : 0;
       html += '<div class="item-card">'+
         '<div class="item-c">'+s.l+' — esperado no PPCI: '+esperado+'</div>'+
-        '<label class="lbl">Quantidade encontrada em campo</label>'+
-        '<input type="text" value="'+encontrado+'" onchange="setQtv(\''+sid+'\',this.value)">'+
+        '<div style="display:flex;align-items:center;gap:14px;margin:10px 0">'+
+          '<button class="btn" style="width:46px;padding:12px 0;font-size:18px" onclick="ajustarQtv(\''+sid+'\',-1)">−</button>'+
+          '<div style="flex:1;text-align:center">'+
+            '<div style="font-size:32px;font-weight:800;line-height:1">'+val+'</div>'+
+            '<div style="font-size:11px;color:var(--sub)">'+(contado?'contados':'toque + a cada um que encontrar')+'</div>'+
+          '</div>'+
+          '<button class="btn primary" style="width:60px;padding:12px 0;font-size:18px" onclick="ajustarQtv(\''+sid+'\',1)">+1</button>'+
+        '</div>'+
+        '<label class="lbl">Observação (opcional)</label>'+
+        '<input type="text" value="'+((qd.obs||'').replace(/"/g,'&quot;'))+'" placeholder="Ex: um extintor vencido, trocar" onchange="setQtvObs(\''+sid+'\',this.value)">'+
       '</div>';
-      var val = parseInt(encontrado, 10);
-      if(!isNaN(val)){ if(val < esperado*0.5) qtvAbaixo50=true; else qtvAcimaAlgum=true; }
+      if(contado){ if(val < esperado*0.5) qtvAbaixo50=true; else qtvAcimaAlgum=true; }
       else { qtvTodosPreenchidos = false; }
     });
 
