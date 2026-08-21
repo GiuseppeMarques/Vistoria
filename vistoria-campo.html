@@ -220,6 +220,7 @@
         <button class="map-fab" id="btnLocalizacao" onclick="centralizarNaMinhaLocalizacao()">📍</button>
         <button class="map-fab" style="bottom:74px" onclick="abrirCamadas()">🗂️</button>
         <button class="map-fab" style="bottom:138px" onclick="abrirMapasOffline()">⬇️</button>
+        <button class="map-fab" id="btnFonteMapa" style="bottom:202px" onclick="trocarFonteMapa()">🛰️</button>
       </div>
     </div>
 
@@ -405,41 +406,22 @@
       <div class="sheet">
         <div class="sheet-handle"></div>
         <div class="sheet-title">Mapas offline</div>
-        <div id="pacotesList" style="margin-bottom:16px"></div>
-        <button class="btn primary" onclick="abrirNovoPacote()">⬇️ Baixar novo mapa offline</button>
-      </div>
-    </div>
 
-    <!-- MODAL: baixar novo pacote -->
-    <div id="modalNovoPacote" class="modal-overlay" style="display:none">
-      <div class="sheet">
-        <div class="sheet-handle"></div>
-        <div class="sheet-title">Baixar mapa offline</div>
+        <label class="lbl">Município ou região</label>
+        <input type="text" id="mofNomeRegiao" placeholder="Ex: Blumenau, SC" style="margin-bottom:10px">
+        <label class="lbl">Tipo de mapa</label>
+        <select id="mofFonteSel" style="margin-bottom:12px">
+          <option value="osm">🗺️ Rua</option>
+          <option value="sat">🛰️ Satélite</option>
+        </select>
+        <button class="btn primary" id="mofBuscarBtn" style="width:100%;margin-bottom:6px" onclick="baixarRegiaoOffline()">🔎 Buscar e baixar mapa</button>
+        <div id="mofStatus" class="gps-warn" style="display:none;background:rgba(28,28,30,.4);border-color:var(--border);color:var(--sub);margin-bottom:12px"></div>
 
-        <label class="lbl">Nome do pacote</label>
-        <input type="text" id="npNome" placeholder="Ex: Blumenau centro">
+        <input type="file" id="mofImportInput" accept=".mvd,.json" style="display:none" onchange="importarMapaOffline(this)">
+        <button class="btn" style="width:100%;margin-bottom:16px" onclick="document.getElementById('mofImportInput').click()">⬆️ Importar mapa (.mvd)</button>
 
-        <label class="lbl">Centro do download</label>
-        <div class="btnrow" style="margin-bottom:12px">
-          <button class="btn" id="npBtnAtual" onclick="setCentroPacote('atual')">🗺️ Mapa atual</button>
-          <button class="btn" id="npBtnGps" onclick="setCentroPacote('gps')">📍 Minha posição</button>
-        </div>
-        <div class="sub" id="npCentroTxt" style="margin-bottom:12px">Ou toque no mapa (atrás deste painel) pra escolher o centro.</div>
-
-        <label class="lbl">Raio (km): <span id="npRaioVal">3</span></label>
-        <input type="range" id="npRaio" min="1" max="40" value="3" style="width:100%;margin-bottom:16px" oninput="document.getElementById('npRaioVal').textContent=this.value">
-
-        <div id="npEstimativa" class="gps-warn" style="background:rgba(28,28,30,.4);border-color:var(--border);color:var(--sub)"></div>
-
-        <div class="btnrow">
-          <button class="btn stop" onclick="fecharNovoPacote()">Cancelar</button>
-          <button class="btn primary" onclick="iniciarDownloadPacote()">Baixar</button>
-        </div>
-
-        <div id="npProgresso" style="display:none;margin-top:14px">
-          <div class="prog-track"><div class="prog-fill" id="npProgFill"></div></div>
-          <div class="sub" id="npProgTxt" style="margin-top:6px;text-align:center"></div>
-        </div>
+        <div class="sec-title" style="margin-top:0">Mapas baixados</div>
+        <div id="mofLista"></div>
       </div>
     </div>
     <div id="modalCat" class="modal-overlay" style="display:none" onclick="if(event.target===this)fecharModalCat()">
@@ -1858,54 +1840,325 @@ var meuMarcador = null;
 var centroSelecionadoPacote = null; // {lat,lng} durante fluxo de download
 var modoEscolherCentro = false;
 
-// --- Cache de tiles offline via IndexedDB ---
-var IDB_NAME='vistoriaTilesDB', IDB_STORE='tiles';
-function idbOpen(){
-  return new Promise(function(res,rej){
-    var req = indexedDB.open(IDB_NAME, 1);
-    req.onupgradeneeded = function(){ req.result.createObjectStore(IDB_STORE); };
-    req.onsuccess = function(){ res(req.result); };
-    req.onerror = function(){ rej(req.error); };
+// ════════════════════════════════════════
+// MAPAS OFFLINE — IndexedDB compartilhado "mapaOfflineDB", compatível com o app Eventos (arquivo .mvd)
+// ════════════════════════════════════════
+var MAPA_DB_NAME = 'mapaOfflineDB';
+var TILE_SOURCES = {
+  osm: {label:'🗺️ Rua', url:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', subdomains:['a','b','c','d']},
+  sat: {label:'🛰️ Satélite', url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains:null}
+};
+var fonteMapaAtual = 'osm';
+
+function abrirMapaDB(){
+  return new Promise(function(resolve,reject){
+    var req = indexedDB.open(MAPA_DB_NAME, 1);
+    req.onupgradeneeded = function(e){
+      var db = e.target.result;
+      if(!db.objectStoreNames.contains('tiles')) db.createObjectStore('tiles', {keyPath:'chave'});
+      if(!db.objectStoreNames.contains('regioes')) db.createObjectStore('regioes', {keyPath:'id'});
+    };
+    req.onsuccess = function(){ resolve(req.result); };
+    req.onerror = function(){ reject(req.error); };
   });
 }
-function idbGetTile(key){
-  return idbOpen().then(function(db){
-    return new Promise(function(res){
-      var tx = db.transaction(IDB_STORE,'readonly').objectStore(IDB_STORE).get(key);
-      tx.onsuccess = function(){ res(tx.result||null); };
-      tx.onerror = function(){ res(null); };
+var mapaDBPromise = abrirMapaDB();
+
+function mdbGetTile(chave){
+  return mapaDBPromise.then(function(db){
+    return new Promise(function(resolve){
+      var req = db.transaction('tiles','readonly').objectStore('tiles').get(chave);
+      req.onsuccess = function(){ resolve(req.result||null); };
+      req.onerror = function(){ resolve(null); };
     });
   });
 }
-function idbPutTile(key, blob){
-  return idbOpen().then(function(db){
-    return new Promise(function(res){
-      var tx = db.transaction(IDB_STORE,'readwrite').objectStore(IDB_STORE).put(blob, key);
-      tx.onsuccess = function(){ res(true); };
-      tx.onerror = function(){ res(false); };
+function mdbPutTile(rec){
+  return mapaDBPromise.then(function(db){
+    return new Promise(function(resolve){
+      var tx = db.transaction('tiles','readwrite');
+      tx.objectStore('tiles').put(rec);
+      tx.oncomplete=function(){resolve();}; tx.onerror=function(){resolve();};
     });
   });
 }
-function idbDeleteTiles(keys){
-  return idbOpen().then(function(db){
-    var store = db.transaction(IDB_STORE,'readwrite').objectStore(IDB_STORE);
-    keys.forEach(function(k){ store.delete(k); });
+function mdbDeleteTile(chave){
+  return mapaDBPromise.then(function(db){
+    return new Promise(function(resolve){
+      var tx = db.transaction('tiles','readwrite');
+      tx.objectStore('tiles').delete(chave);
+      tx.oncomplete=function(){resolve();}; tx.onerror=function(){resolve();};
+    });
+  });
+}
+function mdbGetRegioes(){
+  return mapaDBPromise.then(function(db){
+    return new Promise(function(resolve){
+      var req = db.transaction('regioes','readonly').objectStore('regioes').getAll();
+      req.onsuccess=function(){resolve(req.result||[]);}; req.onerror=function(){resolve([]);};
+    });
+  });
+}
+function mdbPutRegiao(rec){
+  return mapaDBPromise.then(function(db){
+    return new Promise(function(resolve){
+      var tx = db.transaction('regioes','readwrite');
+      tx.objectStore('regioes').put(rec);
+      tx.oncomplete=function(){resolve();}; tx.onerror=function(){resolve();};
+    });
+  });
+}
+function mdbDeleteRegiao(id){
+  return mapaDBPromise.then(function(db){
+    return new Promise(function(resolve){
+      var tx = db.transaction('regioes','readwrite');
+      tx.objectStore('regioes').delete(id);
+      tx.oncomplete=function(){resolve();}; tx.onerror=function(){resolve();};
+    });
   });
 }
 
-var OfflineTileLayer = L.TileLayer.extend({
+function calcularTilesRegiao(bbox, zMin, zMax){
+  var tiles = [];
+  function lon2x(lon,z){ return Math.floor((lon+180)/360*Math.pow(2,z)); }
+  function lat2y(lat,z){
+    var r=Math.max(-85.05,Math.min(85.05,lat))*Math.PI/180;
+    return Math.floor((1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*Math.pow(2,z));
+  }
+  for(var z=zMin; z<=zMax; z++){
+    var x1=lon2x(bbox.west,z), x2=lon2x(bbox.east,z);
+    var y1=lat2y(bbox.north,z), y2=lat2y(bbox.south,z);
+    for(var x=Math.min(x1,x2); x<=Math.max(x1,x2); x++){
+      for(var y=Math.min(y1,y2); y<=Math.max(y1,y2); y++){
+        tiles.push({z:z,x:x,y:y});
+      }
+    }
+  }
+  return tiles;
+}
+
+function urlDoTile(fonte, t){
+  var src = TILE_SOURCES[fonte];
+  if(!src.subdomains){
+    return src.url.replace('{z}',t.z).replace('{y}',t.y).replace('{x}',t.x);
+  }
+  var sub = src.subdomains[Math.floor(Math.random()*src.subdomains.length)];
+  return src.url.replace('{s}',sub).replace('{z}',t.z).replace('{x}',t.x).replace('{y}',t.y);
+}
+
+function geocodificarRegiao(nome){
+  var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(nome);
+  return fetch(url).then(function(r){return r.json();}).then(function(arr){
+    if(!arr.length) throw new Error('Região não encontrada. Tente ser mais específico (ex: "Blumenau, SC").');
+    var item = arr[0];
+    var bb = item.boundingbox;
+    return {
+      bbox: {south:parseFloat(bb[0]), north:parseFloat(bb[1]), west:parseFloat(bb[2]), east:parseFloat(bb[3])},
+      displayName: item.display_name
+    };
+  });
+}
+
+function baixarRegiaoOffline(){
+  var nome = document.getElementById('mofNomeRegiao').value.trim();
+  if(!nome){ alert('Digite o nome do município ou região.'); return; }
+  var fonte = document.getElementById('mofFonteSel').value;
+
+  document.getElementById('mofBuscarBtn').disabled = true;
+  var statusEl = document.getElementById('mofStatus');
+  statusEl.style.display='block';
+  statusEl.textContent = '🔎 Buscando "'+nome+'"...';
+
+  geocodificarRegiao(nome).then(function(geo){
+    var tiles = calcularTilesRegiao(geo.bbox, 11, 15);
+    if(tiles.length > 8000){
+      document.getElementById('mofBuscarBtn').disabled = false;
+      statusEl.textContent = '⚠️ Região muito grande ('+tiles.length+' tiles). Peça algo mais específico (um bairro, ou "Cidade, Estado").';
+      return;
+    }
+    statusEl.textContent = 'Baixando 0/'+tiles.length+' tiles ('+geo.displayName+')...';
+
+    var regiaoId = novoId('reg');
+    var concluidos = 0, falhas = 0, idx = 0, terminados = 0;
+    var concorrencia = 6;
+
+    function proximo(){
+      if(idx >= tiles.length) return;
+      var t = tiles[idx++];
+      var chave = fonte+'/'+t.z+'/'+t.x+'/'+t.y;
+      mdbGetTile(chave).then(function(existente){
+        if(existente){
+          concluidos++; terminados++; atualizarProgresso();
+          if(idx<tiles.length) proximo(); else verificarFim();
+          return;
+        }
+        fetch(urlDoTile(fonte, t)).then(function(resp){
+          if(!resp.ok) throw new Error('http '+resp.status);
+          return resp.blob();
+        }).then(function(blob){
+          return mdbPutTile({chave:chave, z:t.z, x:t.x, y:t.y, fonte:fonte, blob:blob});
+        }).then(function(){
+          concluidos++;
+        }).catch(function(){
+          falhas++;
+        }).then(function(){
+          terminados++; atualizarProgresso();
+          if(idx<tiles.length) proximo(); else verificarFim();
+        });
+      });
+    }
+    function atualizarProgresso(){
+      statusEl.textContent = 'Baixando '+terminados+'/'+tiles.length+' tiles'+(falhas?' ('+falhas+' falharam)':'')+'...';
+    }
+    function verificarFim(){
+      if(terminados < tiles.length) return;
+      var registro = {
+        id: regiaoId, nome: nome, bbox: geo.bbox, zoomMin:11, zoomMax:15, fonte: fonte,
+        tileCount: concluidos, criadoEm: new Date().toISOString()
+      };
+      mdbPutRegiao(registro).then(function(){
+        statusEl.textContent = '✅ Concluído: '+concluidos+' tiles salvos'+(falhas?' ('+falhas+' falharam)':'')+'.';
+        document.getElementById('mofBuscarBtn').disabled = false;
+        renderMapasOfflineLista();
+      });
+    }
+    for(var i=0;i<concorrencia && i<tiles.length;i++) proximo();
+  }).catch(function(err){
+    document.getElementById('mofBuscarBtn').disabled = false;
+    statusEl.textContent = '❌ '+(err.message||'Erro ao buscar a região.');
+  });
+}
+
+function renderMapasOfflineLista(){
+  mdbGetRegioes().then(function(regioes){
+    var el = document.getElementById('mofLista');
+    if(!regioes.length){
+      el.innerHTML = '<div class="empty" style="padding:16px"><div class="ico">🗺️</div>Nenhum mapa offline baixado ainda.</div>';
+      return;
+    }
+    regioes.sort(function(a,b){ return new Date(b.criadoEm)-new Date(a.criadoEm); });
+    el.innerHTML = regioes.map(function(r){
+      var fonteLabel = (TILE_SOURCES[r.fonte||'osm']||TILE_SOURCES.osm).label;
+      return '<div class="pkg-item"><div>'+
+        '<div class="nome">'+r.nome+' <span style="font-weight:400;font-size:11px;color:var(--sub)">'+fonteLabel+'</span></div>'+
+        '<div class="meta">'+r.tileCount+' tiles · zoom '+r.zoomMin+'-'+r.zoomMax+' · '+new Date(r.criadoEm).toLocaleDateString('pt-BR')+'</div>'+
+      '</div><div class="btnrow" style="gap:6px">'+
+        '<button class="btn" onclick="exportarRegiaoOffline(\''+r.id+'\')">Exportar</button>'+
+        '<button class="btn stop" onclick="removerRegiaoOffline(\''+r.id+'\')">Remover</button>'+
+      '</div></div>';
+    }).join('');
+  });
+}
+
+function blobParaDataURL(blob){
+  return new Promise(function(resolve){
+    var reader = new FileReader();
+    reader.onloadend = function(){ resolve(reader.result); };
+    reader.readAsDataURL(blob);
+  });
+}
+
+function exportarRegiaoOffline(id){
+  mdbGetRegioes().then(function(regioes){
+    var regiao = regioes.find(function(r){return r.id===id;});
+    if(!regiao) return;
+    var tiles = calcularTilesRegiao(regiao.bbox, regiao.zoomMin, regiao.zoomMax);
+    var fonte = regiao.fonte||'osm';
+    var statusEl = document.getElementById('mofStatus');
+    statusEl.style.display='block';
+    statusEl.textContent = '📦 Preparando exportação...';
+    Promise.all(tiles.map(function(t){
+      var chave = fonte+'/'+t.z+'/'+t.x+'/'+t.y;
+      return mdbGetTile(chave).then(function(rec){
+        if(!rec || !rec.blob) return null;
+        return blobParaDataURL(rec.blob).then(function(d){ return {z:t.z, x:t.x, y:t.y, d:d}; });
+      });
+    })).then(function(resultados){
+      var tilesValidos = resultados.filter(Boolean);
+      var pacote = {tipo:'mapa-offline', regiao:regiao, tiles:tilesValidos};
+      var blob = new Blob([JSON.stringify(pacote)], {type:'application/json'});
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = (regiao.nome.replace(/[^a-z0-9]+/gi,'_'))+'.mvd';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      statusEl.textContent = '✅ '+tilesValidos.length+' tiles exportados.';
+    });
+  });
+}
+
+function removerRegiaoOffline(id){
+  if(!confirm('Remover este mapa offline? Os tiles baixados só por ele serão apagados.')) return;
+  mdbGetRegioes().then(function(regioes){
+    var regiao = regioes.find(function(r){return r.id===id;});
+    if(!regiao) return;
+    var tiles = calcularTilesRegiao(regiao.bbox, regiao.zoomMin, regiao.zoomMax);
+    var fonte = regiao.fonte||'osm';
+    Promise.all(tiles.map(function(t){ return mdbDeleteTile(fonte+'/'+t.z+'/'+t.x+'/'+t.y); }))
+      .then(function(){ return mdbDeleteRegiao(id); })
+      .then(function(){ renderMapasOfflineLista(); });
+  });
+}
+
+function importarMapaOffline(input){
+  var file = input.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var statusEl = document.getElementById('mofStatus');
+    try {
+      var pacote = JSON.parse(e.target.result);
+      if(pacote.tipo !== 'mapa-offline'){ alert('Arquivo não é um mapa offline válido (.mvd).'); return; }
+      statusEl.style.display='block';
+      statusEl.textContent = '📥 Importando '+pacote.tiles.length+' tiles...';
+      var fonte = pacote.regiao.fonte || 'osm';
+      Promise.all(pacote.tiles.map(function(t){
+        return fetch(t.d).then(function(r){return r.blob();}).then(function(blob){
+          return mdbPutTile({chave:fonte+'/'+t.z+'/'+t.x+'/'+t.y, z:t.z, x:t.x, y:t.y, fonte:fonte, blob:blob});
+        });
+      })).then(function(){
+        var regiao = pacote.regiao;
+        if(!regiao.id) regiao.id = novoId('reg');
+        return mdbPutRegiao(regiao);
+      }).then(function(){
+        statusEl.textContent = '✅ Mapa importado: '+pacote.regiao.nome;
+        renderMapasOfflineLista();
+      });
+    } catch(err){
+      alert('Não foi possível ler esse arquivo.');
+    }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+function abrirMapasOffline(){
+  renderMapasOfflineLista();
+  document.getElementById('mofStatus').style.display='none';
+  document.getElementById('modalOffline').style.display='flex';
+}
+
+var OfflineFirstTileLayer = L.TileLayer.extend({
+  initialize: function(fonte, options){
+    this._fonteMapa = fonte;
+    L.TileLayer.prototype.initialize.call(this, TILE_SOURCES[fonte].url, options);
+  },
   createTile: function(coords, done){
     var img = document.createElement('img');
-    var key = coords.z+'/'+coords.x+'/'+coords.y;
-    var url = this.getTileUrl(coords);
-    idbGetTile(key).then(function(blob){
-      if(blob){
-        img.src = URL.createObjectURL(blob);
+    var fonte = this._fonteMapa;
+    var chave = fonte+'/'+coords.z+'/'+coords.x+'/'+coords.y;
+    var url = urlDoTile(fonte, {z:coords.z, x:coords.x, y:coords.y});
+    mdbGetTile(chave).then(function(rec){
+      if(rec && rec.blob){
+        img.src = URL.createObjectURL(rec.blob);
         done(null, img);
       } else {
-        fetch(url).then(function(r){ return r.blob(); }).then(function(blob2){
-          img.src = URL.createObjectURL(blob2);
+        fetch(url).then(function(r){
+          if(!r.ok) throw new Error('http');
+          return r.blob();
+        }).then(function(blob){
+          img.src = URL.createObjectURL(blob);
           done(null, img);
+          mdbPutTile({chave:chave, z:coords.z, x:coords.x, y:coords.y, fonte:fonte, blob:blob});
         }).catch(function(e){ done(e, img); });
       }
     });
@@ -1913,13 +2166,19 @@ var OfflineTileLayer = L.TileLayer.extend({
   }
 });
 
+var camadaMapaAtual = null;
+function trocarFonteMapa(){
+  fonteMapaAtual = fonteMapaAtual==='osm' ? 'sat' : 'osm';
+  if(camadaMapaAtual && map) map.removeLayer(camadaMapaAtual);
+  camadaMapaAtual = new OfflineFirstTileLayer(fonteMapaAtual, {maxZoom:19, attribution:'© OpenStreetMap contributors © CARTO / Esri'}).addTo(map);
+  document.getElementById('btnFonteMapa').textContent = fonteMapaAtual==='osm' ? '🛰️' : '🗺️';
+}
+
 function initMap(){
   if(mapInited) return;
   mapInited = true;
   map = L.map('map', {zoomControl:true}).setView([-27.5,-49.0], 12);
-  new OfflineTileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
-    maxZoom:19, subdomains:'abcd', attribution:'© OpenStreetMap contributors © CARTO'
-  }).addTo(map);
+  camadaMapaAtual = new OfflineFirstTileLayer(fonteMapaAtual, {maxZoom:19, attribution:'© OpenStreetMap contributors © CARTO / Esri'}).addTo(map);
 
   lyrEdif = L.layerGroup().addTo(map);
   lyrForaComp = L.layerGroup().addTo(map);
@@ -2189,159 +2448,6 @@ function abrirDetalhesCompletos(id){
 
   document.getElementById('edifDetalhesConteudo').innerHTML = html;
   document.getElementById('modalEdifDetalhes').style.display='flex';
-}
-
-// --- Mapas offline (pacotes nomeados) ---
-function abrirMapasOffline(){
-  renderPacotes();
-  document.getElementById('modalOffline').style.display='flex';
-}
-function renderPacotes(){
-  var db = loadDB();
-  var pacotes = db.pacotesMapa || [];
-  var el = document.getElementById('pacotesList');
-  if(!pacotes.length){
-    el.innerHTML = '<div class="empty" style="padding:16px"><div class="ico">🗺️</div>Nenhum mapa offline baixado ainda.</div>';
-    return;
-  }
-  el.innerHTML = pacotes.map(function(p){
-    return '<div class="pkg-item"><div>'+
-      '<div class="nome">'+p.nome+'</div>'+
-      '<div class="meta">'+p.raioKm+'km · '+p.qtdTiles+' tiles · ~'+p.tamanhoEstimadoMB+'MB · '+new Date(p.dataDownload).toLocaleDateString('pt-BR')+'</div>'+
-    '</div><button class="btn stop" onclick="excluirPacote(\''+p.id+'\')">Excluir</button></div>';
-  }).join('');
-}
-function excluirPacote(id){
-  if(!confirm('Excluir este mapa offline? Os tiles baixados só por ele serão removidos.')) return;
-  var db = loadDB();
-  var pac = (db.pacotesMapa||[]).find(function(p){return p.id===id;});
-  if(pac && pac.tiles){ idbDeleteTiles(pac.tiles.map(function(t){return t.z+'/'+t.x+'/'+t.y;})); }
-  db.pacotesMapa = (db.pacotesMapa||[]).filter(function(p){return p.id!==id;});
-  saveDB(db);
-  renderPacotes();
-}
-
-function abrirNovoPacote(){
-  document.getElementById('modalOffline').style.display='none';
-  document.getElementById('npNome').value='';
-  document.getElementById('npRaio').value=3;
-  document.getElementById('npRaioVal').textContent='3';
-  document.getElementById('npProgresso').style.display='none';
-  centroSelecionadoPacote = null;
-  modoEscolherCentro = true;
-  document.getElementById('npCentroTxt').textContent = 'Ou toque no mapa (atrás deste painel) pra escolher o centro.';
-  document.getElementById('modalNovoPacote').style.display='flex';
-}
-function fecharNovoPacote(){
-  modoEscolherCentro = false;
-  document.getElementById('modalNovoPacote').style.display='none';
-}
-function setCentroPacote(modo){
-  if(modo==='atual'){
-    var c = map.getCenter();
-    centroSelecionadoPacote = {lat:c.lat, lng:c.lng};
-    document.getElementById('npCentroTxt').textContent = '📌 Centro: mapa atual ('+c.lat.toFixed(5)+', '+c.lng.toFixed(5)+')';
-    atualizarEstimativaPacote();
-  } else if(modo==='gps'){
-    if(!navigator.geolocation){ alert('GPS não disponível.'); return; }
-    navigator.geolocation.getCurrentPosition(function(pos){
-      centroSelecionadoPacote = {lat:pos.coords.latitude, lng:pos.coords.longitude};
-      document.getElementById('npCentroTxt').textContent = '📌 Centro: minha posição GPS';
-      atualizarEstimativaPacote();
-    });
-  }
-}
-document.addEventListener('input', function(e){
-  if(e.target && e.target.id==='npRaio') atualizarEstimativaPacote();
-});
-
-function calcularTilesPacote(centro, raioKm, zMin, zMax){
-  var tiles = [];
-  var latRad = centro.lat*Math.PI/180;
-  var kmPorGrauLat = 111.32;
-  var kmPorGrauLng = 111.32*Math.cos(latRad);
-  var dLat = raioKm/kmPorGrauLat;
-  var dLng = raioKm/kmPorGrauLng;
-  var n1 = {lat:centro.lat+dLat, lng:centro.lng-dLng};
-  var n2 = {lat:centro.lat-dLat, lng:centro.lng+dLng};
-  function lon2x(lon,z){ return Math.floor((lon+180)/360*Math.pow(2,z)); }
-  function lat2y(lat,z){
-    var r=lat*Math.PI/180;
-    return Math.floor((1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*Math.pow(2,z));
-  }
-  for(var z=zMin; z<=zMax; z++){
-    var x1=lon2x(n1.lng,z), x2=lon2x(n2.lng,z);
-    var y1=lat2y(n1.lat,z), y2=lat2y(n2.lat,z);
-    for(var x=Math.min(x1,x2); x<=Math.max(x1,x2); x++){
-      for(var y=Math.min(y1,y2); y<=Math.max(y1,y2); y++){
-        tiles.push({z:z,x:x,y:y});
-      }
-    }
-  }
-  return tiles;
-}
-
-function atualizarEstimativaPacote(){
-  if(!centroSelecionadoPacote) return;
-  var raio = parseInt(document.getElementById('npRaio').value,10);
-  var tiles = calcularTilesPacote(centroSelecionadoPacote, raio, 13, 17);
-  var mb = (tiles.length * 18 / 1024).toFixed(1); // ~18KB médio por tile
-  var minEst = Math.ceil(tiles.length * 0.18 / 60); // throttle de 180ms entre tiles
-  var aviso = document.getElementById('npEstimativa');
-  aviso.textContent = '≈ '+tiles.length+' tiles · ≈ '+mb+' MB · ≈ '+minEst+' min de download (zoom 13–17)';
-  aviso.style.color = minEst>30 ? 'var(--red2)' : 'var(--sub)';
-}
-
-function iniciarDownloadPacote(){
-  var nome = document.getElementById('npNome').value.trim();
-  if(!nome){ alert('Dê um nome ao mapa offline.'); return; }
-  if(!centroSelecionadoPacote){ alert('Escolha o centro do download (mapa atual, GPS, ou toque no mapa).'); return; }
-  var raio = parseInt(document.getElementById('npRaio').value,10);
-  var tiles = calcularTilesPacote(centroSelecionadoPacote, raio, 13, 17);
-
-  modoEscolherCentro = false;
-  document.getElementById('npProgresso').style.display='block';
-  var fill = document.getElementById('npProgFill');
-  var txt = document.getElementById('npProgTxt');
-  var ok = 0, falhas = 0;
-
-  function baixarProximo(i){
-    if(i>=tiles.length){
-      var db = loadDB();
-      if(!db.pacotesMapa) db.pacotesMapa=[];
-      db.pacotesMapa.push({
-        id: novoId('pkg'),
-        nome: nome,
-        centro: centroSelecionadoPacote,
-        raioKm: raio, zoomMin:13, zoomMax:17,
-        qtdTiles: ok,
-        tamanhoEstimadoMB: (ok*18/1024).toFixed(1),
-        dataDownload: new Date().toISOString(),
-        status: falhas>0 ? 'parcial' : 'completo',
-        tiles: tiles
-      });
-      saveDB(db);
-      txt.textContent = 'Concluído: '+ok+' tiles salvos'+(falhas?' ('+falhas+' falharam)':'')+'.';
-      setTimeout(function(){ fecharNovoPacote(); }, 1200);
-      return;
-    }
-    var t = tiles[i];
-    var sub = ['a','b','c','d'][i%4];
-    var url = 'https://'+sub+'.basemaps.cartocdn.com/rastertiles/voyager/'+t.z+'/'+t.x+'/'+t.y+'.png';
-    var key = t.z+'/'+t.x+'/'+t.y;
-    fetch(url).then(function(r){return r.blob();}).then(function(blob){
-      return idbPutTile(key, blob);
-    }).then(function(){
-      ok++;
-    }).catch(function(){ falhas++; })
-      .finally(function(){
-        var pct = Math.round(((i+1)/tiles.length)*100);
-        fill.style.width = pct+'%';
-        txt.textContent = 'Baixando... '+(i+1)+'/'+tiles.length;
-        setTimeout(function(){ baixarProximo(i+1); }, 180); // intervalo pra não martelar o servidor
-      });
-  }
-  baixarProximo(0);
 }
 
 // ════════════════════════════════════════
