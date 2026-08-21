@@ -58,7 +58,7 @@
   .btn.primary{background:var(--red);}
   .btn:hover{opacity:.9;}
 
-  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:2000;display:flex;
     align-items:center;justify-content:center;}
   .modal{background:var(--card);border-radius:18px;padding:26px;width:560px;max-width:92vw;
     max-height:88vh;overflow-y:auto;}
@@ -880,8 +880,8 @@ function popularFiltrosEdif(edificacoes){
   var selBai = document.getElementById('edifFiltroBairro');
   var valMun = selMun.value, valBai = selBai.value;
 
-  var municipios = Array.from(new Set(edificacoes.map(function(e){return (e.municipio||'').trim();}).filter(Boolean))).sort();
-  var bairros = Array.from(new Set(edificacoes.map(function(e){return (e.bairro||'').trim();}).filter(Boolean))).sort();
+  var municipios = dedupIgnorandoCaixa(edificacoes.map(function(e){return (e.municipio||'').trim();}).filter(Boolean));
+  var bairros = dedupIgnorandoCaixa(edificacoes.map(function(e){return (e.bairro||'').trim();}).filter(Boolean));
 
   selMun.innerHTML = '<option value="">Município: todos</option>' + municipios.map(function(m){
     return '<option value="'+m.replace(/"/g,'&quot;')+'">'+m+'</option>';
@@ -1095,10 +1095,18 @@ function renderBlocosForm(){
   }).join('');
 }
 
+function dedupIgnorandoCaixa(lista){
+  var vistos = {}, resultado = [];
+  lista.forEach(function(v){
+    var chave = v.toLowerCase();
+    if(!vistos[chave]){ vistos[chave]=true; resultado.push(v); }
+  });
+  return resultado.sort(function(a,b){ return a.localeCompare(b); });
+}
 function popularDatalistsEdif(){
   var db = loadDB();
-  var municipios = Array.from(new Set((db.edificacoes||[]).map(function(e){return (e.municipio||'').trim();}).filter(Boolean))).sort();
-  var bairros = Array.from(new Set((db.edificacoes||[]).map(function(e){return (e.bairro||'').trim();}).filter(Boolean))).sort();
+  var municipios = dedupIgnorandoCaixa((db.edificacoes||[]).map(function(e){return (e.municipio||'').trim();}).filter(Boolean));
+  var bairros = dedupIgnorandoCaixa((db.edificacoes||[]).map(function(e){return (e.bairro||'').trim();}).filter(Boolean));
   document.getElementById('dlMunicipios').innerHTML = municipios.map(function(m){ return '<option value="'+m.replace(/"/g,'&quot;')+'">'; }).join('');
   document.getElementById('dlBairros').innerHTML = bairros.map(function(b){ return '<option value="'+b.replace(/"/g,'&quot;')+'">'; }).join('');
 }
