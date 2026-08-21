@@ -320,6 +320,12 @@
         <button class="btn primary" onclick="document.getElementById('importInput').click()">⬆️ Importar arquivo do Campo</button>
       </div>
 
+      <div class="card2-box" style="margin-top:16px">
+        <div class="sec-title" style="margin-top:0">Exportar pontos de referência (pro Eventos)</div>
+        <div class="sub" style="margin-bottom:14px">Gera um arquivo com RE, nome e contato das edificações, e também os pontos marcados em campo (Ponte, Hidrante, Manancial etc.) — pra usar como pontos de referência no app Eventos. Só entra o que já tem localização no mapa.</div>
+        <button class="btn primary" onclick="exportarPontosReferencia()">📍 Exportar pontos de referência</button>
+      </div>
+
       <div id="importResumo" style="margin-top:16px"></div>
     </div>
   </main>
@@ -2405,6 +2411,55 @@ function exportarParaCampo(){
     pontos: [], trajetorias: []
   };
   baixarPacote(pacote);
+}
+
+function exportarPontosReferencia(){
+  var CATEGORIAS_PONTO_LABEL = {
+    bifurcacao:'Bifurcação', acesso:'Acesso', referencia:'Referência', ponto_risco:'Ponto de risco',
+    hidrante:'Hidrante', manancial:'Manancial', ponte:'Ponte', igreja:'Igreja', outro:'Outro'
+  };
+  var db = loadDB();
+  var comLocal = (db.edificacoes||[]).filter(function(e){ return e.lat && e.lng; });
+
+  // Pontos marcados no Campo (Ponte, Hidrante, Manancial, Referência etc.) — exclui edificação desconhecida
+  // ainda pendente (sem cadastro completo) e a já convertida (que já entra como edificação acima)
+  var pontosMarcados = (db.pontos||[]).filter(function(p){
+    return p.lat && p.lng && p.tipo!=='edificacao_desconhecida';
+  });
+
+  if(!comLocal.length && !pontosMarcados.length){ alert('Nenhuma edificação ou ponto com localização cadastrado ainda.'); return; }
+
+  var pontosEdif = comLocal.map(function(e){
+    return {
+      id: e.id, tipo: 'edificacao', re: e.re || '', nome: e.nome || '', lat: e.lat, lng: e.lng,
+      endereco: e.endereco || '', bairro: e.bairro || '', municipio: e.municipio || '',
+      contato: { nome: (e.responsavel && e.responsavel.nome) || '', telefone: (e.responsavel && e.responsavel.tel) || '' }
+    };
+  });
+
+  var pontosOutros = pontosMarcados.map(function(p){
+    return {
+      id: p.id, tipo: p.tipo, re: '', nome: p.nome || p.descricao || CATEGORIAS_PONTO_LABEL[p.tipo] || p.tipo,
+      lat: p.lat, lng: p.lng, endereco: '', bairro: '', municipio: '',
+      contato: {nome:'', telefone:''}
+    };
+  });
+
+  var pacote = {
+    tipo: 'pontos-referencia',
+    origem: 'vistoria-quartel',
+    geradoEm: new Date().toISOString(),
+    pontos: pontosEdif.concat(pontosOutros)
+  };
+
+  var blob = new Blob([JSON.stringify(pacote, null, 2)], {type:'application/json'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'pontos_referencia_vistoria.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+
+  var semLocal = (db.edificacoes||[]).length - comLocal.length;
+  if(semLocal>0) alert(comLocal.length+' pontos exportados. '+semLocal+' edificação(ões) sem localização não entraram no arquivo.');
 }
 
 function mergeArray(local, importados, contador){
