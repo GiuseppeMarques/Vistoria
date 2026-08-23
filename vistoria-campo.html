@@ -75,7 +75,7 @@
   nav button.on{color:var(--red2);}
 
   /* Modais / bottom sheets */
-  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;display:flex;align-items:flex-end;}
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2000;display:flex;align-items:flex-end;}
   .sheet{background:var(--card);width:100%;border-radius:20px 20px 0 0;padding:10px 18px 24px;
     max-height:85vh;overflow-y:auto;padding-bottom:calc(24px + env(safe-area-inset-bottom));}
   .sheet-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:6px auto 14px;}
@@ -499,7 +499,6 @@ var SIST = [
 // ════════════════════════════════════════
 var CL_HS = {
   'Documentação': [
-    {id:'h1',obj:'DRT',c:'Taxa paga — comprovante de recolhimento apresentado',ca:'Comprovante de recolhimento da taxa referente ao Habite-se não apresentado.'},
     {id:'h2',obj:'DRT',c:'DRT de execução de todos os SMSCI conforme PPCI aprovado',ca:'É necessário DRT de execução de todos os SMSCI executados na edificação, conforme o PPCI aprovado.'},
     {id:'h3',obj:'DRT',c:'Relatório de conformidade dos SMSCI (Anexo I — IN 1 Parte 1)',ca:'Relatório de conformidade dos SMSCI não apresentado.'},
     {id:'h4',obj:'DRT',c:'Autenticidade e validade dos DRTs',ca:'DRT sem comprovação de autenticidade/validade.'},
@@ -606,8 +605,6 @@ var CL_HS = {
 
 var CL_FN = {
   'Documentação': [
-    {id:'f1',obj:'DRT',c:'Comprovante de recolhimento da taxa de funcionamento',ca:'O comprovante de recolhimento da taxa de funcionamento não foi apresentado.'},
-    {id:'f2',obj:'DRT',c:'Declaração com Termo de Responsabilidade (Anexo G — IN 1 Parte 1)',ca:'Declaração com termo de responsabilidade não apresentada.'},
     {id:'f3',obj:'PPCI',c:'PPCI aprovado e em condições para vistoria',ca:'O imóvel não possui PPCI aprovado.'}
   ],
   'Características Gerais': [
@@ -914,6 +911,22 @@ function setQtvObs(sid, val){
   v.qtv[sid].obs = val;
   salvarVistoria(v);
 }
+function ajustarPrevBloco(chave, delta){
+  var v = garantirVistoria();
+  if(!v.qtvPrevBloco) v.qtvPrevBloco={};
+  if(!v.qtvPrevBloco[chave]) v.qtvPrevBloco[chave]={};
+  var atual = v.qtvPrevBloco[chave].val!=null ? v.qtvPrevBloco[chave].val : 0;
+  v.qtvPrevBloco[chave].val = Math.max(0, atual + delta);
+  salvarVistoria(v);
+  renderExecucao();
+}
+function setObsPrevBloco(chave, val){
+  var v = garantirVistoria();
+  if(!v.qtvPrevBloco) v.qtvPrevBloco={};
+  if(!v.qtvPrevBloco[chave]) v.qtvPrevBloco[chave]={};
+  v.qtvPrevBloco[chave].obs = val;
+  salvarVistoria(v);
+}
 function setQtvAno(ano){
   var v = garantirVistoria();
   if(!v.qtv) v.qtv={};
@@ -948,7 +961,7 @@ function renderExecucao(){
     return;
   }
 
-  // Sistemas preventivos ativos (temporário até o cadastro completo existir no Quartel — Fase 10)
+  // Sistemas preventivos ativos — chips controlam quais grupos do checklist aparecem
   html += '<div style="font-size:12px;color:var(--sub);margin-bottom:6px">Sistemas preventivos ativos nesta edificação:</div>';
   html += '<div class="prev-chips">'+SIST.map(function(s){
     var ativo = e.preventivos && e.preventivos[s.id] && e.preventivos[s.id].ativo;
@@ -956,6 +969,67 @@ function renderExecucao(){
   }).join('')+'</div>';
 
   var v = db.vistorias.find(function(x){return x.id===execVistoriaId;}) || {checklist:{}};
+
+  // Sistemas preventivos por bloco e por andar — quantidade esperada, contador do que foi encontrado, e observação
+  if(e.blocos && e.blocos.length){
+    html += '<div class="sec-title" style="margin-top:0">Sistemas preventivos por bloco e andar</div>';
+    e.blocos.forEach(function(bloco, bi){
+      html += '<div class="grupo-title">'+bloco.nome+'</div>';
+      (bloco.pavimentos||[]).forEach(function(pav, pi){
+        var sids = Object.keys(pav.sist||{}).filter(function(sid){ return pav.sist[sid].ativo; });
+        html += '<div class="pav-card" style="margin-bottom:10px"><div class="pav-h">'+pav.label+'</div>';
+        if(!sids.length){
+          html += '<div class="sub" style="padding:2px 0">Nenhum sistema detalhado neste andar.</div>';
+        } else {
+          sids.forEach(function(sid){
+            var s = SIST.find(function(x){return x.id===sid;});
+            var chave = bi+'_'+pi+'_'+sid;
+            var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
+            var contado = qd.val!=null;
+            var val = contado ? qd.val : 0;
+            html += '<div class="item-card" style="margin-bottom:8px">'+
+              '<div class="item-c">'+(s?s.l:sid)+' — esperado '+(pav.sist[sid].qty||0)+' un. neste andar</div>'+
+              '<div style="display:flex;align-items:center;gap:12px;margin:8px 0">'+
+                '<button class="btn" style="width:40px;padding:10px 0;font-size:16px" onclick="ajustarPrevBloco(\''+chave+'\',-1)">−</button>'+
+                '<div style="flex:1;text-align:center">'+
+                  '<div style="font-size:24px;font-weight:800;line-height:1">'+val+'</div>'+
+                  '<div style="font-size:10px;color:var(--sub)">'+(contado?'contados':'toque + a cada um encontrado')+'</div>'+
+                '</div>'+
+                '<button class="btn primary" style="width:52px;padding:10px 0;font-size:16px" onclick="ajustarPrevBloco(\''+chave+'\',1)">+1</button>'+
+              '</div>'+
+              '<label class="lbl">Observação (opcional)</label>'+
+              '<input type="text" value="'+((qd.obs||'').replace(/"/g,'&quot;'))+'" placeholder="Observação sobre esse sistema neste andar" onchange="setObsPrevBloco(\''+chave+'\',this.value)">'+
+            '</div>';
+          });
+        }
+        html += '</div>';
+      });
+    });
+  } else {
+    var ativosFlat = SIST.filter(function(s){ return e.preventivos && e.preventivos[s.id] && e.preventivos[s.id].ativo; });
+    if(ativosFlat.length){
+      html += '<div class="sec-title" style="margin-top:0">Sistemas preventivos</div>';
+      ativosFlat.forEach(function(s){
+        var chave = '_'+s.id;
+        var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
+        var contado = qd.val!=null;
+        var val = contado ? qd.val : 0;
+        html += '<div class="item-card">'+
+          '<div class="item-c">'+s.l+' — esperado '+((e.preventivos[s.id]&&e.preventivos[s.id].qty)||0)+' un.</div>'+
+          '<div style="display:flex;align-items:center;gap:12px;margin:8px 0">'+
+            '<button class="btn" style="width:40px;padding:10px 0;font-size:16px" onclick="ajustarPrevBloco(\''+chave+'\',-1)">−</button>'+
+            '<div style="flex:1;text-align:center">'+
+              '<div style="font-size:24px;font-weight:800;line-height:1">'+val+'</div>'+
+              '<div style="font-size:10px;color:var(--sub)">'+(contado?'contados':'toque + a cada um encontrado')+'</div>'+
+            '</div>'+
+            '<button class="btn primary" style="width:52px;padding:10px 0;font-size:16px" onclick="ajustarPrevBloco(\''+chave+'\',1)">+1</button>'+
+          '</div>'+
+          '<label class="lbl">Observação (opcional)</label>'+
+          '<input type="text" value="'+((qd.obs||'').replace(/"/g,'&quot;'))+'" onchange="setObsPrevBloco(\''+chave+'\',this.value)">'+
+        '</div>';
+      });
+    }
+  }
   var cl = getCL(execTipo);
   var gruposAtivos = getGruposAtivos(e, execTipo);
   var grupos = Object.keys(cl).filter(function(g){return gruposAtivos.indexOf(g)>=0;});

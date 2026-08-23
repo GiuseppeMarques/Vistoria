@@ -168,6 +168,7 @@
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
     <button data-v="rotas" onclick="navTo('rotas')"><span class="ic">🧭</span>Rotas</button>
     <button data-v="mapa" onclick="navTo('mapa')"><span class="ic">🗺️</span>Mapa</button>
+    <button data-v="relatorios" onclick="navTo('relatorios')"><span class="ic">📊</span>Relatórios</button>
     <button data-v="campo" class="on" onclick="navTo('campo')"><span class="ic">📍</span>Campo
       <span class="badge" id="badgeCampo" style="display:none">0</span></button>
     <button data-v="dados" onclick="navTo('dados')"><span class="ic">💾</span>Dados</button>
@@ -178,6 +179,7 @@
       <h2>Edificações</h2><div class="lead">Cadastro completo e manutenção.</div>
       <div class="toolbar">
         <input type="text" id="edifBusca" placeholder="Buscar por RE, nome, endereço ou bairro..." oninput="renderEdificacoes()">
+        <button class="btn" onclick="abrirCadastroRapido()">⚡ Cadastro rápido (tabela)</button>
         <button class="btn primary" onclick="abrirFormEdif(null)">+ Nova edificação</button>
       </div>
       <div class="toolbar" style="margin-top:-6px">
@@ -222,6 +224,29 @@
         <button class="btn primary" onclick="abrirFormRota()">+ Nova rota</button>
       </div>
       <div id="rotasList"></div>
+    </div>
+
+    <div id="modalCadastroRapido" class="modal-overlay" style="display:none">
+      <div class="modal lg">
+        <h3>Cadastro rápido</h3>
+        <div class="sub">Preencha RE, nome e endereço de várias edificações de uma vez. Depois é só completar risco, blocos e sistemas preventivos individualmente quando precisar.</div>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0" id="crTabela">
+          <thead>
+            <tr style="text-align:left;font-size:12px;color:var(--sub)">
+              <th style="padding:6px 8px;width:20%">RE</th>
+              <th style="padding:6px 8px;width:35%">Nome</th>
+              <th style="padding:6px 8px;width:35%">Endereço</th>
+              <th style="width:36px"></th>
+            </tr>
+          </thead>
+          <tbody id="crLinhas"></tbody>
+        </table>
+        <button class="btn" onclick="crAdicionarLinha()">+ Adicionar linha</button>
+        <div class="modal-actions">
+          <button class="btn" onclick="document.getElementById('modalCadastroRapido').style.display='none'">Cancelar</button>
+          <button class="btn primary" onclick="crSalvarTudo()">Salvar todas</button>
+        </div>
+      </div>
     </div>
 
     <div id="modalRotaFixa" class="modal-overlay" style="display:none">
@@ -302,6 +327,32 @@
       <h2>Edificações Encontradas em Campo</h2>
       <div class="lead">Pontos marcados no Vistoria Campo como "edificação desconhecida", aguardando cadastro completo.</div>
       <div id="campoGrid"></div>
+    </div>
+
+    <div class="view" id="v-relatorios">
+      <h2>Relatórios</h2>
+      <div class="lead">Quais edificações já foram vistoriadas, por ano.</div>
+      <div class="toolbar">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--sub)">
+          Ano: <select id="relAno" onchange="renderRelatorios()" style="width:auto"></select>
+        </label>
+        <select id="relTipo" onchange="renderRelatorios()" style="width:auto">
+          <option value="">Tipo: todos</option>
+          <option value="habite-se">Habite-se</option>
+          <option value="funcionamento">Funcionamento</option>
+        </select>
+      </div>
+
+      <div id="relResumo" class="btnrow" style="gap:14px;margin:16px 0;flex-wrap:wrap"></div>
+
+      <div class="sec-title" style="margin-top:0">Vistorias concluídas por mês</div>
+      <canvas id="relChart" width="900" height="240" style="width:100%;max-width:900px;height:240px;background:var(--card2);border-radius:12px;margin-bottom:20px"></canvas>
+
+      <div class="sec-title">Edificações vistoriadas no ano</div>
+      <div id="relListaVistoriadas" style="margin-bottom:20px"></div>
+
+      <div class="sec-title">Edificações ainda não vistoriadas no ano</div>
+      <div id="relListaPendentes"></div>
     </div>
 
     <div class="view" id="v-dados">
@@ -592,7 +643,6 @@ var SIST = [
 // ════════════════════════════════════════
 var CL_HS = {
   'Documentação': [
-    {id:'h1',obj:'DRT',c:'Taxa paga — comprovante de recolhimento apresentado',ca:'Comprovante de recolhimento da taxa referente ao Habite-se não apresentado.'},
     {id:'h2',obj:'DRT',c:'DRT de execução de todos os SMSCI conforme PPCI aprovado',ca:'É necessário DRT de execução de todos os SMSCI executados na edificação, conforme o PPCI aprovado.'},
     {id:'h3',obj:'DRT',c:'Relatório de conformidade dos SMSCI (Anexo I — IN 1 Parte 1)',ca:'Relatório de conformidade dos SMSCI não apresentado.'},
     {id:'h4',obj:'DRT',c:'Autenticidade e validade dos DRTs',ca:'DRT sem comprovação de autenticidade/validade.'},
@@ -699,8 +749,6 @@ var CL_HS = {
 
 var CL_FN = {
   'Documentação': [
-    {id:'f1',obj:'DRT',c:'Comprovante de recolhimento da taxa de funcionamento',ca:'O comprovante de recolhimento da taxa de funcionamento não foi apresentado.'},
-    {id:'f2',obj:'DRT',c:'Declaração com Termo de Responsabilidade (Anexo G — IN 1 Parte 1)',ca:'Declaração com termo de responsabilidade não apresentada.'},
     {id:'f3',obj:'PPCI',c:'PPCI aprovado e em condições para vistoria',ca:'O imóvel não possui PPCI aprovado.'}
   ],
   'Características Gerais': [
@@ -802,6 +850,7 @@ function navTo(v){
   if(v==='edif') renderEdificacoes();
   if(v==='vist') renderVistorias();
   if(v==='rotas'){ renderRotas(); renderRotasFixas(); }
+  if(v==='relatorios') renderRelatorios();
   if(v==='mapa'){
     initQMapa();
     setTimeout(function(){ if(qmap){ qmap.invalidateSize(); renderQMapaConteudo(); } }, 50);
@@ -1115,6 +1164,49 @@ function popularDatalistsEdif(){
   var bairros = dedupIgnorandoCaixa((db.edificacoes||[]).map(function(e){return (e.bairro||'').trim();}).filter(Boolean));
   document.getElementById('dlMunicipios').innerHTML = municipios.map(function(m){ return '<option value="'+m.replace(/"/g,'&quot;')+'">'; }).join('');
   document.getElementById('dlBairros').innerHTML = bairros.map(function(b){ return '<option value="'+b.replace(/"/g,'&quot;')+'">'; }).join('');
+}
+
+// ════════════════════════════════════════
+// CADASTRO RÁPIDO — várias edificações de uma vez, só RE/nome/endereço
+// ════════════════════════════════════════
+function abrirCadastroRapido(){
+  document.getElementById('crLinhas').innerHTML = '';
+  for(var i=0;i<6;i++) crAdicionarLinha();
+  document.getElementById('modalCadastroRapido').style.display='flex';
+}
+function crAdicionarLinha(){
+  var tbody = document.getElementById('crLinhas');
+  var tr = document.createElement('tr');
+  tr.innerHTML =
+    '<td style="padding:4px"><input type="text" style="margin-bottom:0"></td>'+
+    '<td style="padding:4px"><input type="text" style="margin-bottom:0"></td>'+
+    '<td style="padding:4px"><input type="text" style="margin-bottom:0"></td>'+
+    '<td style="padding:4px;text-align:center"><button class="btn" style="padding:6px 10px" onclick="this.closest(\'tr\').remove()">✕</button></td>';
+  tbody.appendChild(tr);
+}
+function crSalvarTudo(){
+  var linhas = Array.from(document.querySelectorAll('#crLinhas tr'));
+  var db = loadDB();
+  var criadas = 0;
+  linhas.forEach(function(tr){
+    var inputs = tr.querySelectorAll('input');
+    var re = inputs[0].value.trim();
+    var nome = inputs[1].value.trim();
+    var endereco = inputs[2].value.trim();
+    if(!re && !nome && !endereco) return; // linha vazia, ignora
+    db.edificacoes.push({
+      id: novoId('edif'), re: re, nome: nome, endereco: endereco,
+      municipio:'', bairro:'', area:'', responsavel:{nome:'',tel:''},
+      habiteSe:{}, vigenciaFuncionamento:{}, preventivos:{}, blocos:[], projetos:[], inquilinos:[],
+      origem:'cadastro', criadoEm: new Date().toISOString(), atualizadoEm: new Date().toISOString()
+    });
+    criadas++;
+  });
+  if(!criadas){ alert('Nenhuma linha preenchida.'); return; }
+  saveDB(db);
+  document.getElementById('modalCadastroRapido').style.display='none';
+  renderEdificacoes();
+  alert(criadas+' edificação(ões) cadastrada(s). Complete risco, localização e sistemas preventivos abrindo cada uma na lista.');
 }
 
 function abrirFormEdif(id){
@@ -1519,41 +1611,81 @@ function abrirRelatorio(vistId){
     '<div class="sub">'+(e?e.re:'')+' · '+(v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+' · concluída em '+
     (v.concluidaEm?new Date(v.concluidaEm).toLocaleString('pt-BR'):'—')+'</div>';
 
-  if(v.qtv){
-    var QTV_SIST = ['ext','ilu','sal'];
-    var linhas = QTV_SIST.filter(function(sid){return v.qtv[sid] && v.qtv[sid].val!=null && v.qtv[sid].val!=='';})
-      .map(function(sid){
-        var s = SIST.find(function(x){return x.id===sid;});
-        var esperado = (e&&e.preventivos&&e.preventivos[sid]) ? e.preventivos[sid].qty : '?';
-        return (s?s.l:sid)+': '+v.qtv[sid].val+' encontrado(s) / '+esperado+' esperado(s) no PPCI';
-      });
-    if(linhas.length){
-      html += '<div class="rep-grp">Verificação quantitativa (amostragem)</div>';
-      linhas.forEach(function(l){ html += '<div class="rep-item">'+l+'</div>'; });
-      if(v.qtv.ano){
-        html += '<div class="rep-item">Construção '+(v.qtv.ano==='antes2013'?'anterior a 2013 — aprovado com Auto de Infração (F)':'a partir de 2013 — exige atendimento pleno')+'</div>';
-      }
-    }
-  }
+  // Junta tudo que reprova: checklist não conforme + não avaliado, e preventivos por bloco/andar com falta
+  var reprovados = [];
+  var reprovadosChecklist = 0;
 
   grupos.forEach(function(g){
-    var itens = cl[g];
-    html += '<div class="rep-grp">'+g+'</div>';
-    itens.forEach(function(it){
-      var st = (v.checklist[it.id]&&v.checklist[it.id].status) || 'naoAv';
-      var map = {ok:['✅','Conforme'], nao:['❌','Não conforme'], na:['➖','Não aplicável'], naoAv:['❔','Não avaliado']};
-      var extra = '';
-      if(st==='nao'){
-        var d = v.checklist[it.id];
-        extra = '<div class="sub" style="margin-left:20px">'+
-          (d.causa?'Causa: '+d.causa+'<br>':'')+
-          (d.local?'Local: '+d.local+'<br>':'')+
-          (d.obs?'Obs: '+d.obs:'')+
-        '</div>';
+    cl[g].forEach(function(it){
+      var d = v.checklist[it.id];
+      var st = (d&&d.status) || 'naoAv';
+      if(st==='nao' || st==='naoAv'){
+        reprovadosChecklist++;
+        reprovados.push({
+          texto: it.c,
+          motivo: st==='naoAv' ? 'Item não avaliado durante a vistoria' : (d.causa || 'Não conforme'),
+          local: d && d.local,
+          obs: d && d.obs
+        });
       }
-      html += '<div class="rep-item '+(st==='nao'?'nc':'')+'"><span class="st">'+map[st][0]+'</span>'+it.c+extra+'</div>';
     });
   });
+
+  if(e && e.blocos && e.blocos.length){
+    e.blocos.forEach(function(bloco, bi){
+      (bloco.pavimentos||[]).forEach(function(pav, pi){
+        Object.keys(pav.sist||{}).forEach(function(sid){
+          if(!pav.sist[sid].ativo) return;
+          var esperado = pav.sist[sid].qty||0;
+          var chave = bi+'_'+pi+'_'+sid;
+          var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
+          var contado = qd.val!=null ? qd.val : 0;
+          if(qd.val==null || contado < esperado){
+            var s = SIST.find(function(x){return x.id===sid;});
+            reprovados.push({
+              texto: (s?s.l:sid)+' — '+bloco.nome+' / '+pav.label,
+              motivo: qd.val==null ? 'Não contado durante a vistoria (esperado '+esperado+' un.)' : 'Faltam '+(esperado-contado)+' un. (encontrado '+contado+' de '+esperado+')',
+              obs: qd.obs
+            });
+          }
+        });
+      });
+    });
+  }
+
+  if(v.qtv){
+    var QTV_SIST = ['ext','ilu','sal'];
+    QTV_SIST.forEach(function(sid){
+      var qd = v.qtv[sid];
+      if(!qd || qd.val==null || qd.val==='') return;
+      var esperado = (e&&e.preventivos&&e.preventivos[sid]) ? e.preventivos[sid].qty : null;
+      if(esperado!=null && Number(qd.val) < esperado){
+        var s = SIST.find(function(x){return x.id===sid;});
+        reprovados.push({
+          texto: (s?s.l:sid)+' — amostragem geral',
+          motivo: 'Faltam '+(esperado-qd.val)+' un. (encontrado '+qd.val+' de '+esperado+')',
+          obs: qd.obs
+        });
+      }
+    });
+  }
+
+  var totalItens = grupos.reduce(function(n,g){return n+cl[g].length;}, 0);
+  html += '<div class="rep-grp" style="margin-top:16px">Resumo</div>'+
+    '<div class="rep-item">'+(totalItens-reprovadosChecklist)+' de '+totalItens+' itens do checklist conformes · '+reprovados.length+' pendência(s) no total</div>';
+
+  if(reprovados.length){
+    html += '<div class="rep-grp">Reprovado / pendente</div>';
+    reprovados.forEach(function(r){
+      html += '<div class="rep-item nc"><span class="st">❌</span><b>'+r.texto+'</b><div class="sub" style="margin-left:20px">'+
+        r.motivo+
+        (r.local?'<br>Local: '+r.local:'')+
+        (r.obs?'<br>Obs: '+r.obs:'')+
+      '</div></div>';
+    });
+  } else {
+    html += '<div class="rep-item">✅ Nenhuma pendência — todos os itens avaliados e conformes.</div>';
+  }
 
   html += '<div class="modal-actions"><button class="btn primary" onclick="document.getElementById(\'modalRelatorio\').style.display=\'none\'">Fechar</button></div>';
   document.getElementById('relatorioBody').innerHTML = html;
@@ -1615,6 +1747,26 @@ function quSetQtv(sid, val){
   saveDB(db);
   renderExecucaoQuartel();
 }
+function quAjustarPrevBloco(chave, delta){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v) return;
+  if(!v.qtvPrevBloco) v.qtvPrevBloco={};
+  if(!v.qtvPrevBloco[chave]) v.qtvPrevBloco[chave]={};
+  var atual = v.qtvPrevBloco[chave].val!=null ? v.qtvPrevBloco[chave].val : 0;
+  v.qtvPrevBloco[chave].val = Math.max(0, atual + delta);
+  saveDB(db);
+  renderExecucaoQuartel();
+}
+function quSetObsPrevBloco(chave, val){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v) return;
+  if(!v.qtvPrevBloco) v.qtvPrevBloco={};
+  if(!v.qtvPrevBloco[chave]) v.qtvPrevBloco[chave]={};
+  v.qtvPrevBloco[chave].obs = val;
+  saveDB(db);
+}
 function quSetQtvAno(ano){
   var db = loadDB();
   var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
@@ -1652,6 +1804,42 @@ function renderExecucaoQuartel(){
     var ativo = e.preventivos && e.preventivos[s.id] && e.preventivos[s.id].ativo;
     return ativo ? '<span class="prev-chip on">'+s.l+'</span>' : '';
   }).join('')+'</div>';
+
+  if(e.blocos && e.blocos.length){
+    html += '<div class="sec-title" style="margin-top:0">Sistemas preventivos por bloco e andar</div>';
+    e.blocos.forEach(function(bloco, bi){
+      html += '<div class="grupo-title">'+bloco.nome+'</div>';
+      (bloco.pavimentos||[]).forEach(function(pav, pi){
+        var sids = Object.keys(pav.sist||{}).filter(function(sid){ return pav.sist[sid].ativo; });
+        html += '<div class="pav-card" style="margin-bottom:10px"><div class="pav-h">'+pav.label+'</div>';
+        if(!sids.length){
+          html += '<div class="sub" style="padding:2px 0">Nenhum sistema detalhado neste andar.</div>';
+        } else {
+          sids.forEach(function(sid){
+            var s = SIST.find(function(x){return x.id===sid;});
+            var chave = bi+'_'+pi+'_'+sid;
+            var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
+            var contado = qd.val!=null;
+            var val = contado ? qd.val : 0;
+            html += '<div class="item-card" style="margin-bottom:8px">'+
+              '<div class="item-c">'+(s?s.l:sid)+' — esperado '+(pav.sist[sid].qty||0)+' un. neste andar</div>'+
+              '<div style="display:flex;align-items:center;gap:12px;margin:8px 0">'+
+                '<button class="btn" style="width:40px;padding:10px 0;font-size:16px" onclick="quAjustarPrevBloco(\''+chave+'\',-1)">−</button>'+
+                '<div style="flex:1;text-align:center">'+
+                  '<div style="font-size:24px;font-weight:800;line-height:1">'+val+'</div>'+
+                  '<div style="font-size:10px;color:var(--sub)">'+(contado?'contados':'toque + a cada um encontrado')+'</div>'+
+                '</div>'+
+                '<button class="btn primary" style="width:52px;padding:10px 0;font-size:16px" onclick="quAjustarPrevBloco(\''+chave+'\',1)">+1</button>'+
+              '</div>'+
+              '<label class="lbl">Observação (opcional)</label>'+
+              '<input type="text" value="'+((qd.obs||'').replace(/"/g,'&quot;'))+'" placeholder="Observação sobre esse sistema neste andar" onchange="quSetObsPrevBloco(\''+chave+'\',this.value)">'+
+            '</div>';
+          });
+        }
+        html += '</div>';
+      });
+    });
+  }
 
   var cl = getCL(v.tipo);
   var gruposAtivos = GRUPOS_FIXOS.slice();
@@ -1864,6 +2052,113 @@ function renderRotasFixas(){
       '<button class="btn" style="background:var(--red2)" onclick="excluirRotaFixa(\''+tpl.id+'\')">Excluir</button>'+
     '</div></div>';
   }).join('');
+}
+
+// ════════════════════════════════════════
+// RELATÓRIOS — quais edificações foram vistoriadas, por ano
+// ════════════════════════════════════════
+function renderRelatorios(){
+  var db = loadDB();
+  var todas = db.edificacoes||[];
+  var vistorias = db.vistorias||[];
+
+  var anosComDados = Array.from(new Set(
+    vistorias.filter(function(v){return v.concluida && v.concluidaEm;}).map(function(v){return new Date(v.concluidaEm).getFullYear();})
+  ));
+  var anoAtual = new Date().getFullYear();
+  if(anosComDados.indexOf(anoAtual)<0) anosComDados.push(anoAtual);
+  anosComDados.sort(function(a,b){return b-a;});
+
+  var selAno = document.getElementById('relAno');
+  var anoEscolhido = selAno.value ? Number(selAno.value) : anoAtual;
+  selAno.innerHTML = anosComDados.map(function(a){ return '<option value="'+a+'" '+(a===anoEscolhido?'selected':'')+'>'+a+'</option>'; }).join('');
+
+  var tipoFiltro = document.getElementById('relTipo').value;
+
+  var vistoriasNoAno = vistorias.filter(function(v){
+    if(!v.concluida || !v.concluidaEm) return false;
+    if(new Date(v.concluidaEm).getFullYear() !== anoEscolhido) return false;
+    if(tipoFiltro && v.tipo !== tipoFiltro) return false;
+    return true;
+  });
+
+  // uma edificação pode ter sido vistoriada mais de uma vez no ano — conta ela uma vez só na lista de "vistoriadas"
+  var edifIdsVistoriados = Array.from(new Set(vistoriasNoAno.map(function(v){return v.edificacaoId;})));
+  var totalEdif = todas.length;
+  var totalVistoriadas = edifIdsVistoriados.length;
+  var pct = totalEdif ? Math.round((totalVistoriadas/totalEdif)*100) : 0;
+  var deferidas = vistoriasNoAno.filter(function(v){return v.checklist && Object.keys(v.checklist).every(function(id){return v.checklist[id].status!=='nao';});}).length;
+
+  document.getElementById('relResumo').innerHTML =
+    '<div class="exec-ctr" style="flex:1;min-width:120px"><div class="v">'+totalEdif+'</div><div class="l">Edificações cadastradas</div></div>'+
+    '<div class="exec-ctr" style="flex:1;min-width:120px"><div class="v" style="color:var(--verde)">'+totalVistoriadas+'</div><div class="l">Vistoriadas em '+anoEscolhido+'</div></div>'+
+    '<div class="exec-ctr" style="flex:1;min-width:120px"><div class="v" style="color:var(--red2)">'+pct+'%</div><div class="l">Cobertura do ano</div></div>'+
+    '<div class="exec-ctr" style="flex:1;min-width:120px"><div class="v" style="color:var(--verde)">'+deferidas+'</div><div class="l">Deferidas</div></div>'+
+    '<div class="exec-ctr" style="flex:1;min-width:120px"><div class="v">'+vistoriasNoAno.length+'</div><div class="l">Vistorias concluídas</div></div>';
+
+  // gráfico de barras por mês
+  var porMes = new Array(12).fill(0);
+  vistoriasNoAno.forEach(function(v){ porMes[new Date(v.concluidaEm).getMonth()]++; });
+  desenharGraficoRelatorios(porMes);
+
+  var listaVist = todas.filter(function(e){ return edifIdsVistoriados.indexOf(e.id)>=0; })
+    .map(function(e){
+      var v = vistoriasNoAno.filter(function(x){return x.edificacaoId===e.id;}).sort(function(a,b){return new Date(b.concluidaEm)-new Date(a.concluidaEm);})[0];
+      return {e:e, v:v};
+    })
+    .sort(function(a,b){ return (a.e.re||'').localeCompare(b.e.re||'', undefined, {numeric:true}); });
+
+  document.getElementById('relListaVistoriadas').innerHTML = listaVist.length ? listaVist.map(function(x){
+    var d = new Date(x.v.concluidaEm);
+    return '<div class="elist-item" onclick="abrirRelatorio(\''+x.v.id+'\')" style="cursor:pointer"><div class="elist-row">'+
+      '<div><div class="elist-t">'+(x.e.re||'Sem RE')+' — '+(x.e.nome||'Sem nome')+'</div>'+
+      '<div class="elist-s">'+(x.v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+' · concluída '+d.toLocaleDateString('pt-BR')+'</div></div>'+
+    '</div></div>';
+  }).join('') : '<div class="sub">Nenhuma edificação vistoriada em '+anoEscolhido+' ainda.</div>';
+
+  var listaPend = todas.filter(function(e){ return edifIdsVistoriados.indexOf(e.id)<0; })
+    .sort(function(a,b){ return (a.re||'').localeCompare(b.re||'', undefined, {numeric:true}); });
+
+  document.getElementById('relListaPendentes').innerHTML = listaPend.length ? listaPend.map(function(e){
+    return '<div class="elist-item"><div class="elist-row"><div><div class="elist-t">'+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+'</div>'+
+      '<div class="elist-s">'+(e.municipio||'')+(e.bairro?' · '+e.bairro:'')+'</div></div></div></div>';
+  }).join('') : '<div class="sub">Todas as edificações cadastradas já foram vistoriadas em '+anoEscolhido+'.</div>';
+}
+
+function desenharGraficoRelatorios(porMes){
+  var canvas = document.getElementById('relChart');
+  var ctx = canvas.getContext('2d');
+  var W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  var MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  var max = Math.max.apply(null, porMes.concat([1]));
+  var margemBaixo = 30, margemTopo = 16, margemLado = 10;
+  var areaH = H - margemBaixo - margemTopo;
+  var barW = (W - margemLado*2) / 12;
+
+  ctx.fillStyle = '#c0272d';
+  porMes.forEach(function(qtd, i){
+    var h = (qtd/max) * areaH;
+    var x = margemLado + i*barW + barW*0.15;
+    var y = margemTopo + (areaH - h);
+    ctx.fillRect(x, y, barW*0.7, h);
+    if(qtd>0){
+      ctx.fillStyle = '#fff';
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(qtd, x+barW*0.35, y-4);
+      ctx.fillStyle = '#c0272d';
+    }
+  });
+
+  ctx.fillStyle = '#8e8e93';
+  ctx.font = '11px sans-serif';
+  ctx.textAlign = 'center';
+  MESES.forEach(function(m, i){
+    var x = margemLado + i*barW + barW*0.5;
+    ctx.fillText(m, x, H-10);
+  });
 }
 
 function renderRotas(){
