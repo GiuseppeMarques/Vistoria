@@ -1210,12 +1210,15 @@ function linhasExcelParaEdificacoes(linhas){
     var nome = achar(row, ['nome','edificação','edificacao','nome da edificação']).toString().trim();
     var funcTxt = achar(row, ['funcionamento','situação','situacao','situação do funcionamento']);
     var validade = achar(row, ['validade','vencimento','data de validade']);
+    var area = achar(row, ['área','area','área (m²)','area (m2)','metragem']).toString().trim();
+    var telefone = achar(row, ['telefone','tel','contato','fone']).toString().trim();
+    var responsavelNome = achar(row, ['responsável','responsavel','nome do responsável','nome do responsavel']).toString().trim();
     if(!re && !nome) return; // linha vazia/sem dado útil, ignora
 
     var situacao = normalizarSituacaoFuncionamento(funcTxt);
     criadas.push({
-      id: novoId('edif'), re: re, nome: nome, endereco:'', municipio:'', bairro:'', area:'',
-      responsavel:{nome:'',tel:''}, habiteSe:{}, blocos:[], projetos:[], inquilinos:[], preventivos:{},
+      id: novoId('edif'), re: re, nome: nome, endereco:'', municipio:'', bairro:'', area: area,
+      responsavel:{nome:responsavelNome, tel:telefone}, habiteSe:{}, blocos:[], projetos:[], inquilinos:[], preventivos:{},
       vigenciaFuncionamento: {situacao: situacao, vencimento: normalizarDataExcel(validade)},
       origem:'cadastro', criadoEm: new Date().toISOString(), atualizadoEm: new Date().toISOString()
     });
@@ -1239,6 +1242,7 @@ function importarExcelEdificacoes(input){
       saveDB(db);
       renderEdificacoes();
       alert(novas.length+' edificação(ões) importada(s) do Excel. Complete endereço, risco e sistemas preventivos abrindo cada uma na lista.');
+
     } catch(err){
       alert('Não foi possível ler esse arquivo. Confirme que é um .xlsx válido, com colunas RE, Nome, Funcionamento e Validade.');
     }
