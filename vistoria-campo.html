@@ -771,10 +771,11 @@ function renderVistoriasCampo(){
     return '<div class="vist-card" onclick="abrirExecucao(\''+v.edificacaoId+'\')">'+
       '<div class="vtop">'+
         '<div><div class="vnome">'+(e?e.nome:'Edificação removida')+'</div>'+
-        '<div class="vsub">'+(e?e.re:'')+' · '+(v.tipo==='funcionamento'?'Funcionamento':v.tipo==='habite-se'?'Habite-se':'Sem tipo escolhido')+(v.motivo?' · '+v.motivo:'')+rotaTag+'</div></div>'+
+        '<div class="vsub">'+(e?e.re:'')+' · '+(v.tipo==='funcionamento'?'Funcionamento':v.tipo==='habite-se'?'Habite-se':'Sem tipo escolhido')+(v.motivo?' · '+v.motivo:'')+rotaTag+(e&&e.endereco?'<br>'+e.endereco:'')+'</div></div>'+
         '<span class="vist-status '+statusCls+'">'+statusTxt+'</span>'+
       '</div>'+
       '<div class="vsub">'+(v.concluida ? 'Concluída em '+new Date(v.concluidaEm).toLocaleString('pt-BR') : 'Toque pra continuar')+'</div>'+
+      '<button class="btn stop" style="width:100%;margin-top:8px" onclick="event.stopPropagation();excluirVistoriaCampo(\''+v.id+'\')">Excluir</button>'+
     '</div>';
   }).join('');
 }
@@ -805,11 +806,58 @@ function abrirExecucao(edificacaoId){
   renderExecucao();
 }
 
+function excluirVistoriaCampo(vistId){
+  if(!confirm('Excluir esta vistoria? Essa ação não pode ser desfeita.')) return;
+  var db = loadDB();
+  db.vistorias = (db.vistorias||[]).filter(function(x){return x.id!==vistId;});
+  // tira também de qualquer trajetória e rota que a referenciava
+  (db.trajetorias||[]).forEach(function(t){
+    if(t.vistoriasRealizadas) t.vistoriasRealizadas = t.vistoriasRealizadas.filter(function(id){return id!==vistId;});
+  });
+  (db.rotas||[]).forEach(function(r){
+    if(r.vistorias) r.vistorias = r.vistorias.filter(function(id){return id!==vistId;});
+  });
+  saveDB(db);
+  renderVistoriasCampo();
+}
+
 function fecharExecucao(){
   document.getElementById('execOverlay').style.display='none';
   execEdificacaoId = null; execVistoriaId = null; execTipo = null;
   renderVistoriasCampo();
   if(map){ renderMapEdificacoes(); }
+}
+
+function buscarVistoriaAnterior(edificacaoId, vistoriaAtualId){
+  var db = loadDB();
+  var anteriores = (db.vistorias||[]).filter(function(v){
+    return v.edificacaoId===edificacaoId && v.concluida && v.id!==vistoriaAtualId;
+  }).sort(function(a,b){ return new Date(b.concluidaEm||0) - new Date(a.concluidaEm||0); });
+  return anteriores[0] || null;
+}
+function renderCardPrev(label, esperado, chave, qd, valorAnterior){
+  var contado = qd.val!=null;
+  var val = contado ? qd.val : 0;
+  var verdict = '';
+  if(contado){
+    if(val >= esperado){ verdict = '<span style="color:var(--verde);font-weight:700">✅ OK</span>'; }
+    else { verdict = '<span style="color:var(--red2);font-weight:700">⚠️ Faltam '+(esperado-val)+'</span>'; }
+  }
+  return '<div class="item-card" style="margin-bottom:8px;padding:10px 12px">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'+
+      '<div class="item-c" style="margin:0">'+label+' — esperado <b>'+esperado+'</b>'+(valorAnterior!=null?' · anterior <b>'+valorAnterior+'</b>':'')+'</div>'+
+      verdict+
+    '</div>'+
+    '<div style="display:flex;align-items:center;gap:10px;margin:8px 0">'+
+      '<button class="btn" style="width:36px;padding:8px 0;font-size:15px" onclick="ajustarPrevBloco(\''+chave+'\',-1)">−</button>'+
+      '<div style="flex:1;text-align:center">'+
+        '<span style="font-size:20px;font-weight:800">'+val+'</span>'+
+        '<span style="font-size:10px;color:var(--sub);margin-left:6px">'+(contado?'contados':'toque + a cada um encontrado')+'</span>'+
+      '</div>'+
+      '<button class="btn primary" style="width:44px;padding:8px 0;font-size:15px" onclick="ajustarPrevBloco(\''+chave+'\',1)">+1</button>'+
+    '</div>'+
+    '<input type="text" value="'+((qd.obs||'').replace(/"/g,'&quot;'))+'" placeholder="Observação (opcional)" onchange="setObsPrevBloco(\''+chave+'\',this.value)">'+
+  '</div>';
 }
 
 function garantirVistoria(){
@@ -969,8 +1017,10 @@ function renderExecucao(){
   }).join('')+'</div>';
 
   var v = db.vistorias.find(function(x){return x.id===execVistoriaId;}) || {checklist:{}};
+  var vAnterior = buscarVistoriaAnterior(e.id, execVistoriaId);
 
-  // Sistemas preventivos por bloco e por andar — quantidade esperada, contador do que foi encontrado, e observação
+  // Sistemas preventivos por bloco e por andar — quantidade esperada, contador do que foi encontrado,
+  // resultado calculado na hora, referência da vistoria anterior, e observação
   if(e.blocos && e.blocos.length){
     html += '<div class="sec-title" style="margin-top:0">Sistemas preventivos por bloco e andar</div>';
     e.blocos.forEach(function(bloco, bi){
@@ -985,21 +1035,8 @@ function renderExecucao(){
             var s = SIST.find(function(x){return x.id===sid;});
             var chave = bi+'_'+pi+'_'+sid;
             var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
-            var contado = qd.val!=null;
-            var val = contado ? qd.val : 0;
-            html += '<div class="item-card" style="margin-bottom:8px">'+
-              '<div class="item-c">'+(s?s.l:sid)+' — esperado '+(pav.sist[sid].qty||0)+' un. neste andar</div>'+
-              '<div style="display:flex;align-items:center;gap:12px;margin:8px 0">'+
-                '<button class="btn" style="width:40px;padding:10px 0;font-size:16px" onclick="ajustarPrevBloco(\''+chave+'\',-1)">−</button>'+
-                '<div style="flex:1;text-align:center">'+
-                  '<div style="font-size:24px;font-weight:800;line-height:1">'+val+'</div>'+
-                  '<div style="font-size:10px;color:var(--sub)">'+(contado?'contados':'toque + a cada um encontrado')+'</div>'+
-                '</div>'+
-                '<button class="btn primary" style="width:52px;padding:10px 0;font-size:16px" onclick="ajustarPrevBloco(\''+chave+'\',1)">+1</button>'+
-              '</div>'+
-              '<label class="lbl">Observação (opcional)</label>'+
-              '<input type="text" value="'+((qd.obs||'').replace(/"/g,'&quot;'))+'" placeholder="Observação sobre esse sistema neste andar" onchange="setObsPrevBloco(\''+chave+'\',this.value)">'+
-            '</div>';
+            var anteriorVal = (vAnterior && vAnterior.qtvPrevBloco && vAnterior.qtvPrevBloco[chave] && vAnterior.qtvPrevBloco[chave].val!=null) ? vAnterior.qtvPrevBloco[chave].val : null;
+            html += renderCardPrev(s?s.l:sid, pav.sist[sid].qty||0, chave, qd, anteriorVal);
           });
         }
         html += '</div>';
@@ -1012,21 +1049,8 @@ function renderExecucao(){
       ativosFlat.forEach(function(s){
         var chave = '_'+s.id;
         var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
-        var contado = qd.val!=null;
-        var val = contado ? qd.val : 0;
-        html += '<div class="item-card">'+
-          '<div class="item-c">'+s.l+' — esperado '+((e.preventivos[s.id]&&e.preventivos[s.id].qty)||0)+' un.</div>'+
-          '<div style="display:flex;align-items:center;gap:12px;margin:8px 0">'+
-            '<button class="btn" style="width:40px;padding:10px 0;font-size:16px" onclick="ajustarPrevBloco(\''+chave+'\',-1)">−</button>'+
-            '<div style="flex:1;text-align:center">'+
-              '<div style="font-size:24px;font-weight:800;line-height:1">'+val+'</div>'+
-              '<div style="font-size:10px;color:var(--sub)">'+(contado?'contados':'toque + a cada um encontrado')+'</div>'+
-            '</div>'+
-            '<button class="btn primary" style="width:52px;padding:10px 0;font-size:16px" onclick="ajustarPrevBloco(\''+chave+'\',1)">+1</button>'+
-          '</div>'+
-          '<label class="lbl">Observação (opcional)</label>'+
-          '<input type="text" value="'+((qd.obs||'').replace(/"/g,'&quot;'))+'" onchange="setObsPrevBloco(\''+chave+'\',this.value)">'+
-        '</div>';
+        var anteriorVal = (vAnterior && vAnterior.qtvPrevBloco && vAnterior.qtvPrevBloco[chave] && vAnterior.qtvPrevBloco[chave].val!=null) ? vAnterior.qtvPrevBloco[chave].val : null;
+        html += renderCardPrev(s.l, (e.preventivos[s.id]&&e.preventivos[s.id].qty)||0, chave, qd, anteriorVal);
       });
     }
   }
@@ -1090,10 +1114,27 @@ function renderExecucao(){
 
   var qtvIndeferePorAno = qtvAcimaAlgum && qtvTodosPreenchidos && v.qtv && v.qtv.ano==='depois2013';
   var qtvInfracaoPorAno = qtvAcimaAlgum && qtvTodosPreenchidos && !qtvAbaixo50 && v.qtv && v.qtv.ano==='antes2013';
-  var qtvForcaIndeferido = qtvAbaixo50 || qtvIndeferePorAno;
+
+  // Pendências de sistemas por bloco/andar (contagem abaixo do esperado ou nunca contada)
+  var pendenciasBloco = 0;
+  if(e.blocos && e.blocos.length){
+    e.blocos.forEach(function(bloco, bi){
+      (bloco.pavimentos||[]).forEach(function(pav, pi){
+        Object.keys(pav.sist||{}).forEach(function(sid){
+          if(!pav.sist[sid].ativo) return;
+          var chave = bi+'_'+pi+'_'+sid;
+          var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
+          var esperado = pav.sist[sid].qty||0;
+          if(qd.val==null || qd.val < esperado) pendenciasBloco++;
+        });
+      });
+    });
+  }
+
+  var qtvForcaIndeferido = qtvAbaixo50 || qtvIndeferePorAno || pendenciasBloco>0;
 
   var deferido = nao===0 && !qtvForcaIndeferido;
-  var motivoQtv = qtvAbaixo50 ? ' — quantidade abaixo de 50% do exigido (amostragem)' : (qtvIndeferePorAno ? ' — construção 2013+ exige atendimento pleno na amostragem' : '');
+  var motivoQtv = qtvAbaixo50 ? ' — quantidade abaixo de 50% do exigido (amostragem)' : (qtvIndeferePorAno ? ' — construção 2013+ exige atendimento pleno na amostragem' : (pendenciasBloco>0 ? ' — '+pendenciasBloco+' sistema(s) por bloco/andar abaixo do esperado ou não contados' : ''));
 
   if(qtvForcaIndeferido){
     html += '<div class="resultado-banner indef">'+(v.concluida?'':'(parcial) ')+'⚠️ Indeferido'+motivoQtv+'</div>';
@@ -1349,7 +1390,7 @@ function renderEdifsCampo(){
         '<div style="width:28px;height:28px;border-radius:50%;background:'+cor+';display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex:0 0 auto">'+(risco||'—')+'</div>'+
         '<div style="flex:1;min-width:0">'+
           '<div style="font-weight:700;font-size:14px">'+(e.nome||'Sem nome')+'</div>'+
-          '<div style="font-size:12px;color:var(--sub)">'+(e.re||'Sem RE')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(semGPS?' · ⚠️ sem localização':'')+'</div>'+
+          '<div style="font-size:12px;color:var(--sub)">'+(e.re||'Sem RE')+(e.endereco?' · '+e.endereco:'')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(semGPS?' · ⚠️ sem localização':'')+'</div>'+
         '</div>'+
       '</div>'+
       '<button class="btn primary" style="width:100%;margin-top:10px" onclick="event.stopPropagation();abrirExecucao(\''+e.id+'\')">✅ Vistoriar</button>'+
@@ -2547,7 +2588,7 @@ function exportarParaQuartel(){
     trajetorias: db.trajetorias||[],
     pontos: db.pontos||[],
     vistorias: db.vistorias||[],
-    edificacoes: (db.edificacoes||[]).filter(function(e){return e.origem==='campo';}), // só as descobertas em campo
+    edificacoes: db.edificacoes||[], // todas — o Quartel já sabe mesclar por id/atualizadoEm sem duplicar
     rotas: []
   };
   baixarPacote(pacote);

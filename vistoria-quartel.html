@@ -13,6 +13,7 @@
 <meta name="theme-color" content="#C0272D">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg:#101012; --card:#1C1C1E; --card2:#242427; --red:#C0272D; --red2:#E0393F;
@@ -180,6 +181,8 @@
       <div class="toolbar">
         <input type="text" id="edifBusca" placeholder="Buscar por RE, nome, endereço ou bairro..." oninput="renderEdificacoes()">
         <button class="btn" onclick="abrirCadastroRapido()">⚡ Cadastro rápido (tabela)</button>
+        <input type="file" id="xlsxImportInput" accept=".xlsx,.xls" style="display:none" onchange="importarExcelEdificacoes(this)">
+        <button class="btn" onclick="document.getElementById('xlsxImportInput').click()">📊 Importar Excel</button>
         <button class="btn primary" onclick="abrirFormEdif(null)">+ Nova edificação</button>
       </div>
       <div class="toolbar" style="margin-top:-6px">
@@ -1169,6 +1172,81 @@ function popularDatalistsEdif(){
 // ════════════════════════════════════════
 // CADASTRO RÁPIDO — várias edificações de uma vez, só RE/nome/endereço
 // ════════════════════════════════════════
+// ════════════════════════════════════════
+// IMPORTAR EDIFICAÇÕES VIA EXCEL — RE, Nome, Funcionamento, Validade
+// ════════════════════════════════════════
+function normalizarSituacaoFuncionamento(txt){
+  txt = (txt||'').toString().trim().toLowerCase();
+  if(!txt) return null;
+  if(txt.indexOf('vál')>=0 || txt.indexOf('val')>=0) return 'valido';
+  if(txt.indexOf('venc')>=0) return 'vencido';
+  if(txt.indexOf('não poss')>=0 || txt.indexOf('nao poss')>=0 || txt.indexOf('sem')>=0) return 'nao_possui';
+  return null;
+}
+function normalizarDataExcel(v){
+  if(v==null || v==='') return '';
+  if(typeof v === 'number'){
+    // data serial do Excel (dias desde 1899-12-30)
+    var d = new Date(Math.round((v-25569)*86400*1000));
+    var p = function(n){return (n<10?'0':'')+n;};
+    return p(d.getUTCDate())+'/'+p(d.getUTCMonth()+1)+'/'+d.getUTCFullYear();
+  }
+  return v.toString().trim();
+}
+function linhasExcelParaEdificacoes(linhas){
+  // aceita várias grafias de cabeçalho, sem diferenciar maiúsculo/minúsculo/acento
+  function achar(row, opcoes){
+    var chaves = Object.keys(row);
+    for(var i=0;i<opcoes.length;i++){
+      var alvo = opcoes[i];
+      var k = chaves.find(function(k2){ return k2.toString().trim().toLowerCase()===alvo; });
+      if(k!=null) return row[k];
+    }
+    return '';
+  }
+  var criadas = [];
+  linhas.forEach(function(row){
+    var re = achar(row, ['re','r.e.','re bombeiro']).toString().trim();
+    var nome = achar(row, ['nome','edificação','edificacao','nome da edificação']).toString().trim();
+    var funcTxt = achar(row, ['funcionamento','situação','situacao','situação do funcionamento']);
+    var validade = achar(row, ['validade','vencimento','data de validade']);
+    if(!re && !nome) return; // linha vazia/sem dado útil, ignora
+
+    var situacao = normalizarSituacaoFuncionamento(funcTxt);
+    criadas.push({
+      id: novoId('edif'), re: re, nome: nome, endereco:'', municipio:'', bairro:'', area:'',
+      responsavel:{nome:'',tel:''}, habiteSe:{}, blocos:[], projetos:[], inquilinos:[], preventivos:{},
+      vigenciaFuncionamento: {situacao: situacao, vencimento: normalizarDataExcel(validade)},
+      origem:'cadastro', criadoEm: new Date().toISOString(), atualizadoEm: new Date().toISOString()
+    });
+  });
+  return criadas;
+}
+function importarExcelEdificacoes(input){
+  var file = input.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    try {
+      var data = new Uint8Array(e.target.result);
+      var wb = XLSX.read(data, {type:'array'});
+      var sheet = wb.Sheets[wb.SheetNames[0]];
+      var linhas = XLSX.utils.sheet_to_json(sheet, {defval:''});
+      var novas = linhasExcelParaEdificacoes(linhas);
+      if(!novas.length){ alert('Nenhuma linha com RE ou Nome preenchido foi encontrada na planilha.'); return; }
+      var db = loadDB();
+      db.edificacoes = (db.edificacoes||[]).concat(novas);
+      saveDB(db);
+      renderEdificacoes();
+      alert(novas.length+' edificação(ões) importada(s) do Excel. Complete endereço, risco e sistemas preventivos abrindo cada uma na lista.');
+    } catch(err){
+      alert('Não foi possível ler esse arquivo. Confirme que é um .xlsx válido, com colunas RE, Nome, Funcionamento e Validade.');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  input.value = '';
+}
+
 function abrirCadastroRapido(){
   document.getElementById('crLinhas').innerHTML = '';
   for(var i=0;i<6;i++) crAdicionarLinha();
@@ -1724,6 +1802,38 @@ function infoHabiteSe(e){
 // ════════════════════════════════════════
 var quExecVistId = null;
 
+function quBuscarVistoriaAnterior(edificacaoId, vistoriaAtualId){
+  var db = loadDB();
+  var anteriores = (db.vistorias||[]).filter(function(v){
+    return v.edificacaoId===edificacaoId && v.concluida && v.id!==vistoriaAtualId;
+  }).sort(function(a,b){ return new Date(b.concluidaEm||0) - new Date(a.concluidaEm||0); });
+  return anteriores[0] || null;
+}
+function quRenderCardPrev(label, esperado, chave, qd, valorAnterior){
+  var contado = qd.val!=null;
+  var val = contado ? qd.val : 0;
+  var verdict = '';
+  if(contado){
+    if(val >= esperado){ verdict = '<span style="color:var(--verde);font-weight:700">✅ OK</span>'; }
+    else { verdict = '<span style="color:var(--red2);font-weight:700">⚠️ Faltam '+(esperado-val)+'</span>'; }
+  }
+  return '<div class="item-card" style="margin-bottom:8px;padding:10px 12px">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'+
+      '<div class="item-c" style="margin:0">'+label+' — esperado <b>'+esperado+'</b>'+(valorAnterior!=null?' · anterior <b>'+valorAnterior+'</b>':'')+'</div>'+
+      verdict+
+    '</div>'+
+    '<div style="display:flex;align-items:center;gap:10px;margin:8px 0">'+
+      '<button class="btn" style="width:36px;padding:8px 0;font-size:15px" onclick="quAjustarPrevBloco(\''+chave+'\',-1)">−</button>'+
+      '<div style="flex:1;text-align:center">'+
+        '<span style="font-size:20px;font-weight:800">'+val+'</span>'+
+        '<span style="font-size:10px;color:var(--sub);margin-left:6px">'+(contado?'contados':'toque + a cada um encontrado')+'</span>'+
+      '</div>'+
+      '<button class="btn primary" style="width:44px;padding:8px 0;font-size:15px" onclick="quAjustarPrevBloco(\''+chave+'\',1)">+1</button>'+
+    '</div>'+
+    '<input type="text" value="'+((qd.obs||'').replace(/"/g,'&quot;'))+'" placeholder="Observação (opcional)" onchange="quSetObsPrevBloco(\''+chave+'\',this.value)">'+
+  '</div>';
+}
+
 function abrirExecucaoQuartel(vistId){
   quExecVistId = vistId;
   document.getElementById('modalExecucao').style.display='flex';
@@ -1820,6 +1930,8 @@ function renderExecucaoQuartel(){
     return ativo ? '<span class="prev-chip on">'+s.l+'</span>' : '';
   }).join('')+'</div>';
 
+  var vAnterior = quBuscarVistoriaAnterior(e.id, quExecVistId);
+
   if(e.blocos && e.blocos.length){
     html += '<div class="sec-title" style="margin-top:0">Sistemas preventivos por bloco e andar</div>';
     e.blocos.forEach(function(bloco, bi){
@@ -1834,21 +1946,8 @@ function renderExecucaoQuartel(){
             var s = SIST.find(function(x){return x.id===sid;});
             var chave = bi+'_'+pi+'_'+sid;
             var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
-            var contado = qd.val!=null;
-            var val = contado ? qd.val : 0;
-            html += '<div class="item-card" style="margin-bottom:8px">'+
-              '<div class="item-c">'+(s?s.l:sid)+' — esperado '+(pav.sist[sid].qty||0)+' un. neste andar</div>'+
-              '<div style="display:flex;align-items:center;gap:12px;margin:8px 0">'+
-                '<button class="btn" style="width:40px;padding:10px 0;font-size:16px" onclick="quAjustarPrevBloco(\''+chave+'\',-1)">−</button>'+
-                '<div style="flex:1;text-align:center">'+
-                  '<div style="font-size:24px;font-weight:800;line-height:1">'+val+'</div>'+
-                  '<div style="font-size:10px;color:var(--sub)">'+(contado?'contados':'toque + a cada um encontrado')+'</div>'+
-                '</div>'+
-                '<button class="btn primary" style="width:52px;padding:10px 0;font-size:16px" onclick="quAjustarPrevBloco(\''+chave+'\',1)">+1</button>'+
-              '</div>'+
-              '<label class="lbl">Observação (opcional)</label>'+
-              '<input type="text" value="'+((qd.obs||'').replace(/"/g,'&quot;'))+'" placeholder="Observação sobre esse sistema neste andar" onchange="quSetObsPrevBloco(\''+chave+'\',this.value)">'+
-            '</div>';
+            var anteriorVal = (vAnterior && vAnterior.qtvPrevBloco && vAnterior.qtvPrevBloco[chave] && vAnterior.qtvPrevBloco[chave].val!=null) ? vAnterior.qtvPrevBloco[chave].val : null;
+            html += quRenderCardPrev(s?s.l:sid, pav.sist[sid].qty||0, chave, qd, anteriorVal);
           });
         }
         html += '</div>';
@@ -1905,9 +2004,25 @@ function renderExecucaoQuartel(){
 
   var qtvIndeferePorAno = qtvAcimaAlgum && qtvTodosPreenchidos && v.qtv && v.qtv.ano==='depois2013';
   var qtvInfracaoPorAno = qtvAcimaAlgum && qtvTodosPreenchidos && !qtvAbaixo50 && v.qtv && v.qtv.ano==='antes2013';
-  var qtvForcaIndeferido = qtvAbaixo50 || qtvIndeferePorAno;
+
+  var pendenciasBloco = 0;
+  if(e.blocos && e.blocos.length){
+    e.blocos.forEach(function(bloco, bi){
+      (bloco.pavimentos||[]).forEach(function(pav, pi){
+        Object.keys(pav.sist||{}).forEach(function(sid){
+          if(!pav.sist[sid].ativo) return;
+          var chave = bi+'_'+pi+'_'+sid;
+          var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
+          var esperado = pav.sist[sid].qty||0;
+          if(qd.val==null || qd.val < esperado) pendenciasBloco++;
+        });
+      });
+    });
+  }
+
+  var qtvForcaIndeferido = qtvAbaixo50 || qtvIndeferePorAno || pendenciasBloco>0;
   var deferido = nao===0 && !qtvForcaIndeferido;
-  var motivoQtv = qtvAbaixo50 ? ' — quantidade abaixo de 50% do exigido (amostragem)' : (qtvIndeferePorAno ? ' — construção 2013+ exige atendimento pleno na amostragem' : '');
+  var motivoQtv = qtvAbaixo50 ? ' — quantidade abaixo de 50% do exigido (amostragem)' : (qtvIndeferePorAno ? ' — construção 2013+ exige atendimento pleno na amostragem' : (pendenciasBloco>0 ? ' — '+pendenciasBloco+' sistema(s) por bloco/andar abaixo do esperado ou não contados' : ''));
 
   if(qtvForcaIndeferido){
     html += '<div class="resultado-banner indef">'+(v.concluida?'':'(parcial) ')+'⚠️ Indeferido'+motivoQtv+'</div>';
