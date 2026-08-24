@@ -1339,6 +1339,18 @@ function excluirEdificacao(){
   renderEdificacoes();
 }
 
+function excluirVistoria(vistId){
+  if(!confirm('Excluir esta vistoria? Essa ação não pode ser desfeita.')) return;
+  var db = loadDB();
+  db.vistorias = (db.vistorias||[]).filter(function(x){return x.id!==vistId;});
+  // tira também de qualquer rota que a referenciava
+  (db.rotas||[]).forEach(function(r){
+    if(r.vistorias) r.vistorias = r.vistorias.filter(function(id){return id!==vistId;});
+  });
+  saveDB(db);
+  renderVistorias();
+}
+
 // ════════════════════════════════════════
 // CAMPO — Edificações Encontradas (Fase 5)
 // ════════════════════════════════════════
@@ -1541,9 +1553,12 @@ function renderVistorias(){
         '</div>'+
         '<div style="text-align:right">'+statusTxt+'</div>'+
       '</div>'+
-      (v.concluida
-        ? '<div style="margin-top:10px"><button class="btn" onclick="abrirRelatorio(\''+v.id+'\')">Ver relatório</button></div>'
-        : '<div style="margin-top:10px"><button class="btn primary" onclick="abrirExecucaoQuartel(\''+v.id+'\')">Executar vistoria</button></div>')+
+      '<div class="btnrow" style="margin-top:10px;gap:8px">'+
+        (v.concluida
+          ? '<button class="btn" onclick="abrirRelatorio(\''+v.id+'\')">Ver relatório</button>'
+          : '<button class="btn primary" onclick="abrirExecucaoQuartel(\''+v.id+'\')">Executar vistoria</button>')+
+        '<button class="btn" style="background:var(--red2)" onclick="excluirVistoria(\''+v.id+'\')">Excluir</button>'+
+      '</div>'+
     '</div>';
   }).join('');
 }
