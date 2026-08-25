@@ -164,7 +164,9 @@
 <body>
 <div id="app">
   <aside>
-    <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div></div>
+    <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v34</div>
+    </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
     <button data-v="rotas" onclick="navTo('rotas')"><span class="ic">🧭</span>Rotas</button>
@@ -2066,6 +2068,59 @@ function fecharExecucaoQuartel(){
   quExecVistId = null;
   renderVistorias();
 }
+function quToggleItemReprovado(itemId, causaTexto){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v) return;
+  if(!v.checklist[itemId]) v.checklist[itemId]={};
+  if(v.checklist[itemId].status==='nao'){
+    v.checklist[itemId].status = 'ok';
+  } else {
+    v.checklist[itemId].status = 'nao';
+    v.checklist[itemId].causa = causaTexto;
+  }
+  saveDB(db);
+  renderExecucaoQuartel();
+}
+function quMarcarGrupoConforme(idsCsv){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v) return;
+  idsCsv.split(',').forEach(function(id){
+    if(!v.checklist[id]) v.checklist[id]={};
+    v.checklist[id].status = 'ok';
+  });
+  saveDB(db);
+  renderExecucaoQuartel();
+}
+function quRenderGrupoConsolidado(grupoNome, itens, v){
+  var idsCsv = itens.map(function(it){return it.id;}).join(',');
+  var reprovados = itens.filter(function(it){ return v.checklist[it.id] && v.checklist[it.id].status==='nao'; });
+  var todosOk = itens.every(function(it){ return v.checklist[it.id] && v.checklist[it.id].status==='ok'; });
+
+  var html = '<div class="grupo-title">'+grupoNome+'</div>';
+  html += '<div class="item-card">';
+  html += '<button class="btn '+(todosOk?'primary':'')+'" style="width:100%;margin-bottom:8px" onclick="quMarcarGrupoConforme(\''+idsCsv+'\')">✅ Tudo conforme</button>';
+  html += '<div style="font-size:11px;color:var(--sub);margin:4px 0 6px">Ou toque no(s) item(ns) reprovado(s):</div>';
+  html += '<div style="display:flex;flex-wrap:wrap;gap:6px">';
+  itens.forEach(function(it){
+    var rep = v.checklist[it.id] && v.checklist[it.id].status==='nao';
+    html += '<button class="btn" style="width:auto;padding:6px 10px;font-size:11px;text-align:left;'+
+      (rep ? 'background:var(--red2);border:1px solid var(--red2);color:#fff' : 'background:var(--card2);border:1px solid var(--border);color:var(--sub)')+
+      '" onclick="quToggleItemReprovado(\''+it.id+'\',\''+it.ca.replace(/'/g,"\\'").replace(/"/g,'&quot;')+'\')">'+it.c+'</button>';
+  });
+  html += '</div>';
+  reprovados.forEach(function(it){
+    var d = v.checklist[it.id];
+    html += '<div style="margin:8px 0 0;padding-left:8px;border-left:2px solid var(--red2)">'+
+      '<div style="font-size:11px;color:var(--red2);font-weight:700">'+it.c+'</div>'+
+      '<input type="text" style="margin-top:4px" value="'+((d.obs||'').replace(/"/g,'&quot;'))+'" placeholder="Explicação adicional (opcional)" onchange="quSetItemCampo(\''+it.id+'\',\'obs\',this.value)">'+
+    '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+
 function quSetItemStatus(itemId, status){
   var db = loadDB();
   var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
@@ -2325,31 +2380,36 @@ function renderExecucaoQuartel(){
     '</div>';
   }
 
+  var GRUPOS_ANTIGOS = ['Documentação','Características Gerais do Bloco','Características Gerais'];
   grupos.forEach(function(g){
-    html += '<div class="grupo-title">'+g+'</div>';
-    cl[g].forEach(function(it){
-      var st = (v.checklist[it.id] && v.checklist[it.id].status) || '';
-      html += '<div class="item-card">'+
-        '<div class="item-obj">'+it.obj+'</div>'+
-        '<div class="item-c">'+it.c+'</div>'+
-        '<div class="item-btns">'+
-          '<button class="item-btn ok '+(st==='ok'?'on':'')+'" onclick="quSetItemStatus(\''+it.id+'\',\'ok\')">✅</button>'+
-          '<button class="item-btn nao '+(st==='nao'?'on':'')+'" onclick="quSetItemStatus(\''+it.id+'\',\'nao\')">❌</button>'+
-          '<button class="item-btn na '+(st==='na'?'on':'')+'" onclick="quSetItemStatus(\''+it.id+'\',\'na\')">➖</button>'+
-          '<button class="item-btn naoAv '+(st==='naoAv'?'on':'')+'" onclick="quSetItemStatus(\''+it.id+'\',\'naoAv\')">❔</button>'+
-        '</div>'+
-        (st==='nao' ? (
-          '<div class="item-extra">'+
-            '<label class="lbl">Causa da não conformidade</label>'+
-            '<input type="text" value="'+((v.checklist[it.id].causa||'').replace(/"/g,'&quot;'))+'" onchange="quSetItemCampo(\''+it.id+'\',\'causa\',this.value)">'+
-            '<label class="lbl">Local / pavimento (opcional)</label>'+
-            '<input type="text" value="'+((v.checklist[it.id].local||'').replace(/"/g,'&quot;'))+'" onchange="quSetItemCampo(\''+it.id+'\',\'local\',this.value)">'+
-            '<label class="lbl">Observação (opcional)</label>'+
-            '<input type="text" value="'+((v.checklist[it.id].obs||'').replace(/"/g,'&quot;'))+'" onchange="quSetItemCampo(\''+it.id+'\',\'obs\',this.value)">'+
-          '</div>'
-        ) : '')+
-      '</div>';
-    });
+    if(GRUPOS_ANTIGOS.indexOf(g)>=0){
+      html += '<div class="grupo-title">'+g+'</div>';
+      cl[g].forEach(function(it){
+        var st = (v.checklist[it.id] && v.checklist[it.id].status) || '';
+        html += '<div class="item-card">'+
+          '<div class="item-obj">'+it.obj+'</div>'+
+          '<div class="item-c">'+it.c+'</div>'+
+          '<div class="item-btns">'+
+            '<button class="item-btn ok '+(st==='ok'?'on':'')+'" onclick="quSetItemStatus(\''+it.id+'\',\'ok\')">✅</button>'+
+            '<button class="item-btn nao '+(st==='nao'?'on':'')+'" onclick="quSetItemStatus(\''+it.id+'\',\'nao\')">❌</button>'+
+            '<button class="item-btn na '+(st==='na'?'on':'')+'" onclick="quSetItemStatus(\''+it.id+'\',\'na\')">➖</button>'+
+            '<button class="item-btn naoAv '+(st==='naoAv'?'on':'')+'" onclick="quSetItemStatus(\''+it.id+'\',\'naoAv\')">❔</button>'+
+          '</div>'+
+          (st==='nao' ? (
+            '<div class="item-extra">'+
+              '<label class="lbl">Causa da não conformidade</label>'+
+              '<input type="text" value="'+((v.checklist[it.id].causa||'').replace(/"/g,'&quot;'))+'" onchange="quSetItemCampo(\''+it.id+'\',\'causa\',this.value)">'+
+              '<label class="lbl">Local / pavimento (opcional)</label>'+
+              '<input type="text" value="'+((v.checklist[it.id].local||'').replace(/"/g,'&quot;'))+'" onchange="quSetItemCampo(\''+it.id+'\',\'local\',this.value)">'+
+              '<label class="lbl">Observação (opcional)</label>'+
+              '<input type="text" value="'+((v.checklist[it.id].obs||'').replace(/"/g,'&quot;'))+'" onchange="quSetItemCampo(\''+it.id+'\',\'obs\',this.value)">'+
+            '</div>'
+          ) : '')+
+        '</div>';
+      });
+    } else {
+      html += quRenderGrupoConsolidado(g, cl[g], v);
+    }
   });
 
   html += '<div class="modal-actions">'+
