@@ -2234,22 +2234,49 @@ function renderExecucaoQuartel(){
     '<div class="exec-ctr"><div class="v" style="color:var(--amar)">'+naoAv+'</div><div class="l">Não aval.</div></div>'+
   '</div>';
 
+  function quTotalPrevSistema(sid){
+    var esperado=0, aprovados=0, reprovados=0, algumContado=false;
+    if(e.blocos && e.blocos.length){
+      e.blocos.forEach(function(bloco, bi){
+        (bloco.pavimentos||[]).forEach(function(pav, pi){
+          var ps = pav.sist && pav.sist[sid];
+          if(!ps || !ps.ativo) return;
+          esperado += ps.qty||0;
+          var chave = bi+'_'+pi+'_'+sid;
+          var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
+          var ap = qd.aprovados!=null ? qd.aprovados : (qd.val!=null?qd.val:null);
+          var rep = (qd.motivos||[]).reduce(function(s,m){return s+(m.qtd||0);},0);
+          if(ap!=null || rep>0) algumContado = true;
+          aprovados += ap||0;
+          reprovados += rep;
+        });
+      });
+    } else if(e.preventivos && e.preventivos[sid] && e.preventivos[sid].ativo){
+      esperado = e.preventivos[sid].qty||0;
+      var chave = '_'+sid;
+      var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
+      var ap = qd.aprovados!=null ? qd.aprovados : (qd.val!=null?qd.val:null);
+      var rep = (qd.motivos||[]).reduce(function(s,m){return s+(m.qtd||0);},0);
+      if(ap!=null || rep>0) algumContado = true;
+      aprovados = ap||0;
+      reprovados = rep;
+    }
+    return {esperado:esperado, aprovados:aprovados, reprovados:reprovados, contado:algumContado};
+  }
   var QTV_SIST = ['ext','ilu','sal'];
-  var qtvAtivos = QTV_SIST.filter(function(sid){ return e.preventivos && e.preventivos[sid] && e.preventivos[sid].ativo && e.preventivos[sid].qty>0; });
+  var qtvAtivos = QTV_SIST.filter(function(sid){ return quTotalPrevSistema(sid).esperado>0; });
   var qtvAbaixo50=false, qtvAcimaAlgum=false, qtvTodosPreenchidos=true;
   if(qtvAtivos.length){
     html += '<div class="sec-title" style="margin-top:0">Verificação quantitativa (amostragem)</div>';
+    html += '<div class="sub" style="margin:-4px 0 10px">Somado automaticamente a partir da contagem por bloco/andar acima.</div>';
     qtvAtivos.forEach(function(sid){
       var s = SIST.find(function(x){return x.id===sid;});
-      var esperado = e.preventivos[sid].qty;
-      var encontrado = (v.qtv && v.qtv[sid] && v.qtv[sid].val!=null) ? v.qtv[sid].val : '';
-      html += '<div class="item-card">'+
-        '<div class="item-c">'+s.l+' — esperado no PPCI: '+esperado+'</div>'+
-        '<label class="lbl">Quantidade encontrada</label>'+
-        '<input type="text" value="'+encontrado+'" onchange="quSetQtv(\''+sid+'\',this.value)">'+
+      var t = quTotalPrevSistema(sid);
+      var corTxt = !t.contado ? 'var(--sub)' : (t.aprovados < t.esperado*0.5 ? 'var(--red2)' : 'var(--verde)');
+      html += '<div class="item-card" style="padding:10px 12px">'+
+        '<div class="item-c" style="margin:0">'+s.l+' — <span style="color:'+corTxt+';font-weight:700">'+t.aprovados+' aprovado(s)</span> de '+t.esperado+' esperado(s)'+(t.reprovados>0?' · '+t.reprovados+' reprovado(s)':'')+(!t.contado?' · ainda não contado':'')+'</div>'+
       '</div>';
-      var val = parseInt(encontrado,10);
-      if(!isNaN(val)){ if(val<esperado*0.5) qtvAbaixo50=true; else qtvAcimaAlgum=true; }
+      if(t.contado){ if(t.aprovados<t.esperado*0.5) qtvAbaixo50=true; else qtvAcimaAlgum=true; }
       else { qtvTodosPreenchidos=false; }
     });
     if(qtvAcimaAlgum && qtvTodosPreenchidos && !qtvAbaixo50){

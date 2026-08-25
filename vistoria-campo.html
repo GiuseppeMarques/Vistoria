@@ -1183,31 +1183,50 @@ function renderExecucao(){
   '</div>';
 
   // Verificação quantitativa por amostragem (regra dos 50%) — Extintores, Iluminação, Sinalização
+  // Calculada automaticamente a partir do que já foi contado nos cards por bloco/andar acima — sem pedir pra contar de novo
+  function totalPrevSistema(sid){
+    var esperado=0, aprovados=0, reprovados=0, algumContado=false;
+    if(e.blocos && e.blocos.length){
+      e.blocos.forEach(function(bloco, bi){
+        (bloco.pavimentos||[]).forEach(function(pav, pi){
+          var ps = pav.sist && pav.sist[sid];
+          if(!ps || !ps.ativo) return;
+          esperado += ps.qty||0;
+          var chave = bi+'_'+pi+'_'+sid;
+          var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
+          var ap = qd.aprovados!=null ? qd.aprovados : (qd.val!=null?qd.val:null);
+          var rep = (qd.motivos||[]).reduce(function(s,m){return s+(m.qtd||0);},0);
+          if(ap!=null || rep>0) algumContado = true;
+          aprovados += ap||0;
+          reprovados += rep;
+        });
+      });
+    } else if(e.preventivos && e.preventivos[sid] && e.preventivos[sid].ativo){
+      esperado = e.preventivos[sid].qty||0;
+      var chave = '_'+sid;
+      var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
+      var ap = qd.aprovados!=null ? qd.aprovados : (qd.val!=null?qd.val:null);
+      var rep = (qd.motivos||[]).reduce(function(s,m){return s+(m.qtd||0);},0);
+      if(ap!=null || rep>0) algumContado = true;
+      aprovados = ap||0;
+      reprovados = rep;
+    }
+    return {esperado:esperado, aprovados:aprovados, reprovados:reprovados, contado:algumContado};
+  }
   var QTV_SIST = ['ext','ilu','sal'];
-  var qtvAtivos = QTV_SIST.filter(function(sid){ return e.preventivos && e.preventivos[sid] && e.preventivos[sid].ativo && e.preventivos[sid].qty>0; });
+  var qtvAtivos = QTV_SIST.filter(function(sid){ return totalPrevSistema(sid).esperado>0; });
   var qtvAbaixo50 = false, qtvAcimaAlgum = false, qtvTodosPreenchidos = true;
   if(qtvAtivos.length){
     html += '<div class="sec-title" style="margin-top:0">Verificação quantitativa (amostragem)</div>';
+    html += '<div class="sub" style="margin:-4px 0 10px">Somado automaticamente a partir da contagem por bloco/andar acima.</div>';
     qtvAtivos.forEach(function(sid){
       var s = SIST.find(function(x){return x.id===sid;});
-      var esperado = e.preventivos[sid].qty;
-      var qd = (v.qtv && v.qtv[sid]) || {};
-      var contado = qd.val!=null;
-      var val = contado ? qd.val : 0;
-      html += '<div class="item-card">'+
-        '<div class="item-c">'+s.l+' — esperado no PPCI: '+esperado+'</div>'+
-        '<div style="display:flex;align-items:center;gap:14px;margin:10px 0">'+
-          '<button class="btn" style="width:46px;padding:12px 0;font-size:18px" onclick="ajustarQtv(\''+sid+'\',-1)">−</button>'+
-          '<div style="flex:1;text-align:center">'+
-            '<div style="font-size:32px;font-weight:800;line-height:1">'+val+'</div>'+
-            '<div style="font-size:11px;color:var(--sub)">'+(contado?'contados':'toque + a cada um que encontrar')+'</div>'+
-          '</div>'+
-          '<button class="btn primary" style="width:60px;padding:12px 0;font-size:18px" onclick="ajustarQtv(\''+sid+'\',1)">+1</button>'+
-        '</div>'+
-        '<label class="lbl">Observação (opcional)</label>'+
-        '<input type="text" value="'+((qd.obs||'').replace(/"/g,'&quot;'))+'" placeholder="Ex: um extintor vencido, trocar" onchange="setQtvObs(\''+sid+'\',this.value)">'+
+      var t = totalPrevSistema(sid);
+      var corTxt = !t.contado ? 'var(--sub)' : (t.aprovados < t.esperado*0.5 ? 'var(--red2)' : 'var(--verde)');
+      html += '<div class="item-card" style="padding:10px 12px">'+
+        '<div class="item-c" style="margin:0">'+s.l+' — <span style="color:'+corTxt+';font-weight:700">'+t.aprovados+' aprovado(s)</span> de '+t.esperado+' esperado(s)'+(t.reprovados>0?' · '+t.reprovados+' reprovado(s)':'')+(!t.contado?' · ainda não contado':'')+'</div>'+
       '</div>';
-      if(contado){ if(val < esperado*0.5) qtvAbaixo50=true; else qtvAcimaAlgum=true; }
+      if(t.contado){ if(t.aprovados < t.esperado*0.5) qtvAbaixo50=true; else qtvAcimaAlgum=true; }
       else { qtvTodosPreenchidos = false; }
     });
 
