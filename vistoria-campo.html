@@ -210,7 +210,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v35</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v36</div>
   </header>
 
   <main>
@@ -724,11 +724,15 @@ function getCL(tipo){ return tipo==='funcionamento' ? CL_FN : CL_HS; }
 // Grupos do checklist que aparecem sempre, independente de quais sistemas preventivos estão ativos
 var GRUPOS_FIXOS = ['Documentação', 'Características Gerais do Bloco', 'Características Gerais'];
 
+// Sistemas já 100% cobertos pelo card "por bloco e andar" (aprovados+motivos) — não precisam
+// também de um grupo separado no checklist, senão pergunta a mesma coisa duas vezes.
+var SIDS_SO_CARD_BLOCO = ['ext','shp','ilu','sal'];
+
 function getGruposAtivos(edif, tipo){
   var ativos = GRUPOS_FIXOS.slice();
   var prev = edif ? edif.preventivos||{} : {};
   Object.keys(prev).forEach(function(id){
-    if(prev[id] && prev[id].ativo){
+    if(prev[id] && prev[id].ativo && SIDS_SO_CARD_BLOCO.indexOf(id)<0){
       (PREV_GRUPOS[id]||[]).forEach(function(g){ if(ativos.indexOf(g)<0) ativos.push(g); });
     }
   });

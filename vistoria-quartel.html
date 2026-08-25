@@ -165,7 +165,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v34</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v35</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -860,6 +860,21 @@ function getCL(tipo){ return tipo==='funcionamento' ? CL_FN : CL_HS; }
 
 // Grupos do checklist que aparecem sempre, independente de quais sistemas preventivos estão ativos
 var GRUPOS_FIXOS = ['Documentação', 'Características Gerais do Bloco', 'Características Gerais'];
+
+// Sistemas já 100% cobertos pelo card "por bloco e andar" (aprovados+motivos) — não precisam
+// também de um grupo separado no checklist, senão pergunta a mesma coisa duas vezes.
+var SIDS_SO_CARD_BLOCO = ['ext','shp','ilu','sal'];
+
+function getGruposAtivosQuartel(edif){
+  var ativos = GRUPOS_FIXOS.slice();
+  var prev = edif ? edif.preventivos||{} : {};
+  Object.keys(prev).forEach(function(id){
+    if(prev[id] && prev[id].ativo && SIDS_SO_CARD_BLOCO.indexOf(id)<0){
+      (PREV_GRUPOS[id]||[]).forEach(function(g){ if(ativos.indexOf(g)<0) ativos.push(g); });
+    }
+  });
+  return ativos;
+}
 
 var PREV_GRUPOS = {
   'ext': ['Extintores — IN 6'],
@@ -1848,107 +1863,149 @@ function abrirRelatorio(vistId){
   if(!v) return;
   var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
   var cl = getCL(v.tipo);
-  var gruposAtivos = GRUPOS_FIXOS.slice();
-  var prev = (e&&e.preventivos)||{};
-  Object.keys(prev).forEach(function(id){ if(prev[id]&&prev[id].ativo){ (PREV_GRUPOS[id]||[]).forEach(function(g){if(gruposAtivos.indexOf(g)<0)gruposAtivos.push(g);}); } });
+  var gruposAtivos = getGruposAtivosQuartel(e);
   var grupos = Object.keys(cl).filter(function(g){return gruposAtivos.indexOf(g)>=0;});
 
-  var html = '<h3>'+(e?e.nome:'—')+'</h3>'+
-    '<div class="sub">'+(e?e.re:'')+' · '+(v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+' · concluída em '+
-    (v.concluidaEm?new Date(v.concluidaEm).toLocaleString('pt-BR'):'—')+'</div>';
-
-  // Junta tudo que reprova: checklist não conforme + não avaliado, e preventivos por bloco/andar com falta
-  var reprovados = [];
+  // Pendências gerais (checklist — não ligadas a um bloco/andar específico)
+  var pendGerais = [];
   var reprovadosChecklist = 0;
-
   grupos.forEach(function(g){
     cl[g].forEach(function(it){
       var d = v.checklist[it.id];
       var st = (d&&d.status) || 'naoAv';
       if(st==='nao' || st==='naoAv'){
         reprovadosChecklist++;
-        reprovados.push({
+        pendGerais.push({
           texto: it.c,
           motivo: st==='naoAv' ? 'Item não avaliado durante a vistoria' : (d.causa || 'Não conforme'),
-          local: d && d.local,
           obs: d && d.obs
         });
       }
     });
   });
 
+  // Pendências de preventivos, organizadas por Bloco > Pavimento
+  var porBloco = []; // [{nomeBloco, pavimentos:[{label, itens:[...]}]}]
+  var totalPendBloco = 0;
   if(e && e.blocos && e.blocos.length){
     e.blocos.forEach(function(bloco, bi){
+      var pavsComPend = [];
       (bloco.pavimentos||[]).forEach(function(pav, pi){
+        var itensPav = [];
         Object.keys(pav.sist||{}).forEach(function(sid){
           if(!pav.sist[sid].ativo) return;
           var esperado = pav.sist[sid].qty||0;
           var chave = bi+'_'+pi+'_'+sid;
           var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
           var s = SIST.find(function(x){return x.id===sid;});
-          var local = bloco.nome+' / '+pav.label;
           var aprovados = qd.aprovados!=null ? qd.aprovados : (qd.val!=null ? qd.val : null);
           var motivos = qd.motivos || [];
           var reprovadosTotal = motivos.reduce(function(s2,m){return s2+(m.qtd||0);}, 0);
           var totalContado = (aprovados||0) + reprovadosTotal;
 
-          // um item de pendência por motivo de reprovação registrado, com local e quantidade
           motivos.forEach(function(m){
             if(!m.qtd) return;
-            reprovados.push({
-              texto: (s?s.l:sid)+' — '+local,
-              motivo: m.qtd+' un. reprovada(s): '+(m.motivo||'motivo não especificado'),
-              obs: qd.obs
-            });
+            itensPav.push({ texto:(s?s.l:sid), motivo: m.qtd+' un. reprovada(s): '+(m.motivo||'motivo não especificado'), obs: qd.obs });
           });
-          // e, separadamente, se não bateu a quantidade esperada mesmo somando aprovados+reprovados
           if(aprovados==null && motivos.length===0){
-            reprovados.push({ texto:(s?s.l:sid)+' — '+local, motivo:'Não contado durante a vistoria (esperado '+esperado+' un.)', obs: qd.obs });
+            itensPav.push({ texto:(s?s.l:sid), motivo:'Não contado durante a vistoria (esperado '+esperado+' un.)', obs: qd.obs });
           } else if(totalContado < esperado){
-            reprovados.push({ texto:(s?s.l:sid)+' — '+local, motivo:'Faltam '+(esperado-totalContado)+' un. não localizada(s) (esperado '+esperado+')', obs: qd.obs });
+            itensPav.push({ texto:(s?s.l:sid), motivo:'Faltam '+(esperado-totalContado)+' un. não localizada(s) (esperado '+esperado+')', obs: qd.obs });
           }
         });
+        if(itensPav.length){ pavsComPend.push({label: pav.label, itens: itensPav}); totalPendBloco += itensPav.length; }
       });
-    });
-  }
-
-  if(v.qtv){
-    var QTV_SIST = ['ext','ilu','sal'];
-    QTV_SIST.forEach(function(sid){
-      var qd = v.qtv[sid];
-      if(!qd || qd.val==null || qd.val==='') return;
-      var esperado = (e&&e.preventivos&&e.preventivos[sid]) ? e.preventivos[sid].qty : null;
-      if(esperado!=null && Number(qd.val) < esperado){
-        var s = SIST.find(function(x){return x.id===sid;});
-        reprovados.push({
-          texto: (s?s.l:sid)+' — amostragem geral',
-          motivo: 'Faltam '+(esperado-qd.val)+' un. (encontrado '+qd.val+' de '+esperado+')',
-          obs: qd.obs
-        });
-      }
+      if(pavsComPend.length){ porBloco.push({nomeBloco: bloco.nome, pavimentos: pavsComPend}); }
     });
   }
 
   var totalItens = grupos.reduce(function(n,g){return n+cl[g].length;}, 0);
-  html += '<div class="rep-grp" style="margin-top:16px">Resumo</div>'+
-    '<div class="rep-item">'+(totalItens-reprovadosChecklist)+' de '+totalItens+' itens do checklist conformes · '+reprovados.length+' pendência(s) no total</div>';
+  var totalPendencias = pendGerais.length + totalPendBloco;
 
-  if(reprovados.length){
-    html += '<div class="rep-grp">Reprovado / pendente</div>';
-    reprovados.forEach(function(r){
-      html += '<div class="rep-item nc"><span class="st">❌</span><b>'+r.texto+'</b><div class="sub" style="margin-left:20px">'+
-        r.motivo+
-        (r.local?'<br>Local: '+r.local:'')+
-        (r.obs?'<br>Obs: '+r.obs:'')+
-      '</div></div>';
-    });
-  } else {
+  var html = '<h3>'+(e?e.nome:'—')+'</h3>'+
+    '<div class="sub">'+(e?e.re:'')+' · '+(v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+' · concluída em '+
+    (v.concluidaEm?new Date(v.concluidaEm).toLocaleString('pt-BR'):'—')+'</div>';
+  html += '<div class="rep-grp" style="margin-top:16px">Resumo</div>'+
+    '<div class="rep-item">'+(totalItens-reprovadosChecklist)+' de '+totalItens+' itens do checklist conformes · '+totalPendencias+' pendência(s) no total</div>';
+
+  if(totalPendencias===0){
     html += '<div class="rep-item">✅ Nenhuma pendência — todos os itens avaliados e conformes.</div>';
+  } else {
+    if(porBloco.length){
+      html += '<div class="rep-grp">Pendências por bloco e pavimento</div>';
+      porBloco.forEach(function(b){
+        html += '<div style="font-weight:800;margin-top:10px">'+b.nomeBloco+'</div>';
+        b.pavimentos.forEach(function(p){
+          html += '<div style="font-weight:700;color:var(--sub);margin:4px 0 4px 8px">'+p.label+'</div>';
+          p.itens.forEach(function(it){
+            html += '<div class="rep-item nc" style="margin-left:16px"><span class="st">❌</span><b>'+it.texto+'</b><div class="sub" style="margin-left:20px">'+it.motivo+(it.obs?'<br>Obs: '+it.obs:'')+'</div></div>';
+          });
+        });
+      });
+    }
+    if(pendGerais.length){
+      html += '<div class="rep-grp">Pendências gerais (checklist)</div>';
+      pendGerais.forEach(function(r){
+        html += '<div class="rep-item nc"><span class="st">❌</span><b>'+r.texto+'</b><div class="sub" style="margin-left:20px">'+r.motivo+(r.obs?'<br>Obs: '+r.obs:'')+'</div></div>';
+      });
+    }
   }
 
-  html += '<div class="modal-actions"><button class="btn primary" onclick="document.getElementById(\'modalRelatorio\').style.display=\'none\'">Fechar</button></div>';
+  var textoRelatorio = gerarRelatorioTexto(e, v, pendGerais, porBloco, totalItens, reprovadosChecklist, totalPendencias);
+  window._relatorioTextoAtual = textoRelatorio;
+
+  html += '<div class="modal-actions"><button class="btn" onclick="copiarRelatorioTexto()">📋 Copiar em texto</button><button class="btn primary" onclick="document.getElementById(\'modalRelatorio\').style.display=\'none\'">Fechar</button></div>';
   document.getElementById('relatorioBody').innerHTML = html;
   document.getElementById('modalRelatorio').style.display='flex';
+}
+
+function gerarRelatorioTexto(e, v, pendGerais, porBloco, totalItens, reprovadosChecklist, totalPendencias){
+  var linhas = [];
+  linhas.push((e?e.nome:'—')+' — RE '+(e?e.re:''));
+  linhas.push((v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+' · concluída em '+(v.concluidaEm?new Date(v.concluidaEm).toLocaleString('pt-BR'):'—'));
+  linhas.push('');
+  linhas.push('RESUMO: '+(totalItens-reprovadosChecklist)+' de '+totalItens+' itens do checklist conformes · '+totalPendencias+' pendência(s) no total');
+  linhas.push('');
+  if(totalPendencias===0){
+    linhas.push('Nenhuma pendência — todos os itens avaliados e conformes.');
+  } else {
+    if(porBloco.length){
+      linhas.push('=== PENDÊNCIAS POR BLOCO E PAVIMENTO ===');
+      porBloco.forEach(function(b){
+        linhas.push('');
+        linhas.push(b.nomeBloco+':');
+        b.pavimentos.forEach(function(p){
+          linhas.push('  '+p.label+':');
+          p.itens.forEach(function(it){
+            linhas.push('    - '+it.texto+': '+it.motivo+(it.obs?' (Obs: '+it.obs+')':''));
+          });
+        });
+      });
+      linhas.push('');
+    }
+    if(pendGerais.length){
+      linhas.push('=== PENDÊNCIAS GERAIS (CHECKLIST) ===');
+      pendGerais.forEach(function(r){
+        linhas.push('- '+r.texto+': '+r.motivo+(r.obs?' (Obs: '+r.obs+')':''));
+      });
+    }
+  }
+  return linhas.join('\n');
+}
+function copiarRelatorioTexto(){
+  var texto = window._relatorioTextoAtual || '';
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(texto).then(function(){
+      alert('Relatório copiado! Já pode colar (Ctrl+V) numa mensagem ou e-mail.');
+    }).catch(function(){
+      promptCopiaManual(texto);
+    });
+  } else {
+    promptCopiaManual(texto);
+  }
+}
+function promptCopiaManual(texto){
+  window.prompt('Copie o texto abaixo (Ctrl+C):', texto);
 }
 
 function infoHabiteSe(e){
@@ -2270,9 +2327,7 @@ function renderExecucaoQuartel(){
   }
 
   var cl = getCL(v.tipo);
-  var gruposAtivos = GRUPOS_FIXOS.slice();
-  var prev = e.preventivos||{};
-  Object.keys(prev).forEach(function(id){ if(prev[id]&&prev[id].ativo){ (PREV_GRUPOS[id]||[]).forEach(function(g){if(gruposAtivos.indexOf(g)<0)gruposAtivos.push(g);}); } });
+  var gruposAtivos = getGruposAtivosQuartel(e);
   var grupos = Object.keys(cl).filter(function(g){return gruposAtivos.indexOf(g)>=0;});
 
   var todos = [];
