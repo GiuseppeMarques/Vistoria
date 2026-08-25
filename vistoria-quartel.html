@@ -165,7 +165,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v35</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v36</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -363,6 +363,7 @@
           <option value="habite-se">Habite-se</option>
           <option value="funcionamento">Funcionamento</option>
         </select>
+        <input type="text" id="relBusca" placeholder="Filtrar por RE, nome, bairro ou município..." style="width:auto;min-width:220px" oninput="renderRelatorios()">
       </div>
 
       <div id="relResumo" class="btnrow" style="gap:14px;margin:16px 0;flex-wrap:wrap"></div>
@@ -1811,8 +1812,8 @@ function renderVistorias(){
 
 var pvEdifSelecionadaId = null;
 
-function abrirPlanejarVist(){
-  pvEdifSelecionadaId = null;
+function abrirPlanejarVist(edifIdPreSelecionado){
+  pvEdifSelecionadaId = edifIdPreSelecionado || null;
   document.getElementById('pv-edif-busca').value = '';
   document.getElementById('pv-motivo').value='';
   renderPvEdifLista();
@@ -2636,7 +2637,14 @@ function renderRelatorios(){
   vistoriasNoAno.forEach(function(v){ porMes[new Date(v.concluidaEm).getMonth()]++; });
   desenharGraficoRelatorios(porMes);
 
-  var listaVist = todas.filter(function(e){ return edifIdsVistoriados.indexOf(e.id)>=0; })
+  var busca = (document.getElementById('relBusca').value||'').toLowerCase();
+  function bateBusca(e){
+    if(!busca) return true;
+    return (e.re||'').toLowerCase().indexOf(busca)>=0 || (e.nome||'').toLowerCase().indexOf(busca)>=0 ||
+      (e.bairro||'').toLowerCase().indexOf(busca)>=0 || (e.municipio||'').toLowerCase().indexOf(busca)>=0;
+  }
+
+  var listaVist = todas.filter(function(e){ return edifIdsVistoriados.indexOf(e.id)>=0 && bateBusca(e); })
     .map(function(e){
       var v = vistoriasNoAno.filter(function(x){return x.edificacaoId===e.id;}).sort(function(a,b){return new Date(b.concluidaEm)-new Date(a.concluidaEm);})[0];
       return {e:e, v:v};
@@ -2649,15 +2657,18 @@ function renderRelatorios(){
       '<div><div class="elist-t">'+(x.e.re||'Sem RE')+' — '+(x.e.nome||'Sem nome')+'</div>'+
       '<div class="elist-s">'+(x.v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+' · concluída '+d.toLocaleDateString('pt-BR')+'</div></div>'+
     '</div></div>';
-  }).join('') : '<div class="sub">Nenhuma edificação vistoriada em '+anoEscolhido+' ainda.</div>';
+  }).join('') : '<div class="sub">Nenhuma edificação vistoriada em '+anoEscolhido+' '+(busca?'com esse filtro':'ainda')+'.</div>';
 
-  var listaPend = todas.filter(function(e){ return edifIdsVistoriados.indexOf(e.id)<0; })
+  var listaPend = todas.filter(function(e){ return edifIdsVistoriados.indexOf(e.id)<0 && bateBusca(e); })
     .sort(function(a,b){ return (a.re||'').localeCompare(b.re||'', undefined, {numeric:true}); });
 
   document.getElementById('relListaPendentes').innerHTML = listaPend.length ? listaPend.map(function(e){
-    return '<div class="elist-item"><div class="elist-row"><div><div class="elist-t">'+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+'</div>'+
-      '<div class="elist-s">'+(e.municipio||'')+(e.bairro?' · '+e.bairro:'')+'</div></div></div></div>';
-  }).join('') : '<div class="sub">Todas as edificações cadastradas já foram vistoriadas em '+anoEscolhido+'.</div>';
+    return '<div class="elist-item"><div class="elist-row">'+
+      '<div><div class="elist-t">'+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+'</div>'+
+      '<div class="elist-s">'+(e.municipio||'')+(e.bairro?' · '+e.bairro:'')+'</div></div>'+
+      '<button class="btn primary" style="width:auto;padding:8px 14px" onclick="abrirPlanejarVist(\''+e.id+'\')">+ Gerar vistoria</button>'+
+    '</div></div>';
+  }).join('') : '<div class="sub">Todas as edificações '+(busca?'com esse filtro já foram':'cadastradas já foram')+' vistoriadas em '+anoEscolhido+'.</div>';
 }
 
 function desenharGraficoRelatorios(porMes){
