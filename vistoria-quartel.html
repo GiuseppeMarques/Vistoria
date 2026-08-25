@@ -658,6 +658,30 @@ var SIST = [
   {id:'glp',l:'GLP Comercial',n:'IN 29'}
 ];
 
+// Motivos de reprovação padrão por sistema, extraídos das causas de inconformidade das
+// IRVs de Habite-se e Funcionamento (CBMSC, vigentes a partir de 24/04/2024) — toque rápido em campo
+var CAUSAS_REPROVACAO = {
+  ext: ['Quantidade em desacordo com o PPCI','Fora de área de circulação/comum','Dentro de escada/rampa/antecâmara','Lacre violado','Sem pressurização','Teste hidrostático vencido'],
+  shp: ['Quantidade de hidrantes em desacordo com o PPCI','Abrigo sem mangueira/esguicho/storz','Fora de área de circulação/comum','Falta 1 ponto por pavimento/setor','Recalque sem adaptador storz','Impossível retirar água no recalque','Tubulação fora do padrão','Válvula de retenção ausente/invertida'],
+  gas: ['Tipo de gás divergente do PPCI','Válvula de corte geral ausente','Falta caixa de medidor/regulador no andar','Falta ventilação permanente','Teste de estanqueidade vencido/reprovado'],
+  sai: ['Largura em desacordo com o PPCI','Corrimão ausente','Guarda-corpo ausente','Porta corta-fogo ausente ou não fecha','Rota de fuga obstruída/bloqueada','Barra antipânico ausente'],
+  fum: ['Abertura de ventilação/exaustão ausente','Sistema não funcionou no teste'],
+  ilu: ['Luminária não acende no teste','Quantidade em desacordo com o PPCI','Falta luminária em corredor/escada'],
+  ala: ['Tipo de SDAI divergente do PPCI','ECI fora de local c/ vigilância ou fácil acesso','Alarme não disparou no teste','Acionador manual em desacordo com PPCI','Avisador áudio/visual em desacordo com PPCI','Detector automático em desacordo com PPCI'],
+  sal: ['Falta sinalização em mudança de direção/saída','Placa não é do tipo luminosa (exigida)','Placa luminosa não funciona no teste','Falta sinalização contínua inferior'],
+  com: ['Falta afastamento horizontal entre blocos','Abertura sem proteção corta-fogo'],
+  spr: ['Quantidade de pontos em desacordo com o PPCI','Recalque duplo ausente/incorreto','Bombas do SPK não instaladas'],
+  cmar: ['Material sem laudo/ensaio de reação ao fogo'],
+  ele: ['DRT de manutenção/reforma vencido ou ausente'],
+  liq: ['Classe do produto divergente do PPCI','Instalação em desacordo com o PPCI'],
+  bri: ['Quantidade de brigadistas abaixo do dimensionado'],
+  plano: ['Planta de emergência ausente/incompleta','Planta de risco ausente'],
+  pis: ['Barreira física ausente/abaixo de 1,10m','Sinalização preventiva incompleta','Sistema antissucção ausente/incorreto','Botoeira de emergência ausente','Boias de salvamento insuficientes'],
+  aces: ['Acesso em desacordo com o projeto aprovado'],
+  hidr: ['Hidrante público não executado conforme PPCI'],
+  glp: ['Distância mínima de segurança em desacordo','Falta quadro de aviso','Falta placa de sinalização de segurança']
+};
+
 // ════════════════════════════════════════
 // CHECKLISTS
 // ════════════════════════════════════════
@@ -1724,8 +1748,27 @@ function renderVistorias(){
       if(abaixo50 || (qsist.length && v.qtv.ano==='depois2013')) qtvIndef = true;
       else if(qsist.length && v.qtv.ano==='antes2013') qtvInfr = true;
     }
+    var pendBloco = 0;
+    if(e && e.blocos && e.blocos.length){
+      e.blocos.forEach(function(bloco, bi){
+        (bloco.pavimentos||[]).forEach(function(pav, pi){
+          Object.keys(pav.sist||{}).forEach(function(sid){
+            if(!pav.sist[sid].ativo) return;
+            var chave = bi+'_'+pi+'_'+sid;
+            var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
+            var esperado = pav.sist[sid].qty||0;
+            var aprovados = qd.aprovados!=null ? qd.aprovados : (qd.val!=null ? qd.val : null);
+            var reprovados = (qd.motivos||[]).reduce(function(s,m){return s+(m.qtd||0);}, 0);
+            if(aprovados==null && reprovados===0){ pendBloco++; return; }
+            if(((aprovados||0)+reprovados) < esperado){ pendBloco++; return; }
+            if(reprovados>0) pendBloco++;
+          });
+        });
+      });
+    }
+    if(pendBloco>0) qtvIndef = true;
     var statusTxt = v.concluida
-      ? (qtvIndef || nc>0 ? '<span style="color:var(--red2);font-weight:700">⚠️ '+(qtvIndef&&nc===0?'Indeferido (quantitativo)':nc+' não conf.')+'</span>'
+      ? (qtvIndef || nc>0 ? '<span style="color:var(--red2);font-weight:700">⚠️ '+(nc>0?nc+' não conf.':(pendBloco>0?pendBloco+' preventivo(s) c/ pendência':'Indeferido (quantitativo)'))+'</span>'
         : qtvInfr ? '<span style="color:var(--amar);font-weight:700">⚠️ Aprovado c/ Auto de Infração</span>'
         : '<span style="color:var(--verde);font-weight:700">✅ Deferido</span>')
       : '<span style="color:var(--amar);font-weight:700">⏳ Pendente</span>';
@@ -1840,14 +1883,27 @@ function abrirRelatorio(vistId){
           var esperado = pav.sist[sid].qty||0;
           var chave = bi+'_'+pi+'_'+sid;
           var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
-          var contado = qd.val!=null ? qd.val : 0;
-          if(qd.val==null || contado < esperado){
-            var s = SIST.find(function(x){return x.id===sid;});
+          var s = SIST.find(function(x){return x.id===sid;});
+          var local = bloco.nome+' / '+pav.label;
+          var aprovados = qd.aprovados!=null ? qd.aprovados : (qd.val!=null ? qd.val : null);
+          var motivos = qd.motivos || [];
+          var reprovadosTotal = motivos.reduce(function(s2,m){return s2+(m.qtd||0);}, 0);
+          var totalContado = (aprovados||0) + reprovadosTotal;
+
+          // um item de pendência por motivo de reprovação registrado, com local e quantidade
+          motivos.forEach(function(m){
+            if(!m.qtd) return;
             reprovados.push({
-              texto: (s?s.l:sid)+' — '+bloco.nome+' / '+pav.label,
-              motivo: qd.val==null ? 'Não contado durante a vistoria (esperado '+esperado+' un.)' : 'Faltam '+(esperado-contado)+' un. (encontrado '+contado+' de '+esperado+')',
+              texto: (s?s.l:sid)+' — '+local,
+              motivo: m.qtd+' un. reprovada(s): '+(m.motivo||'motivo não especificado'),
               obs: qd.obs
             });
+          });
+          // e, separadamente, se não bateu a quantidade esperada mesmo somando aprovados+reprovados
+          if(aprovados==null && motivos.length===0){
+            reprovados.push({ texto:(s?s.l:sid)+' — '+local, motivo:'Não contado durante a vistoria (esperado '+esperado+' un.)', obs: qd.obs });
+          } else if(totalContado < esperado){
+            reprovados.push({ texto:(s?s.l:sid)+' — '+local, motivo:'Faltam '+(esperado-totalContado)+' un. não localizada(s) (esperado '+esperado+')', obs: qd.obs });
           }
         });
       });
@@ -1917,29 +1973,87 @@ function quBuscarVistoriaAnterior(edificacaoId, vistoriaAtualId){
   }).sort(function(a,b){ return new Date(b.concluidaEm||0) - new Date(a.concluidaEm||0); });
   return anteriores[0] || null;
 }
-function quRenderCardPrev(label, esperado, chave, qd, valorAnterior){
-  var contado = qd.val!=null;
-  var val = contado ? qd.val : 0;
+function quCalcAnteriorInfo(vAnterior, chave){
+  var qd = vAnterior && vAnterior.qtvPrevBloco && vAnterior.qtvPrevBloco[chave];
+  if(!qd) return null;
+  var aprovados = qd.aprovados!=null ? qd.aprovados : (qd.val!=null ? qd.val : null);
+  var reprovados = (qd.motivos||[]).reduce(function(s,m){return s+(m.qtd||0);}, 0);
+  if(aprovados==null && reprovados===0) return null;
+  return {aprovados: aprovados||0, reprovados: reprovados};
+}
+function quTocarMotivoRapido(chave, sid, textoMotivo){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v) return;
+  if(!v.qtvPrevBloco) v.qtvPrevBloco={};
+  if(!v.qtvPrevBloco[chave]) v.qtvPrevBloco[chave]={};
+  if(!v.qtvPrevBloco[chave].motivos) v.qtvPrevBloco[chave].motivos=[];
+  var existente = v.qtvPrevBloco[chave].motivos.find(function(m){return m.motivo===textoMotivo;});
+  if(existente){ existente.qtd = (existente.qtd||0)+1; }
+  else { v.qtvPrevBloco[chave].motivos.push({motivo:textoMotivo, qtd:1}); }
+  saveDB(db);
+  renderExecucaoQuartel();
+}
+function quRenderCardPrev(label, esperado, chave, qd, anteriorInfo, sid){
+  var aprovados = qd.aprovados!=null ? qd.aprovados : (qd.val!=null ? qd.val : null);
+  var motivos = qd.motivos || [];
+  var reprovadosTotal = motivos.reduce(function(s,m){return s+(m.qtd||0);}, 0);
+  var totalContado = (aprovados||0) + reprovadosTotal;
+  var iniciado = aprovados!=null || motivos.length>0;
+
   var verdict = '';
-  if(contado){
-    if(val >= esperado){ verdict = '<span style="color:var(--verde);font-weight:700">✅ OK</span>'; }
-    else { verdict = '<span style="color:var(--red2);font-weight:700">⚠️ Faltam '+(esperado-val)+'</span>'; }
+  if(iniciado){
+    if(totalContado < esperado){
+      var faltam = esperado - totalContado;
+      verdict = '<span style="color:var(--red2);font-weight:700">⚠️ Faltam '+faltam+(reprovadosTotal>0?' · '+reprovadosTotal+' reprovado(s)':'')+'</span>';
+    } else if(reprovadosTotal>0){
+      verdict = '<span style="color:var(--red2);font-weight:700">⚠️ '+reprovadosTotal+' reprovado(s)</span>';
+    } else {
+      verdict = '<span style="color:var(--verde);font-weight:700">✅ OK</span>';
+    }
   }
-  return '<div class="item-card" style="margin-bottom:8px;padding:10px 12px">'+
+
+  var anteriorTxt = '';
+  if(anteriorInfo){
+    anteriorTxt = ' · anterior <b>'+anteriorInfo.aprovados+'</b> aprov.'+(anteriorInfo.reprovados>0?' / '+anteriorInfo.reprovados+' reprov.':'');
+  }
+
+  var html = '<div class="item-card" style="margin-bottom:8px;padding:10px 12px">'+
     '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'+
-      '<div class="item-c" style="margin:0">'+label+' — esperado <b>'+esperado+'</b>'+(valorAnterior!=null?' · anterior <b>'+valorAnterior+'</b>':'')+'</div>'+
+      '<div class="item-c" style="margin:0">'+label+' — esperado <b>'+esperado+'</b>'+anteriorTxt+'</div>'+
       verdict+
     '</div>'+
     '<div style="display:flex;align-items:center;gap:10px;margin:8px 0">'+
-      '<button class="btn" style="width:36px;padding:8px 0;font-size:15px" onclick="quAjustarPrevBloco(\''+chave+'\',-1)">−</button>'+
-      '<div style="flex:1;text-align:center">'+
-        '<span style="font-size:20px;font-weight:800">'+val+'</span>'+
-        '<span style="font-size:10px;color:var(--sub);margin-left:6px">'+(contado?'contados':'toque + a cada um encontrado')+'</span>'+
-      '</div>'+
-      '<button class="btn primary" style="width:44px;padding:8px 0;font-size:15px" onclick="quAjustarPrevBloco(\''+chave+'\',1)">+1</button>'+
-    '</div>'+
-    '<input type="text" value="'+((qd.obs||'').replace(/"/g,'&quot;'))+'" placeholder="Observação (opcional)" onchange="quSetObsPrevBloco(\''+chave+'\',this.value)">'+
+      '<span style="font-size:11px;color:var(--sub);width:64px">Aprovados</span>'+
+      '<button class="btn" style="width:32px;padding:7px 0;font-size:14px" onclick="quAjustarAprovadoPrev(\''+chave+'\',-1)">−</button>'+
+      '<div style="flex:1;text-align:center;font-size:18px;font-weight:800">'+(aprovados||0)+'</div>'+
+      '<button class="btn primary" style="width:40px;padding:7px 0;font-size:14px" onclick="quAjustarAprovadoPrev(\''+chave+'\',1)">+1</button>'+
+    '</div>';
+
+  var causasPadrao = CAUSAS_REPROVACAO[sid] || [];
+  if(causasPadrao.length){
+    html += '<div style="font-size:11px;color:var(--sub);margin-top:6px">Motivo de reprovação (toque pra somar):</div>'+
+      '<div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0">'+
+      causasPadrao.map(function(c){
+        return '<button class="btn" style="width:auto;padding:6px 10px;font-size:11px;background:var(--card2);border:1px solid var(--red2);color:var(--red2)" onclick="quTocarMotivoRapido(\''+chave+'\',\''+sid+'\',\''+c.replace(/'/g,"\\'")+'\')">'+c+'</button>';
+      }).join('')+
+    '</div>';
+  }
+
+  motivos.forEach(function(m, idx){
+    html += '<div style="display:flex;align-items:center;gap:6px;margin:6px 0;padding-left:8px;border-left:2px solid var(--red2)">'+
+      '<input type="text" value="'+((m.motivo||'').replace(/"/g,'&quot;'))+'" placeholder="Motivo (ex: lacre violado)" style="flex:1;margin:0;font-size:12px" onchange="quSetMotivoTextoPrev(\''+chave+'\','+idx+',this.value)">'+
+      '<button class="btn" style="width:28px;padding:6px 0;font-size:13px" onclick="quAjustarMotivoPrev(\''+chave+'\','+idx+',-1)">−</button>'+
+      '<span style="min-width:16px;text-align:center;font-weight:700">'+(m.qtd||0)+'</span>'+
+      '<button class="btn" style="width:28px;padding:6px 0;font-size:13px;background:var(--red2)" onclick="quAjustarMotivoPrev(\''+chave+'\','+idx+',1)">+</button>'+
+      '<button class="btn" style="width:28px;padding:6px 0;font-size:12px" onclick="quRemoverMotivoPrev(\''+chave+'\','+idx+')">🗑</button>'+
+    '</div>';
+  });
+
+  html += '<button class="btn" style="width:100%;margin-top:4px;font-size:12px;padding:8px 0" onclick="quAdicionarMotivoPrev(\''+chave+'\')">+ Outro motivo (digitar)</button>'+
+    '<input type="text" style="margin-top:8px" value="'+((qd.obs||'').replace(/"/g,'&quot;'))+'" placeholder="Observação (opcional)" onchange="quSetObsPrevBloco(\''+chave+'\',this.value)">'+
   '</div>';
+  return html;
 }
 
 function abrirExecucaoQuartel(vistId){
@@ -1980,14 +2094,51 @@ function quSetQtv(sid, val){
   saveDB(db);
   renderExecucaoQuartel();
 }
-function quAjustarPrevBloco(chave, delta){
+function quAjustarAprovadoPrev(chave, delta){
   var db = loadDB();
   var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
   if(!v) return;
   if(!v.qtvPrevBloco) v.qtvPrevBloco={};
   if(!v.qtvPrevBloco[chave]) v.qtvPrevBloco[chave]={};
-  var atual = v.qtvPrevBloco[chave].val!=null ? v.qtvPrevBloco[chave].val : 0;
-  v.qtvPrevBloco[chave].val = Math.max(0, atual + delta);
+  var atual = v.qtvPrevBloco[chave].aprovados!=null ? v.qtvPrevBloco[chave].aprovados : (v.qtvPrevBloco[chave].val!=null ? v.qtvPrevBloco[chave].val : 0);
+  v.qtvPrevBloco[chave].aprovados = Math.max(0, atual + delta);
+  delete v.qtvPrevBloco[chave].val;
+  saveDB(db);
+  renderExecucaoQuartel();
+}
+function quAdicionarMotivoPrev(chave){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v) return;
+  if(!v.qtvPrevBloco) v.qtvPrevBloco={};
+  if(!v.qtvPrevBloco[chave]) v.qtvPrevBloco[chave]={};
+  if(!v.qtvPrevBloco[chave].motivos) v.qtvPrevBloco[chave].motivos=[];
+  v.qtvPrevBloco[chave].motivos.push({motivo:'', qtd:1});
+  saveDB(db);
+  renderExecucaoQuartel();
+}
+function quAjustarMotivoPrev(chave, idx, delta){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v) return;
+  var m = v.qtvPrevBloco[chave].motivos[idx];
+  if(!m) return;
+  m.qtd = Math.max(0, (m.qtd||0) + delta);
+  saveDB(db);
+  renderExecucaoQuartel();
+}
+function quSetMotivoTextoPrev(chave, idx, texto){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v || !v.qtvPrevBloco[chave].motivos[idx]) return;
+  v.qtvPrevBloco[chave].motivos[idx].motivo = texto;
+  saveDB(db);
+}
+function quRemoverMotivoPrev(chave, idx){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v) return;
+  v.qtvPrevBloco[chave].motivos.splice(idx,1);
   saveDB(db);
   renderExecucaoQuartel();
 }
@@ -2054,8 +2205,8 @@ function renderExecucaoQuartel(){
             var s = SIST.find(function(x){return x.id===sid;});
             var chave = bi+'_'+pi+'_'+sid;
             var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
-            var anteriorVal = (vAnterior && vAnterior.qtvPrevBloco && vAnterior.qtvPrevBloco[chave] && vAnterior.qtvPrevBloco[chave].val!=null) ? vAnterior.qtvPrevBloco[chave].val : null;
-            html += quRenderCardPrev(s?s.l:sid, pav.sist[sid].qty||0, chave, qd, anteriorVal);
+            var anteriorInfo = quCalcAnteriorInfo(vAnterior, chave);
+            html += quRenderCardPrev(s?s.l:sid, pav.sist[sid].qty||0, chave, qd, anteriorInfo, sid);
           });
         }
         html += '</div>';
@@ -2122,7 +2273,11 @@ function renderExecucaoQuartel(){
           var chave = bi+'_'+pi+'_'+sid;
           var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
           var esperado = pav.sist[sid].qty||0;
-          if(qd.val==null || qd.val < esperado) pendenciasBloco++;
+          var aprovados = qd.aprovados!=null ? qd.aprovados : (qd.val!=null ? qd.val : null);
+          var reprovados = (qd.motivos||[]).reduce(function(s,m){return s+(m.qtd||0);}, 0);
+          if(aprovados==null && reprovados===0) { pendenciasBloco++; return; }
+          if(((aprovados||0)+reprovados) < esperado) { pendenciasBloco++; return; }
+          if(reprovados>0) pendenciasBloco++;
         });
       });
     });
