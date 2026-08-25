@@ -193,6 +193,11 @@
         </select>
         <select id="edifFiltroMunicipio" onchange="renderEdificacoes()" style="width:auto"><option value="">Município: todos</option></select>
         <select id="edifFiltroBairro" onchange="renderEdificacoes()" style="width:auto"><option value="">Bairro: todos</option></select>
+        <select id="edifOrdenacao" onchange="renderEdificacoes()" style="width:auto">
+          <option value="nome">Ordenar: Nome</option>
+          <option value="re">Ordenar: RE (crescente)</option>
+          <option value="vencimento">Ordenar: Vencimento funcionamento (crescente)</option>
+        </select>
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--sub);white-space:nowrap">
           <input type="checkbox" id="edifFiltroForaComp" checked onchange="renderEdificacoes()"> Mostrar fora de competência
         </label>
@@ -248,6 +253,18 @@
         <div class="modal-actions">
           <button class="btn" onclick="document.getElementById('modalCadastroRapido').style.display='none'">Cancelar</button>
           <button class="btn primary" onclick="crSalvarTudo()">Salvar todas</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modalVincularVist" class="modal-overlay" style="display:none">
+      <div class="modal">
+        <h3>Vincular vistoria a uma edificação</h3>
+        <div class="sub">Essa vistoria estava sem edificação associada. Escolha a certa na lista abaixo (provavelmente é a de RE igual, se houver duas cadastradas).</div>
+        <input type="text" id="vv-busca" placeholder="Buscar por RE, nome, endereço..." style="margin:12px 0 8px" oninput="renderVvLista()">
+        <div id="vv-lista" style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:10px"></div>
+        <div class="modal-actions">
+          <button class="btn" onclick="document.getElementById('modalVincularVist').style.display='none'">Cancelar</button>
         </div>
       </div>
     </div>
@@ -952,6 +969,15 @@ function popularFiltrosEdif(edificacoes){
   if(bairros.indexOf(valBai)>=0) selBai.value = valBai;
 }
 
+function parseDataBR(txt){
+  if(!txt) return null;
+  var m = txt.toString().trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if(!m) return null;
+  var ano = m[3].length===2 ? '20'+m[3] : m[3];
+  var d = new Date(Number(ano), Number(m[2])-1, Number(m[1]));
+  return isNaN(d.getTime()) ? null : d;
+}
+
 function renderEdificacoes(){
   var db = loadDB();
   var todas = db.edificacoes||[];
@@ -963,6 +989,7 @@ function renderEdificacoes(){
   var fMunicipio = document.getElementById('edifFiltroMunicipio').value;
   var fBairro = document.getElementById('edifFiltroBairro').value;
   var fMostrarForaComp = document.getElementById('edifFiltroForaComp').checked;
+  var ordenacao = document.getElementById('edifOrdenacao').value;
 
   var lista = todas.filter(function(e){
     if(e.competencia==='fora' && !fMostrarForaComp) return false;
@@ -975,7 +1002,20 @@ function renderEdificacoes(){
            (e.municipio||'').toLowerCase().indexOf(busca)>=0 ||
            (e.endereco||'').toLowerCase().indexOf(busca)>=0 ||
            (e.bairro||'').toLowerCase().indexOf(busca)>=0;
-  }).sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||''); });
+  }).sort(function(a,b){
+    if(ordenacao==='re'){
+      return (a.re||'').localeCompare(b.re||'', undefined, {numeric:true});
+    }
+    if(ordenacao==='vencimento'){
+      var da = parseDataBR(a.vigenciaFuncionamento && a.vigenciaFuncionamento.vencimento);
+      var db_ = parseDataBR(b.vigenciaFuncionamento && b.vigenciaFuncionamento.vencimento);
+      if(!da && !db_) return 0;
+      if(!da) return 1;  // sem vencimento vai pro fim
+      if(!db_) return -1;
+      return da - db_;
+    }
+    return (a.nome||'').localeCompare(b.nome||'');
+  });
 
   var el = document.getElementById('edifGrid');
   if(!lista.length){
@@ -1238,10 +1278,36 @@ function importarExcelEdificacoes(input){
       var novas = linhasExcelParaEdificacoes(linhas);
       if(!novas.length){ alert('Nenhuma linha com RE ou Nome preenchido foi encontrada na planilha.'); return; }
       var db = loadDB();
-      db.edificacoes = (db.edificacoes||[]).concat(novas);
+      db.edificacoes = db.edificacoes||[];
+      var criadas = 0, atualizadas = 0;
+      novas.forEach(function(nova){
+        var existente = nova.re ? db.edificacoes.find(function(x){ return x.re && x.re.trim()===nova.re.trim(); }) : null;
+        if(existente){
+          // já existe uma edificação com esse RE — atualiza os campos vindos da planilha em vez de duplicar
+          // (evita quebrar o vínculo de vistorias já ligadas a esse id)
+          if(nova.nome) existente.nome = nova.nome;
+          if(nova.area) existente.area = nova.area;
+          if(nova.responsavel.nome) existente.responsavel = existente.responsavel || {nome:'',tel:''};
+          if(nova.responsavel.nome) existente.responsavel.nome = nova.responsavel.nome;
+          if(nova.responsavel.tel){ existente.responsavel = existente.responsavel || {nome:'',tel:''}; existente.responsavel.tel = nova.responsavel.tel; }
+          if(nova.vigenciaFuncionamento.situacao) {
+            existente.vigenciaFuncionamento = existente.vigenciaFuncionamento || {};
+            existente.vigenciaFuncionamento.situacao = nova.vigenciaFuncionamento.situacao;
+          }
+          if(nova.vigenciaFuncionamento.vencimento){
+            existente.vigenciaFuncionamento = existente.vigenciaFuncionamento || {};
+            existente.vigenciaFuncionamento.vencimento = nova.vigenciaFuncionamento.vencimento;
+          }
+          existente.atualizadoEm = new Date().toISOString();
+          atualizadas++;
+        } else {
+          db.edificacoes.push(nova);
+          criadas++;
+        }
+      });
       saveDB(db);
       renderEdificacoes();
-      alert(novas.length+' edificação(ões) importada(s) do Excel. Complete endereço, risco e sistemas preventivos abrindo cada uma na lista.');
+      alert(criadas+' edificação(ões) nova(s) e '+atualizadas+' atualizada(s) (RE já existente) a partir do Excel. Complete endereço, risco e sistemas preventivos abrindo cada uma na lista.');
 
     } catch(err){
       alert('Não foi possível ler esse arquivo. Confirme que é um .xlsx válido, com colunas RE, Nome, Funcionamento e Validade.');
@@ -1594,6 +1660,42 @@ function setFiltroVist(f){
   renderVistorias();
 }
 
+var vvVistoriaId = null;
+function abrirVincularVistoria(vistId){
+  vvVistoriaId = vistId;
+  document.getElementById('vv-busca').value = '';
+  renderVvLista();
+  document.getElementById('modalVincularVist').style.display='flex';
+}
+function renderVvLista(){
+  var db = loadDB();
+  var busca = (document.getElementById('vv-busca').value||'').toLowerCase();
+  var lista = (db.edificacoes||[]).filter(function(e){
+    if(!busca) return true;
+    return (e.re||'').toLowerCase().indexOf(busca)>=0 || (e.nome||'').toLowerCase().indexOf(busca)>=0 ||
+      (e.endereco||'').toLowerCase().indexOf(busca)>=0;
+  }).sort(function(a,b){ return (a.re||'').localeCompare(b.re||'', undefined, {numeric:true}); });
+
+  var el = document.getElementById('vv-lista');
+  if(!lista.length){ el.innerHTML = '<div class="sub" style="padding:10px">Nenhuma edificação encontrada.</div>'; return; }
+  el.innerHTML = lista.map(function(e){
+    return '<div onclick="vincularVistoriaA(\''+e.id+'\')" style="padding:10px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px">'+
+      '<div style="font-weight:700">'+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+'</div>'+
+      '<div style="color:var(--sub);font-size:11px">'+(e.endereco||'')+(e.municipio?' · '+e.municipio:'')+'</div>'+
+    '</div>';
+  }).join('');
+}
+function vincularVistoriaA(edificacaoId){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===vvVistoriaId;});
+  if(!v) return;
+  v.edificacaoId = edificacaoId;
+  v.atualizadoEm = new Date().toISOString();
+  saveDB(db);
+  document.getElementById('modalVincularVist').style.display='none';
+  renderVistorias();
+}
+
 function renderVistorias(){
   var db = loadDB();
   var lista = (db.vistorias||[]).filter(function(v){
@@ -1627,18 +1729,20 @@ function renderVistorias(){
         : qtvInfr ? '<span style="color:var(--amar);font-weight:700">⚠️ Aprovado c/ Auto de Infração</span>'
         : '<span style="color:var(--verde);font-weight:700">✅ Deferido</span>')
       : '<span style="color:var(--amar);font-weight:700">⏳ Pendente</span>';
-    return '<div class="vist-item">'+
+    var orfa = !e;
+    return '<div class="vist-item" style="'+(orfa?'border:1px solid var(--red2)':'')+'">'+
       '<div class="elist-row">'+
         '<div style="flex:1;min-width:0">'+
-          '<div class="elist-t">'+(e?e.nome:'Edificação removida')+'</div>'+
-          '<div class="elist-s">'+(e?e.re:'')+' · '+(v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+(v.motivo?' · '+v.motivo:'')+'</div>'+
+          '<div class="elist-t">'+(e?e.nome:'⚠️ Edificação sem vínculo')+'</div>'+
+          '<div class="elist-s">'+(e?e.re:'esta vistoria não está ligada a nenhuma edificação')+' · '+(v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+(v.motivo?' · '+v.motivo:'')+'</div>'+
         '</div>'+
         '<div style="text-align:right">'+statusTxt+'</div>'+
       '</div>'+
-      '<div class="btnrow" style="margin-top:10px;gap:8px">'+
-        (v.concluida
-          ? '<button class="btn" onclick="abrirRelatorio(\''+v.id+'\')">Ver relatório</button>'
-          : '<button class="btn primary" onclick="abrirExecucaoQuartel(\''+v.id+'\')">Executar vistoria</button>')+
+      '<div class="btnrow" style="margin-top:10px;gap:8px;flex-wrap:wrap">'+
+        (orfa ? '<button class="btn primary" onclick="abrirVincularVistoria(\''+v.id+'\')">🔗 Vincular edificação</button>' :
+          (v.concluida
+            ? '<button class="btn" onclick="abrirRelatorio(\''+v.id+'\')">Ver relatório</button>'
+            : '<button class="btn primary" onclick="abrirExecucaoQuartel(\''+v.id+'\')">Executar vistoria</button>'))+
         '<button class="btn" style="background:var(--red2)" onclick="excluirVistoria(\''+v.id+'\')">Excluir</button>'+
       '</div>'+
     '</div>';
