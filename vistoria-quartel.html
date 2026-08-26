@@ -165,13 +165,15 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v36</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v40</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
     <button data-v="rotas" onclick="navTo('rotas')"><span class="ic">🧭</span>Rotas</button>
     <button data-v="mapa" onclick="navTo('mapa')"><span class="ic">🗺️</span>Mapa</button>
     <button data-v="relatorios" onclick="navTo('relatorios')"><span class="ic">📊</span>Relatórios</button>
+    <button data-v="avisos" onclick="navTo('avisos')"><span class="ic">📱</span>Avisos
+      <span class="badge" id="badgeAvisos" style="display:none">0</span></button>
     <button data-v="campo" class="on" onclick="navTo('campo')"><span class="ic">📍</span>Campo
       <span class="badge" id="badgeCampo" style="display:none">0</span></button>
     <button data-v="dados" onclick="navTo('dados')"><span class="ic">💾</span>Dados</button>
@@ -378,6 +380,48 @@
       <div id="relListaPendentes"></div>
     </div>
 
+    <div class="view" id="v-avisos">
+      <h2>Avisos de Vencimento</h2>
+      <div class="lead">Controle e envio dos avisos de vencimento de funcionamento por WhatsApp — tarefa que não foi enviada fica pendente pro dia seguinte.</div>
+
+      <div class="sec-title" style="margin-top:0">Dados da OBM (usados na mensagem)</div>
+      <div class="frow">
+        <div class="fcol"><label class="lbl">Nome da OBM (ex: 1º/3º/2ª/10º BATALHÃO – RANCHO QUEIMADO)</label>
+          <input type="text" id="obmNome" placeholder="Ex: 1º/3º/2ª/10º BATALHÃO – RANCHO QUEIMADO" onchange="salvarDadosObm()"></div>
+      </div>
+      <div class="frow" style="margin-bottom:16px">
+        <div class="fcol"><label class="lbl">Link tutorial — Vistoria para Funcionamento</label>
+          <input type="text" id="obmLinkVistoria" placeholder="https://..." onchange="salvarDadosObm()"></div>
+        <div class="fcol"><label class="lbl">Link tutorial — Renovação do Funcionamento</label>
+          <input type="text" id="obmLinkRenovacao" placeholder="https://..." onchange="salvarDadosObm()"></div>
+      </div>
+
+      <div class="sec-title">Datas de aviso (dias antes do vencimento)</div>
+      <div class="sub" style="margin-bottom:8px">Os 3 avisos usam o mesmo texto — só muda quantos dias faltam. Mude os números como quiser (ex: 45/30/15).</div>
+      <div class="frow" style="margin-bottom:16px">
+        <div class="fcol"><label class="lbl">1º aviso (dias antes)</label><input type="number" id="janelaAviso0" min="1" onchange="salvarJanelasAviso()"></div>
+        <div class="fcol"><label class="lbl">2º aviso (dias antes)</label><input type="number" id="janelaAviso1" min="1" onchange="salvarJanelasAviso()"></div>
+        <div class="fcol"><label class="lbl">3º aviso (dias antes)</label><input type="number" id="janelaAviso2" min="1" onchange="salvarJanelasAviso()"></div>
+      </div>
+
+      <div class="sec-title">Modelo de mensagem (antes do vencimento)</div>
+      <div class="sub" style="margin-bottom:8px">Use {OBM}, {NOME}, {RE}, {PROTOCOLO}, {DATA}, {DIAS}, {LINK_VISTORIA}, {LINK_RENOVACAO}. Asteriscos (*texto*) ficam em negrito no WhatsApp.</div>
+      <textarea id="avisoModelo" rows="12" style="width:100%;font-family:inherit;font-size:13px;padding:10px;border-radius:10px;background:var(--card2);border:1px solid var(--border);color:var(--txt);margin-bottom:16px" onchange="salvarModeloAviso()"></textarea>
+
+      <div class="sec-title">Aviso pós-vencimento (funcionamento já vencido)</div>
+      <div class="sub" style="margin-bottom:8px">Quando o funcionamento já venceu há X dias, volta pra fila com uma mensagem diferente, orientando a abrir novo AF em vez de renovar.</div>
+      <div class="frow" style="margin-bottom:8px">
+        <div class="fcol"><label class="lbl">Dias após o vencimento</label><input type="number" id="diasPosVencimento" min="1" onchange="salvarDiasPosVencimento()"></div>
+      </div>
+      <textarea id="avisoModeloPos" rows="12" style="width:100%;font-family:inherit;font-size:13px;padding:10px;border-radius:10px;background:var(--card2);border:1px solid var(--border);color:var(--txt);margin-bottom:16px" onchange="salvarModeloAvisoPos()"></textarea>
+
+      <div class="sec-title">Tarefas de hoje (pendentes de envio)</div>
+      <div id="avisosLista"></div>
+
+      <div class="sec-title" style="margin-top:20px">Enviados recentemente</div>
+      <div id="avisosEnviadosLista"></div>
+    </div>
+
     <div class="view" id="v-dados">
       <h2>Dados</h2><div class="lead">Sincronização por arquivo (.vst) com o Vistoria Campo — funciona 100% offline, sem servidor.</div>
 
@@ -559,6 +603,7 @@
         <select id="ef-funcionamento"><option value="">—</option><option value="valido">Válido</option><option value="vencido">Vencido</option><option value="nao_possui">Não possui</option></select>
       </div>
       <div class="fcol"><label class="lbl">Vencimento</label><input type="text" id="ef-vencimento" placeholder="DD/MM/AAAA"></div>
+      <div class="fcol"><label class="lbl">Protocolo</label><input type="text" id="ef-protocolo-func" placeholder="Ex: F8013001873A"></div>
     </div>
     <div class="frow">
       <div class="fcol"><label class="lbl">Laudo do Alarme</label><input type="text" id="ef-laudo-alarme" placeholder="Validade / observação"></div>
@@ -913,6 +958,7 @@ function navTo(v){
   if(v==='vist') renderVistorias();
   if(v==='rotas'){ renderRotas(); renderRotasFixas(); }
   if(v==='relatorios') renderRelatorios();
+  if(v==='avisos') renderAvisos();
   if(v==='mapa'){
     initQMapa();
     setTimeout(function(){ if(qmap){ qmap.invalidateSize(); renderQMapaConteudo(); } }, 50);
@@ -1295,13 +1341,14 @@ function linhasExcelParaEdificacoes(linhas){
     var area = achar(row, ['área','area','área (m²)','area (m2)','metragem']).toString().trim();
     var telefone = achar(row, ['telefone','tel','contato','fone']).toString().trim();
     var responsavelNome = achar(row, ['responsável','responsavel','nome do responsável','nome do responsavel']).toString().trim();
+    var protocolo = achar(row, ['protocolo','protocolo funcionamento','nº protocolo','numero protocolo']).toString().trim();
     if(!re && !nome) return; // linha vazia/sem dado útil, ignora
 
     var situacao = normalizarSituacaoFuncionamento(funcTxt);
     criadas.push({
       id: novoId('edif'), re: re, nome: nome, endereco:'', municipio:'', bairro:'', area: area,
       responsavel:{nome:responsavelNome, tel:telefone}, habiteSe:{}, blocos:[], projetos:[], inquilinos:[], preventivos:{},
-      vigenciaFuncionamento: {situacao: situacao, vencimento: normalizarDataExcel(validade)},
+      vigenciaFuncionamento: {situacao: situacao, vencimento: normalizarDataExcel(validade), protocolo: protocolo},
       origem:'cadastro', criadoEm: new Date().toISOString(), atualizadoEm: new Date().toISOString()
     });
   });
@@ -1339,6 +1386,10 @@ function importarExcelEdificacoes(input){
           if(nova.vigenciaFuncionamento.vencimento){
             existente.vigenciaFuncionamento = existente.vigenciaFuncionamento || {};
             existente.vigenciaFuncionamento.vencimento = nova.vigenciaFuncionamento.vencimento;
+          }
+          if(nova.vigenciaFuncionamento.protocolo){
+            existente.vigenciaFuncionamento = existente.vigenciaFuncionamento || {};
+            existente.vigenciaFuncionamento.protocolo = nova.vigenciaFuncionamento.protocolo;
           }
           existente.atualizadoEm = new Date().toISOString();
           atualizadas++;
@@ -1431,6 +1482,7 @@ function abrirFormEdif(id){
   atualizarCamposHS();
   document.getElementById('ef-funcionamento').value = e ? ((e.vigenciaFuncionamento&&e.vigenciaFuncionamento.situacao)||'') : '';
   document.getElementById('ef-vencimento').value = e ? ((e.vigenciaFuncionamento&&e.vigenciaFuncionamento.vencimento)||'') : '';
+  document.getElementById('ef-protocolo-func').value = e ? ((e.vigenciaFuncionamento&&e.vigenciaFuncionamento.protocolo)||'') : '';
   document.getElementById('ef-laudo-alarme').value = e ? (e.laudoAlarme||'') : '';
   document.getElementById('ef-laudo-hidrante').value = e ? (e.laudoHidrante||'') : '';
 
@@ -1500,7 +1552,8 @@ function salvarFormEdif(){
     grauRisco: document.getElementById('ef-risco').value || null,
     vigenciaFuncionamento: {
       situacao: document.getElementById('ef-funcionamento').value || '',
-      vencimento: document.getElementById('ef-vencimento').value.trim()
+      vencimento: document.getElementById('ef-vencimento').value.trim(),
+      protocolo: document.getElementById('ef-protocolo-func').value.trim()
     },
     atualizadoEm: new Date().toISOString()
   };
@@ -2593,6 +2646,249 @@ function renderRotasFixas(){
 // ════════════════════════════════════════
 // RELATÓRIOS — quais edificações foram vistoriadas, por ano
 // ════════════════════════════════════════
+// ════════════════════════════════════════
+// AVISOS DE VENCIMENTO — WhatsApp com mensagem pronta (30/15/7 dias antes do vencimento)
+// Controle de envio: cada (edificação + vencimento + janela) só conta como tarefa até ser marcada
+// como enviada; se não for enviada no dia, continua aparecendo nos dias seguintes (atrasada).
+// ════════════════════════════════════════
+var JANELAS_AVISO_PADRAO = [30, 15, 7];
+
+function carregarJanelasAviso(){
+  try {
+    var salvo = JSON.parse(localStorage.getItem('vistoria_janelas_aviso'));
+    if(Array.isArray(salvo) && salvo.length===3 && salvo.every(function(n){return Number.isInteger(n)&&n>0;})){
+      return salvo;
+    }
+  } catch(err){}
+  return JANELAS_AVISO_PADRAO.slice();
+}
+function salvarJanelasAviso(){
+  var vals = [0,1,2].map(function(i){ return parseInt(document.getElementById('janelaAviso'+i).value, 10); });
+  if(vals.some(function(n){return isNaN(n)||n<=0;})){ alert('As 3 datas de aviso precisam ser números de dias maiores que zero.'); renderAvisos(); return; }
+  vals.sort(function(a,b){return b-a;}); // maior pro menor, mantém a ordem "mais cedo -> mais tarde"
+  localStorage.setItem('vistoria_janelas_aviso', JSON.stringify(vals));
+  renderAvisos();
+}
+
+var CORPO_AVISO_PADRAO =
+'\n\nII. Caso não seja dado prosseguimento ao processo de solicitação/renovação, no sistema e-SCI, a edificação ficará sujeita às infrações administrativas previstas na legislação, entre elas, a Infração *Multa* por deixar de solicitar vistoria para funcionamento.\n\n'+
+'III. Segue o link do tutorial de como solicitar Vistoria para Funcionamento: {LINK_VISTORIA}\n\n'+
+'IV. Segue o link do tutorial da Renovação do Funcionamento: {LINK_RENOVACAO}\n\n'+
+'VI. *Favor desconsiderar essa mensagem, caso a solicitação do novo protocolo esteja cadastrada no sistema e-SCI.*\n\n'+
+'Att.,\n'+
+'SSCI da {OBM}';
+
+// Um único modelo, usado nos 3 avisos "antes do vencimento" — só muda {DIAS} e {DATA}
+var MODELO_AVISO_PADRAO =
+'*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*\n*{OBM}*\n\n'+
+'Olá, boa tarde.\n'+
+'I. Informamos que o Protocolo de Funcionamento/Regularização *{PROTOCOLO}* referente à edificação *{NOME} - RE{RE}* venceu/vencerá no dia *{DATA}* (faltam {DIAS} dias).'+
+CORPO_AVISO_PADRAO;
+
+// Modelo separado pro aviso PÓS-vencimento — processo muda pra abertura de novo AF, não renovação
+var MODELO_AVISO_POS_PADRAO =
+'*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*\n*{OBM}*\n\n'+
+'Olá, boa tarde.\n'+
+'I. Informamos que o Protocolo de Funcionamento/Regularização *{PROTOCOLO}* referente à edificação *{NOME} - RE{RE}* está vencido desde *{DATA}* (há {DIAS} dias). Devido ao tempo decorrido, não é mais possível dar prosseguimento por renovação — *é necessário abrir um novo Atestado de Funcionamento (AF)* no sistema e-SCI.'+
+CORPO_AVISO_PADRAO;
+
+function salvarDadosObm(){
+  localStorage.setItem('vistoria_obm_nome', document.getElementById('obmNome').value);
+  localStorage.setItem('vistoria_obm_link_vistoria', document.getElementById('obmLinkVistoria').value);
+  localStorage.setItem('vistoria_obm_link_renovacao', document.getElementById('obmLinkRenovacao').value);
+}
+function carregarDadosObm(){
+  return {
+    nome: localStorage.getItem('vistoria_obm_nome') || '',
+    linkVistoria: localStorage.getItem('vistoria_obm_link_vistoria') || '',
+    linkRenovacao: localStorage.getItem('vistoria_obm_link_renovacao') || ''
+  };
+}
+function salvarModeloAviso(){
+  localStorage.setItem('vistoria_modelo_aviso', document.getElementById('avisoModelo').value);
+}
+function carregarModeloAviso(){
+  return localStorage.getItem('vistoria_modelo_aviso') || MODELO_AVISO_PADRAO;
+}
+function salvarModeloAvisoPos(){
+  localStorage.setItem('vistoria_modelo_aviso_pos', document.getElementById('avisoModeloPos').value);
+}
+function carregarModeloAvisoPos(){
+  return localStorage.getItem('vistoria_modelo_aviso_pos') || MODELO_AVISO_POS_PADRAO;
+}
+function salvarDiasPosVencimento(){
+  var val = parseInt(document.getElementById('diasPosVencimento').value, 10);
+  if(isNaN(val) || val<=0){ alert('Informe um número de dias maior que zero.'); renderAvisos(); return; }
+  localStorage.setItem('vistoria_dias_pos_vencimento', val);
+  renderAvisos();
+}
+function carregarDiasPosVencimento(){
+  var v = parseInt(localStorage.getItem('vistoria_dias_pos_vencimento'), 10);
+  return (!isNaN(v) && v>0) ? v : 15;
+}
+
+function diasAteVencimento(dataVenc){
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  var d = new Date(dataVenc); d.setHours(0,0,0,0);
+  return Math.round((d - hoje) / 86400000);
+}
+
+function telefoneParaWhatsapp(tel){
+  if(!tel) return null;
+  var digitos = tel.toString().replace(/\D/g,'');
+  if(!digitos) return null;
+  if(digitos.length>=12 && digitos.indexOf('55')===0) return digitos; // já tem 55+DDD+numero
+  return '55'+digitos; // já tem DDD, só falta o código do país
+}
+
+function montarMensagemAviso(e, dataVenc, dias, posVencimento){
+  var modelo = posVencimento ? carregarModeloAvisoPos() : carregarModeloAviso();
+  var obm = carregarDadosObm();
+  var dataFmt = dataVenc.toLocaleDateString('pt-BR');
+  var diasAbs = Math.abs(dias);
+  return modelo
+    .replace(/{OBM}/g, obm.nome||'')
+    .replace(/{NOME}/g, e.nome||'')
+    .replace(/{RE}/g, e.re||'')
+    .replace(/{PROTOCOLO}/g, (e.vigenciaFuncionamento&&e.vigenciaFuncionamento.protocolo)||'')
+    .replace(/{DATA}/g, dataFmt)
+    .replace(/{DIAS}/g, diasAbs)
+    .replace(/{LINK_VISTORIA}/g, obm.linkVistoria||'')
+    .replace(/{LINK_RENOVACAO}/g, obm.linkRenovacao||'');
+}
+
+// tarefa = {edificacaoId, vencimento (string original), janela} — janela negativa = aviso pós-vencimento
+function chaveTarefa(edifId, vencimento, janela){ return edifId+'|'+vencimento+'|'+janela; }
+
+function calcularTarefasAvisos(){
+  var db = loadDB();
+  var enviados = db.avisosEnviados || [];
+  var enviadosSet = {};
+  enviados.forEach(function(x){ enviadosSet[chaveTarefa(x.edificacaoId, x.vencimento, x.janela)] = x; });
+
+  var janelas = carregarJanelasAviso();
+  var diasPos = carregarDiasPosVencimento();
+
+  var pendentes = [];
+  (db.edificacoes||[]).forEach(function(e){
+    var venc = e.vigenciaFuncionamento && e.vigenciaFuncionamento.vencimento;
+    var dataVenc = parseDataBR(venc);
+    if(!dataVenc) return;
+    var dias = diasAteVencimento(dataVenc);
+
+    janelas.forEach(function(janela){
+      if(dias > janela) return; // ainda não chegou nessa janela de aviso
+      if(dias < -diasPos) return; // já passou até do prazo de virar "pós-vencimento", não faz sentido mais mandar o aviso normal
+      var chave = chaveTarefa(e.id, venc, janela);
+      if(enviadosSet[chave]) return;
+      pendentes.push({e:e, janela:janela, dias:dias, dataVenc:dataVenc, atrasado: dias<janela, posVencimento:false});
+    });
+
+    // Aviso pós-vencimento — só entra quando já passou X dias do vencimento
+    if(dias <= -diasPos){
+      var chavePos = chaveTarefa(e.id, venc, -diasPos);
+      if(!enviadosSet[chavePos]){
+        pendentes.push({e:e, janela:-diasPos, dias:dias, dataVenc:dataVenc, atrasado:false, posVencimento:true});
+      }
+    }
+  });
+  pendentes.sort(function(a,b){ return a.dias - b.dias; });
+  return {pendentes: pendentes, enviados: enviados};
+}
+
+function renderAvisos(){
+  document.getElementById('avisoModelo').value = carregarModeloAviso();
+  document.getElementById('avisoModeloPos').value = carregarModeloAvisoPos();
+  document.getElementById('diasPosVencimento').value = carregarDiasPosVencimento();
+  var janelas = carregarJanelasAviso();
+  janelas.forEach(function(j, i){ document.getElementById('janelaAviso'+i).value = j; });
+
+  var obm = carregarDadosObm();
+  document.getElementById('obmNome').value = obm.nome;
+  document.getElementById('obmLinkVistoria').value = obm.linkVistoria;
+  document.getElementById('obmLinkRenovacao').value = obm.linkRenovacao;
+
+  var r = calcularTarefasAvisos();
+
+  var badge = document.getElementById('badgeAvisos');
+  if(r.pendentes.length){ badge.style.display='inline-block'; badge.textContent=r.pendentes.length; }
+  else { badge.style.display='none'; }
+
+  var lista = document.getElementById('avisosLista');
+  if(!r.pendentes.length){
+    lista.innerHTML = '<div class="empty"><div class="ico">📱</div>Nenhuma tarefa de aviso pendente hoje.</div>';
+  } else {
+    lista.innerHTML = r.pendentes.map(function(it){
+      var msg = montarMensagemAviso(it.e, it.dataVenc, it.dias, it.posVencimento);
+      var telWa = telefoneParaWhatsapp(it.e.responsavel && it.e.responsavel.tel);
+      var corDias = it.posVencimento ? 'var(--red2)' : (it.dias<=7 ? 'var(--red2)' : (it.dias<=15 ? 'var(--amar)' : 'var(--sub)'));
+      var chave = chaveTarefa(it.e.id, it.e.vigenciaFuncionamento.vencimento, it.janela);
+      var rotulo = it.posVencimento ? 'Pós-vencimento (novo AF)' : ('Aviso de '+it.janela+' dias');
+      var tempoTxt = it.dias>=0 ? 'faltam '+it.dias+' dias' : 'vencido há '+Math.abs(it.dias)+' dias';
+      return '<div class="elist-item" style="margin-bottom:10px;'+((it.atrasado||it.posVencimento)?'border-color:var(--red2)':'')+'">'+
+        '<div class="elist-row">'+
+          '<div><div class="elist-t">'+(it.e.re||'Sem RE')+' — '+(it.e.nome||'Sem nome')+'</div>'+
+          '<div class="elist-s">'+rotulo+' · vence '+it.dataVenc.toLocaleDateString('pt-BR')+' · <span style="color:'+corDias+';font-weight:700">'+tempoTxt+'</span>'+
+          (it.atrasado?' · <span style="color:var(--red2);font-weight:700">⚠️ atrasada</span>':'')+
+          (telWa?'':' · <span style="color:var(--red2)">⚠️ sem telefone cadastrado</span>')+'</div></div>'+
+        '</div>'+
+        '<textarea rows="10" style="width:100%;margin-top:8px;font-size:12px;padding:8px;border-radius:8px;background:var(--card2);border:1px solid var(--border);color:var(--txt);white-space:pre-wrap" id="msg_'+chave.replace(/[^a-zA-Z0-9]/g,'_')+'">'+msg+'</textarea>'+
+        '<div class="btnrow" style="margin-top:8px;gap:8px">'+
+          (telWa ? '<button class="btn primary" style="flex:1" onclick="enviarAvisoWhatsapp(\''+chave+'\')">📱 Abrir no WhatsApp e marcar enviado</button>'
+                 : '<button class="btn" style="flex:1" onclick="navTo(\'edif\');abrirFormEdif(\''+it.e.id+'\')">Cadastrar telefone do responsável</button>')+
+          '<button class="btn" onclick="marcarAvisoEnviado(\''+chave+'\')">✓ Já enviei</button>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+  }
+
+  var elEnv = document.getElementById('avisosEnviadosLista');
+  var recentes = r.enviados.slice().sort(function(a,b){ return new Date(b.enviadoEm)-new Date(a.enviadoEm); }).slice(0,15);
+  if(!recentes.length){
+    elEnv.innerHTML = '<div class="sub">Nenhum aviso enviado ainda.</div>';
+  } else {
+    elEnv.innerHTML = recentes.map(function(x){
+      var db = loadDB();
+      var e = (db.edificacoes||[]).find(function(y){return y.id===x.edificacaoId;});
+      return '<div class="elist-item" style="margin-bottom:8px"><div class="elist-row">'+
+        '<div><div class="elist-t">'+(e?(e.re||'Sem RE')+' — '+(e.nome||'Sem nome'):'Edificação removida')+'</div>'+
+        '<div class="elist-s">'+(x.janela<0?'Pós-vencimento (novo AF)':'Aviso de '+x.janela+' dias')+' · enviado em '+new Date(x.enviadoEm).toLocaleString('pt-BR')+'</div></div>'+
+        '<button class="btn" style="width:auto;padding:6px 10px;font-size:12px" onclick="desfazerAvisoEnviado(\''+chaveTarefa(x.edificacaoId,x.vencimento,x.janela)+'\')">Desfazer</button>'+
+      '</div></div>';
+    }).join('');
+  }
+}
+
+function marcarAvisoEnviado(chave){
+  var partes = chave.split('|');
+  var edifId=partes[0], vencimento=partes[1], janela=Number(partes[2]);
+  var db = loadDB();
+  db.avisosEnviados = db.avisosEnviados || [];
+  if(!db.avisosEnviados.some(function(x){ return chaveTarefa(x.edificacaoId,x.vencimento,x.janela)===chave; })){
+    db.avisosEnviados.push({edificacaoId:edifId, vencimento:vencimento, janela:janela, enviadoEm:new Date().toISOString()});
+  }
+  saveDB(db);
+  renderAvisos();
+}
+function desfazerAvisoEnviado(chave){
+  var db = loadDB();
+  db.avisosEnviados = (db.avisosEnviados||[]).filter(function(x){ return chaveTarefa(x.edificacaoId,x.vencimento,x.janela)!==chave; });
+  saveDB(db);
+  renderAvisos();
+}
+function enviarAvisoWhatsapp(chave){
+  var elId = 'msg_'+chave.replace(/[^a-zA-Z0-9]/g,'_');
+  var texto = document.getElementById(elId).value;
+  var partes = chave.split('|');
+  var edifId = partes[0];
+  var db = loadDB();
+  var e = (db.edificacoes||[]).find(function(x){return x.id===edifId;});
+  var telWa = telefoneParaWhatsapp(e && e.responsavel && e.responsavel.tel);
+  if(!telWa){ alert('Esta edificação não tem telefone cadastrado.'); return; }
+  window.open('https://wa.me/'+telWa+'?text='+encodeURIComponent(texto), '_blank');
+  marcarAvisoEnviado(chave);
+}
+
 function renderRelatorios(){
   var db = loadDB();
   var todas = db.edificacoes||[];
