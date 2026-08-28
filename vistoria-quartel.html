@@ -165,7 +165,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v45</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v46</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -417,6 +417,14 @@
       </div>
       <textarea id="avisoModeloPos" rows="12" style="width:100%;font-family:inherit;font-size:13px;padding:10px;border-radius:10px;background:var(--card2);border:1px solid var(--border);color:var(--txt);margin-bottom:16px" onchange="salvarModeloAvisoPos()"></textarea>
 
+      <div class="sec-title">Modelo de mensagem — Necessidade de Habite-se</div>
+      <div class="sub" style="margin-bottom:8px">Usado no botão "📱 Avisar sobre Habite-se" no cadastro da edificação. Use {OBM}, {NOME}, {RE}, {LINK_VISTORIA}.</div>
+      <textarea id="avisoModeloHabiteSe" rows="10" style="width:100%;font-family:inherit;font-size:13px;padding:10px;border-radius:10px;background:var(--card2);border:1px solid var(--border);color:var(--txt);margin-bottom:16px" onchange="salvarModeloAvisoHabiteSe()"></textarea>
+
+      <div class="sec-title">Modelo de mensagem — Multa registrada</div>
+      <div class="sub" style="margin-bottom:8px">Usado no botão "📱 Avisar via WhatsApp" na aba Multas. Use {OBM}, {NOME}, {RE}, {MULTA_NUMERO}, {MULTA_MOTIVO}, {MULTA_PRAZO}.</div>
+      <textarea id="avisoModeloMulta" rows="10" style="width:100%;font-family:inherit;font-size:13px;padding:10px;border-radius:10px;background:var(--card2);border:1px solid var(--border);color:var(--txt);margin-bottom:16px" onchange="salvarModeloAvisoMulta()"></textarea>
+
       <div class="sec-title">Tarefas de hoje (pendentes de envio)</div>
       <div id="avisosLista"></div>
 
@@ -621,9 +629,10 @@
       <div class="fcol"><label class="lbl">Telefone</label><input type="text" id="ef-resp-tel"></div>
     </div>
 
-    <div class="sec-title">Projetos</div>
+    <div class="sec-title">Protocolos</div>
+    <div class="sub" style="margin:-4px 0 8px">Cadastre aqui cada protocolo (Projeto, Habite-se ou Funcionamento) — o Habite-se abaixo é vinculado a um protocolo do tipo Projeto.</div>
     <div id="ef-projetos"></div>
-    <button class="btn" style="margin-bottom:10px" onclick="addProjetoRow()">+ Adicionar projeto</button>
+    <button class="btn" style="margin-bottom:10px" onclick="addProjetoRow()">+ Adicionar protocolo</button>
 
     <div class="sec-title">Habite-se</div>
     <div class="frow">
@@ -641,15 +650,18 @@
       <div class="fcol"><label class="lbl">Observação</label><input type="text" id="ef-hs-obs" placeholder="Opcional"></div>
     </div>
     <div class="frow">
-      <div class="fcol"><label class="lbl">Projeto vinculado</label>
+      <div class="fcol"><label class="lbl">Protocolo vinculado (tipo Projeto)</label>
         <select id="ef-hs-projeto" onchange="atualizarVinculoProjetoHS()"><option value="">— nenhum —</option></select>
       </div>
+    </div>
+    <div id="ef-hs-aviso-box" style="display:none;margin-bottom:16px">
+      <button class="btn" style="background:var(--red2)" onclick="enviarAvisoHabiteSe(edifEmEdicaoId)">📱 Avisar sobre necessidade de Habite-se</button>
     </div>
 
     <div class="sec-title">Funcionamento e laudos</div>
     <div class="frow">
       <div class="fcol"><label class="lbl">Situação do funcionamento</label>
-        <select id="ef-funcionamento" onchange="atualizarVencimentoAutomatico()"><option value="">—</option><option value="valido">Válido</option><option value="vencido">Vencido</option><option value="nao_possui">Não possui</option></select>
+        <select id="ef-funcionamento" onchange="atualizarVencimentoAutomatico()"><option value="">—</option><option value="possui">Possui</option><option value="nao_possui">Não possui</option></select>
       </div>
       <div class="fcol"><label class="lbl">Data de emissão/renovação</label><input type="text" id="ef-func-emissao" placeholder="DD/MM/AAAA" onchange="atualizarVencimentoAutomatico()"></div>
       <div class="fcol"><label class="lbl">Validade (anos)</label><input type="number" id="ef-func-validade-anos" min="1" style="width:70px" onchange="atualizarVencimentoAutomatico()"></div>
@@ -1069,6 +1081,7 @@ function atualizarCamposHS(){
   var mostrar = situacao !== 'nao_possui';
   document.getElementById('ef-hs-protocolo').closest('.fcol').style.display = mostrar ? 'block' : 'none';
   document.getElementById('ef-hs-data').closest('.fcol').style.display = (situacao==='possui') ? 'block' : 'none';
+  document.getElementById('ef-hs-aviso-box').style.display = (situacao!=='possui' && edifEmEdicaoId) ? 'block' : 'none';
 }
 
 var VALIDADE_FUNC_ANOS_PADRAO = 1;
@@ -1244,11 +1257,11 @@ function renderProjetos(){
         '<option value="habite-se" '+(p.tipo==='habite-se'?'selected':'')+'>Habite-se</option>'+
         '<option value="funcionamento" '+(p.tipo==='funcionamento'?'selected':'')+'>Funcionamento</option>'+
       '</select>'+
-      '<input type="text" placeholder="Nº do projeto" value="'+(p.num||'').replace(/"/g,'&quot;')+'" onchange="atualizarProjeto(\''+p.id+'\',\'num\',this.value)">'+
+      '<input type="text" placeholder="Nº do protocolo" value="'+(p.num||'').replace(/"/g,'&quot;')+'" onchange="atualizarProjeto(\''+p.id+'\',\'num\',this.value)">'+
       '<input type="text" placeholder="Situação" value="'+(p.hs||'').replace(/"/g,'&quot;')+'" onchange="atualizarProjeto(\''+p.id+'\',\'hs\',this.value)">'+
       '<button class="rowlist-del" onclick="removerProjeto(\''+p.id+'\')">✕</button>'+
     '</div>';
-  }).join('') || '<div class="sub" style="margin-bottom:8px">Nenhum projeto cadastrado.</div>';
+  }).join('') || '<div class="sub" style="margin-bottom:8px">Nenhum protocolo cadastrado.</div>';
   atualizarSelectProjetoHS();
 }
 function atualizarProjeto(id,campo,val){ var p=efProjetos.find(function(x){return x.id===id;}); if(p) p[campo]=val; atualizarSelectProjetoHS(); }
@@ -1434,9 +1447,8 @@ function popularDatalistsEdif(){
 function normalizarSituacaoFuncionamento(txt){
   txt = (txt||'').toString().trim().toLowerCase();
   if(!txt) return null;
-  if(txt.indexOf('vál')>=0 || txt.indexOf('val')>=0) return 'valido';
-  if(txt.indexOf('venc')>=0) return 'vencido';
   if(txt.indexOf('não poss')>=0 || txt.indexOf('nao poss')>=0 || txt.indexOf('sem')>=0) return 'nao_possui';
+  if(txt.indexOf('vál')>=0 || txt.indexOf('val')>=0 || txt.indexOf('venc')>=0) return 'possui'; // tinha data informada — não importa se válida/vencida, a data é o que conta
   return null;
 }
 function normalizarDataExcel(v){
@@ -2808,6 +2820,83 @@ var MODELO_AVISO_POS_PADRAO =
 'I. Informamos que o Protocolo de Funcionamento/Regularização *{PROTOCOLO}* referente à edificação *{NOME} - RE{RE}* está vencido desde *{DATA}* (há {DIAS} dias). Devido ao tempo decorrido, não é mais possível dar prosseguimento por renovação — *é necessário abrir um novo Atestado de Funcionamento (AF)* no sistema e-SCI.'+
 CORPO_AVISO_PADRAO;
 
+// Mensagem pra edificação sem Habite-se (ou em andamento) — usa só o corpo comum de tutoriais/e-SCI,
+// não faz sentido citar protocolo de funcionamento aqui
+var MODELO_AVISO_HABITESE_PADRAO =
+'*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*\n*{OBM}*\n\n'+
+'Olá, boa tarde.\n'+
+'I. Informamos que a edificação *{NOME} - RE{RE}* não possui Habite-se junto a este Corpo de Bombeiros. É necessário solicitar a Vistoria para Habite-se no sistema e-SCI.\n\n'+
+'II. Caso não seja dado prosseguimento à solicitação, a edificação ficará sujeita às infrações administrativas previstas na legislação.\n\n'+
+'III. Segue o link do tutorial de como solicitar Vistoria para Habite-se: {LINK_VISTORIA}\n\n'+
+'VI. *Favor desconsiderar essa mensagem, caso a solicitação já esteja cadastrada no sistema e-SCI.*\n\n'+
+'Att.,\n'+
+'SSCI da {OBM}';
+
+// Mensagem de notificação de multa registrada
+var MODELO_AVISO_MULTA_PADRAO =
+'*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*\n*{OBM}*\n\n'+
+'Olá, boa tarde.\n'+
+'I. Informamos que a edificação *{NOME} - RE{RE}* foi autuada — Multa nº *{MULTA_NUMERO}*.\n\n'+
+'II. Motivo: {MULTA_MOTIVO}\n\n'+
+'III. Prazo para regularização: *{MULTA_PRAZO}*\n\n'+
+'IV. Providencie a regularização junto ao sistema e-SCI dentro do prazo, para evitar novas autuações.\n\n'+
+'Att.,\n'+
+'SSCI da {OBM}';
+
+function carregarModeloAvisoHabiteSe(){
+  return localStorage.getItem('vistoria_modelo_aviso_habitese') || MODELO_AVISO_HABITESE_PADRAO;
+}
+function salvarModeloAvisoHabiteSe(){
+  localStorage.setItem('vistoria_modelo_aviso_habitese', document.getElementById('avisoModeloHabiteSe').value);
+}
+function carregarModeloAvisoMulta(){
+  return localStorage.getItem('vistoria_modelo_aviso_multa') || MODELO_AVISO_MULTA_PADRAO;
+}
+function salvarModeloAvisoMulta(){
+  localStorage.setItem('vistoria_modelo_aviso_multa', document.getElementById('avisoModeloMulta').value);
+}
+
+function montarMensagemAvisoHabiteSe(e){
+  var obm = carregarDadosObm();
+  return carregarModeloAvisoHabiteSe()
+    .replace(/{OBM}/g, obm.nome||'')
+    .replace(/{NOME}/g, e.nome||'')
+    .replace(/{RE}/g, e.re||'')
+    .replace(/{LINK_VISTORIA}/g, obm.linkVistoria||'');
+}
+function enviarAvisoHabiteSe(edifId){
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===edifId;});
+  if(!e) return;
+  var telWa = telefoneParaWhatsapp(e.responsavel && e.responsavel.tel);
+  if(!telWa){ alert('Esta edificação não tem telefone cadastrado.'); return; }
+  var texto = window.prompt('Revise a mensagem antes de enviar (pode editar):', montarMensagemAvisoHabiteSe(e));
+  if(texto==null) return;
+  window.open('https://wa.me/'+telWa+'?text='+encodeURIComponent(texto), '_blank');
+}
+
+function montarMensagemAvisoMulta(e, m){
+  var obm = carregarDadosObm();
+  return carregarModeloAvisoMulta()
+    .replace(/{OBM}/g, obm.nome||'')
+    .replace(/{NOME}/g, e.nome||'')
+    .replace(/{RE}/g, e.re||'')
+    .replace(/{MULTA_NUMERO}/g, m.numero||'')
+    .replace(/{MULTA_MOTIVO}/g, m.motivo||'—')
+    .replace(/{MULTA_PRAZO}/g, m.prazo||'—');
+}
+function enviarAvisoMulta(edifId, multaId){
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===edifId;});
+  var m = e && (e.multas||[]).find(function(x){return x.id===multaId;});
+  if(!e || !m) return;
+  var telWa = telefoneParaWhatsapp(e.responsavel && e.responsavel.tel);
+  if(!telWa){ alert('Esta edificação não tem telefone cadastrado.'); return; }
+  var texto = window.prompt('Revise a mensagem antes de enviar (pode editar):', montarMensagemAvisoMulta(e, m));
+  if(texto==null) return;
+  window.open('https://wa.me/'+telWa+'?text='+encodeURIComponent(texto), '_blank');
+}
+
 function salvarDadosObm(){
   localStorage.setItem('vistoria_obm_nome', document.getElementById('obmNome').value);
   localStorage.setItem('vistoria_obm_link_vistoria', document.getElementById('obmLinkVistoria').value);
@@ -2915,6 +3004,8 @@ function calcularTarefasAvisos(){
 function renderAvisos(){
   document.getElementById('avisoModelo').value = carregarModeloAviso();
   document.getElementById('avisoModeloPos').value = carregarModeloAvisoPos();
+  document.getElementById('avisoModeloHabiteSe').value = carregarModeloAvisoHabiteSe();
+  document.getElementById('avisoModeloMulta').value = carregarModeloAvisoMulta();
   document.getElementById('diasPosVencimento').value = carregarDiasPosVencimento();
   var janelas = carregarJanelasAviso();
   janelas.forEach(function(j, i){ document.getElementById('janelaAviso'+i).value = j; });
@@ -3791,6 +3882,7 @@ function renderMultas(){
         (x.m.motivo?'<div class="sub" style="margin-top:4px">'+x.m.motivo+'</div>':'')+
       '</div></div>'+
       '<div class="btnrow" style="margin-top:8px;gap:8px">'+
+        '<button class="btn" style="background:var(--red2)" onclick="enviarAvisoMulta(\''+x.e.id+'\',\''+x.m.id+'\')">📱 Avisar via WhatsApp</button>'+
         '<button class="btn primary" style="flex:1" onclick="resolverMulta(\''+x.e.id+'\',\''+x.m.id+'\')">✓ Multa resolvida</button>'+
         '<button class="btn" onclick="excluirRegistroMulta(\''+x.e.id+'\',\''+x.m.id+'\')">Excluir</button>'+
       '</div>'+
