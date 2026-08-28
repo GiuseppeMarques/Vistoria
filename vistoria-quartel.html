@@ -165,7 +165,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v44</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v45</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -174,6 +174,8 @@
     <button data-v="relatorios" onclick="navTo('relatorios')"><span class="ic">📊</span>Relatórios</button>
     <button data-v="avisos" onclick="navTo('avisos')"><span class="ic">📱</span>Avisos
       <span class="badge" id="badgeAvisos" style="display:none">0</span></button>
+    <button data-v="multas" onclick="navTo('multas')"><span class="ic">⚠️</span>Multas
+      <span class="badge" id="badgeMultas" style="display:none">0</span></button>
     <button data-v="campo" class="on" onclick="navTo('campo')"><span class="ic">📍</span>Campo
       <span class="badge" id="badgeCampo" style="display:none">0</span></button>
     <button data-v="dados" onclick="navTo('dados')"><span class="ic">💾</span>Dados</button>
@@ -420,6 +422,36 @@
 
       <div class="sec-title" style="margin-top:20px">Enviados recentemente</div>
       <div id="avisosEnviadosLista"></div>
+    </div>
+
+    <div class="view" id="v-multas">
+      <h2>Multas</h2>
+      <div class="lead">Marca edificações autuadas — aparece destacado no mapa até você resolver.</div>
+
+      <div class="card2-box" style="margin-bottom:16px">
+        <div class="sec-title" style="margin-top:0">+ Registrar multa</div>
+        <input type="text" id="mt-edif-busca" placeholder="Buscar edificação por RE, nome, bairro ou município..." style="margin-bottom:8px" oninput="renderMtEdifLista()">
+        <div id="mt-edif-lista" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;margin-bottom:10px"></div>
+        <div id="mt-form-detalhe" style="display:none">
+          <div class="sub" id="mt-edif-selecionada" style="margin-bottom:8px;font-weight:700"></div>
+          <div class="frow">
+            <div class="fcol"><label class="lbl">Número da multa</label><input type="text" id="mt-numero" placeholder="Ex: 2026/00123"></div>
+            <div class="fcol"><label class="lbl">Prazo pra regularizar</label><input type="text" id="mt-prazo" placeholder="DD/MM/AAAA"></div>
+          </div>
+          <label class="lbl">Motivo</label>
+          <input type="text" id="mt-motivo" placeholder="Ex: Deixar de solicitar vistoria para funcionamento" style="margin-bottom:10px">
+          <button class="btn primary" onclick="registrarMulta()">⚠️ Registrar multa</button>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px">
+        <div class="sec-title" style="margin:0">Edificações com multa ativa</div>
+        <button class="btn" style="width:auto;padding:6px 12px;font-size:12px" onclick="copiarRelatorioMultas()">📋 Copiar relatório em texto</button>
+      </div>
+      <div id="multasAtivasLista"></div>
+
+      <div class="sec-title" style="margin-top:20px">Histórico (resolvidas)</div>
+      <div id="multasResolvidasLista"></div>
     </div>
 
     <div class="view" id="v-dados">
@@ -983,6 +1015,7 @@ function navTo(v){
   if(v==='rotas'){ renderRotas(); renderRotasFixas(); }
   if(v==='relatorios') renderRelatorios();
   if(v==='avisos') renderAvisos();
+  if(v==='multas') renderMultas();
   if(v==='mapa'){
     initQMapa();
     setTimeout(function(){ if(qmap){ qmap.invalidateSize(); renderQMapaConteudo(); } }, 50);
@@ -3578,13 +3611,26 @@ function renderQMapaConteudo(){
     var riscoM = riscoEfetivo(e);
     var cor = corRisco(riscoM);
     var num = riscoM || '?';
-    var icon = L.divIcon({
-      html:'<div style="width:24px;height:24px;border-radius:50%;background:'+cor+';border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">'+num+'</div>',
-      className:'', iconSize:[24,24], iconAnchor:[12,12]
-    });
+    var multa = multaAtivaDe(e);
+    var icon = multa
+      ? L.divIcon({
+          html:'<div style="width:26px;height:26px;border-radius:50%;background:#B00020;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-size:14px">⚠️</div>',
+          className:'', iconSize:[26,26], iconAnchor:[13,13]
+        })
+      : L.divIcon({
+          html:'<div style="width:24px;height:24px;border-radius:50%;background:'+cor+';border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">'+num+'</div>',
+          className:'', iconSize:[24,24], iconAnchor:[12,12]
+        });
     var mk = L.marker([e.lat,e.lng], {icon:icon}).addTo(qlyEdif);
-    mk.bindTooltip((e.re||'Sem RE')+' — '+e.nome, {direction:'top'});
-    mk.on('click', function(){ abrirFormEdif(e.id); });
+    mk.bindTooltip((e.re||'Sem RE')+' — '+e.nome+(multa?' ⚠️ MULTA Nº '+multa.numero:''), {direction:'top'});
+    if(multa){
+      mk.bindPopup('<div style="text-align:center;min-width:180px"><b>⚠️ '+(e.re||'Sem RE')+' — '+e.nome+'</b><br>'+
+        'Multa nº '+multa.numero+(multa.prazo?'<br>Prazo: '+multa.prazo:'')+
+        (multa.motivo?'<br><span style="font-size:11px">'+multa.motivo+'</span>':'')+
+        '<br><button class="btn primary" style="margin-top:8px;width:100%" onclick="resolverMulta(\''+e.id+'\',\''+multa.id+'\')">✓ Multa resolvida</button></div>');
+    } else {
+      mk.on('click', function(){ abrirFormEdif(e.id); });
+    }
   });
 
   (db.rotas||[]).forEach(function(r){
@@ -3633,6 +3679,169 @@ var CHAVES_CONFIG_AVISOS = [
   'vistoria_janelas_aviso','vistoria_dias_pos_vencimento','vistoria_modelo_aviso',
   'vistoria_modelo_aviso_pos','vistoria_obm_nome','vistoria_obm_link_vistoria','vistoria_obm_link_renovacao'
 ];
+
+// ════════════════════════════════════════
+// MULTAS — marca edificações autuadas (RE, número, motivo, prazo), some do mapa com
+// marcador de risco normal enquanto ativa, volta ao normal quando resolvida (mantém histórico)
+// ════════════════════════════════════════
+function multaAtivaDe(e){
+  return (e.multas||[]).find(function(m){ return !m.resolvidaEm; }) || null;
+}
+
+var mtEdifSelecionadaId = null;
+
+function renderMtEdifLista(){
+  var db = loadDB();
+  var busca = (document.getElementById('mt-edif-busca').value||'').toLowerCase();
+  var lista = (db.edificacoes||[]).filter(function(e){
+    if(!busca) return false; // só mostra a lista depois de começar a digitar, pra não poluir
+    return (e.re||'').toLowerCase().indexOf(busca)>=0 || (e.nome||'').toLowerCase().indexOf(busca)>=0 ||
+      (e.bairro||'').toLowerCase().indexOf(busca)>=0 || (e.municipio||'').toLowerCase().indexOf(busca)>=0;
+  }).sort(function(a,b){ return (a.re||'').localeCompare(b.re||'', undefined, {numeric:true}); });
+
+  var el = document.getElementById('mt-edif-lista');
+  if(!busca){ el.innerHTML=''; return; }
+  el.innerHTML = lista.length ? lista.map(function(e){
+    var jaTemMulta = multaAtivaDe(e);
+    return '<div onclick="'+(jaTemMulta?'':'selecionarEdifMulta(\''+e.id+'\')')+'" style="padding:10px;cursor:'+(jaTemMulta?'default':'pointer')+';border-bottom:1px solid var(--border);font-size:13px;'+(jaTemMulta?'opacity:.5':'')+'">'+
+      '<div style="font-weight:700">'+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+(jaTemMulta?' (já tem multa ativa)':'')+'</div>'+
+      '<div style="color:var(--sub);font-size:11px">'+(e.municipio||'')+(e.bairro?' · '+e.bairro:'')+'</div>'+
+    '</div>';
+  }).join('') : '<div class="sub" style="padding:10px">Nenhuma edificação encontrada.</div>';
+}
+function selecionarEdifMulta(id){
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===id;});
+  if(!e) return;
+  mtEdifSelecionadaId = id;
+  document.getElementById('mt-edif-selecionada').textContent = (e.re||'Sem RE')+' — '+(e.nome||'Sem nome');
+  document.getElementById('mt-numero').value='';
+  document.getElementById('mt-prazo').value='';
+  document.getElementById('mt-motivo').value='';
+  document.getElementById('mt-form-detalhe').style.display='block';
+}
+function registrarMulta(){
+  if(!mtEdifSelecionadaId){ alert('Escolha a edificação primeiro.'); return; }
+  var numero = document.getElementById('mt-numero').value.trim();
+  var prazo = document.getElementById('mt-prazo').value.trim();
+  var motivo = document.getElementById('mt-motivo').value.trim();
+  if(!numero){ alert('Informe o número da multa.'); return; }
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===mtEdifSelecionadaId;});
+  if(!e) return;
+  if(!e.multas) e.multas=[];
+  e.multas.push({id:novoId('multa'), numero:numero, motivo:motivo, prazo:prazo, criadaEm:new Date().toISOString(), resolvidaEm:null});
+  saveDB(db);
+  mtEdifSelecionadaId = null;
+  document.getElementById('mt-edif-busca').value = '';
+  document.getElementById('mt-form-detalhe').style.display='none';
+  renderMtEdifLista();
+  renderMultas();
+  if(qmap) renderQMapaConteudo();
+}
+function resolverMulta(edifId, multaId){
+  if(!confirm('Marcar esta multa como resolvida? A edificação volta a mostrar o marcador de risco normal no mapa.')) return;
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===edifId;});
+  if(!e) return;
+  var m = (e.multas||[]).find(function(x){return x.id===multaId;});
+  if(m) m.resolvidaEm = new Date().toISOString();
+  saveDB(db);
+  renderMultas();
+  if(qmap) renderQMapaConteudo();
+}
+function excluirRegistroMulta(edifId, multaId){
+  if(!confirm('Excluir este registro de multa permanentemente? Não vai mais aparecer no histórico nem no relatório.')) return;
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===edifId;});
+  if(!e) return;
+  e.multas = (e.multas||[]).filter(function(x){return x.id!==multaId;});
+  saveDB(db);
+  renderMultas();
+  if(qmap) renderQMapaConteudo();
+}
+
+function renderMultas(){
+  document.getElementById('mt-edif-lista').innerHTML = '';
+  document.getElementById('mt-edif-busca').value = '';
+  document.getElementById('mt-form-detalhe').style.display='none';
+  mtEdifSelecionadaId = null;
+
+  var db = loadDB();
+  var ativas = [], resolvidas = [];
+  (db.edificacoes||[]).forEach(function(e){
+    (e.multas||[]).forEach(function(m){
+      if(m.resolvidaEm) resolvidas.push({e:e, m:m});
+      else ativas.push({e:e, m:m});
+    });
+  });
+  ativas.sort(function(a,b){ return new Date(a.m.criadaEm)-new Date(b.m.criadaEm); });
+  resolvidas.sort(function(a,b){ return new Date(b.m.resolvidaEm)-new Date(a.m.resolvidaEm); });
+
+  var badge = document.getElementById('badgeMultas');
+  if(ativas.length){ badge.style.display='inline-block'; badge.textContent=ativas.length; }
+  else { badge.style.display='none'; }
+
+  var elAtivas = document.getElementById('multasAtivasLista');
+  elAtivas.innerHTML = ativas.length ? ativas.map(function(x){
+    return '<div class="elist-item" style="margin-bottom:10px;border-color:var(--red2)">'+
+      '<div class="elist-row"><div>'+
+        '<div class="elist-t">⚠️ '+(x.e.re||'Sem RE')+' — '+(x.e.nome||'Sem nome')+'</div>'+
+        '<div class="elist-s">Multa nº '+x.m.numero+(x.m.prazo?' · prazo '+x.m.prazo:'')+'</div>'+
+        (x.m.motivo?'<div class="sub" style="margin-top:4px">'+x.m.motivo+'</div>':'')+
+      '</div></div>'+
+      '<div class="btnrow" style="margin-top:8px;gap:8px">'+
+        '<button class="btn primary" style="flex:1" onclick="resolverMulta(\''+x.e.id+'\',\''+x.m.id+'\')">✓ Multa resolvida</button>'+
+        '<button class="btn" onclick="excluirRegistroMulta(\''+x.e.id+'\',\''+x.m.id+'\')">Excluir</button>'+
+      '</div>'+
+    '</div>';
+  }).join('') : '<div class="empty"><div class="ico">✅</div>Nenhuma edificação com multa ativa no momento.</div>';
+
+  var elRes = document.getElementById('multasResolvidasLista');
+  elRes.innerHTML = resolvidas.length ? resolvidas.map(function(x){
+    return '<div class="elist-item" style="margin-bottom:8px"><div class="elist-row">'+
+      '<div><div class="elist-t">'+(x.e.re||'Sem RE')+' — '+(x.e.nome||'Sem nome')+'</div>'+
+      '<div class="elist-s">Multa nº '+x.m.numero+' · resolvida em '+new Date(x.m.resolvidaEm).toLocaleDateString('pt-BR')+'</div></div>'+
+      '<button class="btn" style="width:auto;padding:6px 10px;font-size:12px" onclick="excluirRegistroMulta(\''+x.e.id+'\',\''+x.m.id+'\')">Excluir</button>'+
+    '</div></div>';
+  }).join('') : '<div class="sub">Nenhuma multa resolvida ainda.</div>';
+}
+
+function copiarRelatorioMultas(){
+  var db = loadDB();
+  var ativas = [];
+  (db.edificacoes||[]).forEach(function(e){
+    (e.multas||[]).forEach(function(m){ if(!m.resolvidaEm) ativas.push({e:e, m:m}); });
+  });
+  ativas.sort(function(a,b){ return new Date(a.m.criadaEm)-new Date(b.m.criadaEm); });
+
+  var linhas = [];
+  linhas.push('RELATÓRIO DE EDIFICAÇÕES COM MULTA ATIVA');
+  linhas.push('Gerado em '+new Date().toLocaleString('pt-BR'));
+  linhas.push('');
+  if(!ativas.length){
+    linhas.push('Nenhuma edificação com multa ativa no momento.');
+  } else {
+    linhas.push('Total: '+ativas.length);
+    linhas.push('');
+    ativas.forEach(function(x, i){
+      linhas.push((i+1)+'. '+(x.e.re||'Sem RE')+' — '+(x.e.nome||'Sem nome'));
+      linhas.push('   Multa nº: '+x.m.numero);
+      linhas.push('   Motivo: '+(x.m.motivo||'—'));
+      linhas.push('   Prazo: '+(x.m.prazo||'—'));
+      linhas.push('   Registrada em: '+new Date(x.m.criadaEm).toLocaleDateString('pt-BR'));
+      linhas.push('');
+    });
+  }
+  var texto = linhas.join('\n');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(texto).then(function(){
+      alert('Relatório copiado! Já pode colar (Ctrl+V) numa mensagem ou documento.');
+    }).catch(function(){ window.prompt('Copie o texto abaixo (Ctrl+C):', texto); });
+  } else {
+    window.prompt('Copie o texto abaixo (Ctrl+C):', texto);
+  }
+}
 
 function exportarBackupCompleto(){
   var db = loadDB();
