@@ -165,7 +165,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v46</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v48</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -630,47 +630,47 @@
     </div>
 
     <div class="sec-title">Protocolos</div>
-    <div class="sub" style="margin:-4px 0 8px">Cadastre aqui cada protocolo (Projeto, Habite-se ou Funcionamento) — o Habite-se abaixo é vinculado a um protocolo do tipo Projeto.</div>
+    <div class="sub" style="margin:-4px 0 8px">Cadastre aqui cada protocolo (Projeto, Habite-se ou Funcionamento) — as seções abaixo aparecem conforme você cadastra o protocolo correspondente.</div>
     <div id="ef-projetos"></div>
     <button class="btn" style="margin-bottom:10px" onclick="addProjetoRow()">+ Adicionar protocolo</button>
 
-    <div class="sec-title">Habite-se</div>
-    <div class="frow">
-      <div class="fcol"><label class="lbl">Situação</label>
-        <select id="ef-hs-situacao" onchange="atualizarCamposHS()">
-          <option value="possui">Possui</option>
-          <option value="nao_possui">Não possui</option>
-          <option value="andamento">Em andamento</option>
-        </select>
+    <div id="ef-hs-secao" style="display:none">
+      <div class="sec-title">Habite-se</div>
+      <div class="frow">
+        <div class="fcol"><label class="lbl">Situação</label>
+          <select id="ef-hs-situacao" onchange="atualizarCamposHS()">
+            <option value="possui">Possui</option>
+            <option value="nao_possui">Não possui</option>
+            <option value="andamento">Em andamento</option>
+          </select>
+        </div>
+        <div class="fcol"><label class="lbl">Nº do protocolo</label><input type="text" id="ef-hs-protocolo" placeholder="Ex: 2024/001234"></div>
       </div>
-      <div class="fcol"><label class="lbl">Nº do protocolo</label><input type="text" id="ef-hs-protocolo" placeholder="Ex: 2024/001234"></div>
-    </div>
-    <div class="frow">
-      <div class="fcol"><label class="lbl">Data de emissão</label><input type="text" id="ef-hs-data" placeholder="DD/MM/AAAA"></div>
-      <div class="fcol"><label class="lbl">Observação</label><input type="text" id="ef-hs-obs" placeholder="Opcional"></div>
-    </div>
-    <div class="frow">
-      <div class="fcol"><label class="lbl">Protocolo vinculado (tipo Projeto)</label>
-        <select id="ef-hs-projeto" onchange="atualizarVinculoProjetoHS()"><option value="">— nenhum —</option></select>
+      <div class="frow">
+        <div class="fcol"><label class="lbl">Data de emissão</label><input type="text" id="ef-hs-data" placeholder="DD/MM/AAAA"></div>
+        <div class="fcol"><label class="lbl">Observação</label><input type="text" id="ef-hs-obs" placeholder="Opcional"></div>
       </div>
-    </div>
-    <div id="ef-hs-aviso-box" style="display:none;margin-bottom:16px">
-      <button class="btn" style="background:var(--red2)" onclick="enviarAvisoHabiteSe(edifEmEdicaoId)">📱 Avisar sobre necessidade de Habite-se</button>
+      <div class="frow">
+        <div class="fcol"><label class="lbl">Protocolo vinculado (tipo Projeto)</label>
+          <select id="ef-hs-projeto" onchange="atualizarVinculoProjetoHS()"><option value="">— nenhum —</option></select>
+        </div>
+      </div>
+      <div id="ef-hs-aviso-box" style="display:none;margin-bottom:16px">
+        <button id="ef-hs-aviso-btn" class="btn" onclick="enviarAvisoHabiteSe(edifEmEdicaoId)">📱 Avisar sobre necessidade de Habite-se</button>
+      </div>
     </div>
 
-    <div class="sec-title">Funcionamento e laudos</div>
-    <div class="frow">
-      <div class="fcol"><label class="lbl">Situação do funcionamento</label>
-        <select id="ef-funcionamento" onchange="atualizarVencimentoAutomatico()"><option value="">—</option><option value="possui">Possui</option><option value="nao_possui">Não possui</option></select>
+    <div id="ef-func-secao" style="display:none">
+      <div class="sec-title">Funcionamento</div>
+      <div class="frow">
+        <div class="fcol"><label class="lbl">Situação do funcionamento</label>
+          <select id="ef-funcionamento" onchange="atualizarVencimentoAutomatico()"><option value="">—</option><option value="possui">Possui</option><option value="nao_possui">Não possui</option></select>
+        </div>
+        <div class="fcol"><label class="lbl">Data de emissão/renovação</label><input type="text" id="ef-func-emissao" placeholder="DD/MM/AAAA" onchange="atualizarVencimentoAutomatico()"></div>
+        <div class="fcol"><label class="lbl">Validade (anos)</label><input type="number" id="ef-func-validade-anos" min="1" style="width:70px" onchange="atualizarVencimentoAutomatico()"></div>
+        <div class="fcol"><label class="lbl">Vencimento <span style="font-weight:400;color:var(--sub)">(calculado — pode ajustar)</span></label><input type="text" id="ef-vencimento" placeholder="DD/MM/AAAA"></div>
+        <div class="fcol"><label class="lbl">Protocolo</label><input type="text" id="ef-protocolo-func" placeholder="Ex: F8013001873A"></div>
       </div>
-      <div class="fcol"><label class="lbl">Data de emissão/renovação</label><input type="text" id="ef-func-emissao" placeholder="DD/MM/AAAA" onchange="atualizarVencimentoAutomatico()"></div>
-      <div class="fcol"><label class="lbl">Validade (anos)</label><input type="number" id="ef-func-validade-anos" min="1" style="width:70px" onchange="atualizarVencimentoAutomatico()"></div>
-      <div class="fcol"><label class="lbl">Vencimento <span style="font-weight:400;color:var(--sub)">(calculado — pode ajustar)</span></label><input type="text" id="ef-vencimento" placeholder="DD/MM/AAAA"></div>
-      <div class="fcol"><label class="lbl">Protocolo</label><input type="text" id="ef-protocolo-func" placeholder="Ex: F8013001873A"></div>
-    </div>
-    <div class="frow">
-      <div class="fcol"><label class="lbl">Laudo do Alarme</label><input type="text" id="ef-laudo-alarme" placeholder="Validade / observação"></div>
-      <div class="fcol"><label class="lbl">Laudo do Hidrante</label><input type="text" id="ef-laudo-hidrante" placeholder="Validade / observação"></div>
     </div>
 
     <div class="sec-title">Inquilinos</div>
@@ -1082,6 +1082,23 @@ function atualizarCamposHS(){
   document.getElementById('ef-hs-protocolo').closest('.fcol').style.display = mostrar ? 'block' : 'none';
   document.getElementById('ef-hs-data').closest('.fcol').style.display = (situacao==='possui') ? 'block' : 'none';
   document.getElementById('ef-hs-aviso-box').style.display = (situacao!=='possui' && edifEmEdicaoId) ? 'block' : 'none';
+  var btn = document.getElementById('ef-hs-aviso-btn');
+  if(edifEmEdicaoId){
+    var db = loadDB();
+    var e = db.edificacoes.find(function(x){return x.id===edifEmEdicaoId;});
+    var jaEnviado = e && e.habiteSe && e.habiteSe.avisoEnviadoEm;
+    if(jaEnviado){
+      btn.style.background = 'var(--card2)';
+      btn.style.border = '1px solid var(--amar)';
+      btn.style.color = 'var(--amar)';
+      btn.innerHTML = '✅ Aviso enviado em '+new Date(jaEnviado).toLocaleDateString('pt-BR')+' — Reenviar';
+    } else {
+      btn.style.background = 'var(--red2)';
+      btn.style.border = 'none';
+      btn.style.color = '#fff';
+      btn.innerHTML = '📱 Avisar sobre necessidade de Habite-se';
+    }
+  }
 }
 
 var VALIDADE_FUNC_ANOS_PADRAO = 1;
@@ -1263,9 +1280,25 @@ function renderProjetos(){
     '</div>';
   }).join('') || '<div class="sub" style="margin-bottom:8px">Nenhum protocolo cadastrado.</div>';
   atualizarSelectProjetoHS();
+  atualizarSecoesProtocolo();
 }
-function atualizarProjeto(id,campo,val){ var p=efProjetos.find(function(x){return x.id===id;}); if(p) p[campo]=val; atualizarSelectProjetoHS(); }
+function atualizarProjeto(id,campo,val){ var p=efProjetos.find(function(x){return x.id===id;}); if(p) p[campo]=val; atualizarSelectProjetoHS(); atualizarSecoesProtocolo(); }
 function removerProjeto(id){ efProjetos = efProjetos.filter(function(x){return x.id!==id;}); renderProjetos(); }
+
+// Mostra a seção Habite-se só se existir um protocolo do tipo "habite-se" cadastrado,
+// e a seção Funcionamento só se existir um do tipo "funcionamento" — assim as seções
+// aparecem conforme o usuário vai cadastrando em Protocolos.
+function atualizarSecoesProtocolo(){
+  var temHS = efProjetos.some(function(p){ return p.tipo==='habite-se'; });
+  var temFunc = efProjetos.some(function(p){ return p.tipo==='funcionamento'; });
+  document.getElementById('ef-hs-secao').style.display = temHS ? 'block' : 'none';
+  document.getElementById('ef-func-secao').style.display = temFunc ? 'block' : 'none';
+  if(temHS) atualizarCamposHS();
+}
+
+// Sistemas preventivos que têm laudo próprio (validade/observação) — o campo só faz
+// sentido se a edificação tiver esse sistema ativo, então fica dentro do card dele.
+var SIDS_COM_LAUDO = ['shp','ala'];
 
 function renderPreventivosForm(){
   document.getElementById('ef-preventivos').innerHTML = SIST.map(function(s){
@@ -1286,9 +1319,11 @@ function renderPreventivosForm(){
         '</div>'+
       '</div>'+
       '<input type="text" placeholder="Detalhe / observação (opcional)" value="'+(p.info||'').replace(/"/g,'&quot;')+'" onchange="setPrevInfo(\''+s.id+'\',this.value)">'+
+      (SIDS_COM_LAUDO.indexOf(s.id)>=0 ? '<input type="text" placeholder="Laudo — validade / observação" value="'+(p.laudo||'').replace(/"/g,'&quot;')+'" onchange="setPrevLaudo(\''+s.id+'\',this.value)">' : '')+
     '</div>';
   }).join('');
 }
+function setPrevLaudo(sid,val){ if(efPreventivos[sid]) efPreventivos[sid].laudo = val; }
 function togglePrevForm(sid){
   if(!efPreventivos[sid]) efPreventivos[sid]={ativo:false,qty:1,info:''};
   var novoAtivo = !efPreventivos[sid].ativo;
@@ -1630,11 +1665,12 @@ function abrirFormEdif(id){
   document.getElementById('ef-func-validade-anos').value = e && e.vigenciaFuncionamento && e.vigenciaFuncionamento.validadeAnos ? e.vigenciaFuncionamento.validadeAnos : carregarValidadeFuncAnos();
   document.getElementById('ef-vencimento').value = e ? ((e.vigenciaFuncionamento&&e.vigenciaFuncionamento.vencimento)||'') : '';
   document.getElementById('ef-protocolo-func').value = e ? ((e.vigenciaFuncionamento&&e.vigenciaFuncionamento.protocolo)||'') : '';
-  document.getElementById('ef-laudo-alarme').value = e ? (e.laudoAlarme||'') : '';
-  document.getElementById('ef-laudo-hidrante').value = e ? (e.laudoHidrante||'') : '';
 
   efInquilinos = e && e.inquilinos ? JSON.parse(JSON.stringify(e.inquilinos)).map(function(i){i.id=i.id||('inq_'+Math.random().toString(36).slice(2,8));return i;}) : [];
   efPreventivos = e && e.preventivos ? JSON.parse(JSON.stringify(e.preventivos)) : {};
+  // migração de dados antigos: laudo era um campo solto da edificação, agora mora dentro do preventivo
+  if(e && e.laudoAlarme && efPreventivos.ala && !efPreventivos.ala.laudo) efPreventivos.ala.laudo = e.laudoAlarme;
+  if(e && e.laudoHidrante && efPreventivos.shp && !efPreventivos.shp.laudo) efPreventivos.shp.laudo = e.laudoHidrante;
 
   if(e && e.blocos){
     efBlocos = JSON.parse(JSON.stringify(e.blocos));
@@ -1690,8 +1726,6 @@ function salvarFormEdif(){
       obs: document.getElementById('ef-hs-obs').value.trim(),
       projetoId: document.getElementById('ef-hs-projeto').value || null
     },
-    laudoAlarme: document.getElementById('ef-laudo-alarme').value.trim(),
-    laudoHidrante: document.getElementById('ef-laudo-hidrante').value.trim(),
     inquilinos: efInquilinos,
     projetos: efProjetos,
     preventivos: efPreventivos,
@@ -2870,9 +2904,18 @@ function enviarAvisoHabiteSe(edifId){
   if(!e) return;
   var telWa = telefoneParaWhatsapp(e.responsavel && e.responsavel.tel);
   if(!telWa){ alert('Esta edificação não tem telefone cadastrado.'); return; }
+  var jaEnviado = e.habiteSe && e.habiteSe.avisoEnviadoEm;
+  if(jaEnviado){
+    var ok = confirm('Este aviso já foi enviado em '+new Date(jaEnviado).toLocaleString('pt-BR')+'. Enviar de novo mesmo assim?');
+    if(!ok) return;
+  }
   var texto = window.prompt('Revise a mensagem antes de enviar (pode editar):', montarMensagemAvisoHabiteSe(e));
   if(texto==null) return;
   window.open('https://wa.me/'+telWa+'?text='+encodeURIComponent(texto), '_blank');
+  e.habiteSe = e.habiteSe || {};
+  e.habiteSe.avisoEnviadoEm = new Date().toISOString();
+  saveDB(db);
+  atualizarCamposHS();
 }
 
 function montarMensagemAvisoMulta(e, m){
@@ -2892,9 +2935,16 @@ function enviarAvisoMulta(edifId, multaId){
   if(!e || !m) return;
   var telWa = telefoneParaWhatsapp(e.responsavel && e.responsavel.tel);
   if(!telWa){ alert('Esta edificação não tem telefone cadastrado.'); return; }
+  if(m.avisoEnviadoEm){
+    var ok = confirm('Este aviso já foi enviado em '+new Date(m.avisoEnviadoEm).toLocaleString('pt-BR')+'. Enviar de novo mesmo assim?');
+    if(!ok) return;
+  }
   var texto = window.prompt('Revise a mensagem antes de enviar (pode editar):', montarMensagemAvisoMulta(e, m));
   if(texto==null) return;
   window.open('https://wa.me/'+telWa+'?text='+encodeURIComponent(texto), '_blank');
+  m.avisoEnviadoEm = new Date().toISOString();
+  saveDB(db);
+  renderMultas();
 }
 
 function salvarDadosObm(){
@@ -3875,6 +3925,8 @@ function renderMultas(){
 
   var elAtivas = document.getElementById('multasAtivasLista');
   elAtivas.innerHTML = ativas.length ? ativas.map(function(x){
+    var btnAvisoStyle = x.m.avisoEnviadoEm ? 'background:var(--card2);border:1px solid var(--amar);color:var(--amar)' : 'background:var(--red2);color:#fff';
+    var btnAvisoTexto = x.m.avisoEnviadoEm ? '✅ Enviado em '+new Date(x.m.avisoEnviadoEm).toLocaleDateString('pt-BR')+' — Reenviar' : '📱 Avisar via WhatsApp';
     return '<div class="elist-item" style="margin-bottom:10px;border-color:var(--red2)">'+
       '<div class="elist-row"><div>'+
         '<div class="elist-t">⚠️ '+(x.e.re||'Sem RE')+' — '+(x.e.nome||'Sem nome')+'</div>'+
@@ -3882,7 +3934,7 @@ function renderMultas(){
         (x.m.motivo?'<div class="sub" style="margin-top:4px">'+x.m.motivo+'</div>':'')+
       '</div></div>'+
       '<div class="btnrow" style="margin-top:8px;gap:8px">'+
-        '<button class="btn" style="background:var(--red2)" onclick="enviarAvisoMulta(\''+x.e.id+'\',\''+x.m.id+'\')">📱 Avisar via WhatsApp</button>'+
+        '<button class="btn" style="'+btnAvisoStyle+'" onclick="enviarAvisoMulta(\''+x.e.id+'\',\''+x.m.id+'\')">'+btnAvisoTexto+'</button>'+
         '<button class="btn primary" style="flex:1" onclick="resolverMulta(\''+x.e.id+'\',\''+x.m.id+'\')">✓ Multa resolvida</button>'+
         '<button class="btn" onclick="excluirRegistroMulta(\''+x.e.id+'\',\''+x.m.id+'\')">Excluir</button>'+
       '</div>'+
