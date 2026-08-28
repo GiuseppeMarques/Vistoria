@@ -165,7 +165,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v48</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v50</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -421,6 +421,10 @@
       <div class="sub" style="margin-bottom:8px">Usado no botão "📱 Avisar sobre Habite-se" no cadastro da edificação. Use {OBM}, {NOME}, {RE}, {LINK_VISTORIA}.</div>
       <textarea id="avisoModeloHabiteSe" rows="10" style="width:100%;font-family:inherit;font-size:13px;padding:10px;border-radius:10px;background:var(--card2);border:1px solid var(--border);color:var(--txt);margin-bottom:16px" onchange="salvarModeloAvisoHabiteSe()"></textarea>
 
+      <div class="sec-title">Modelo de mensagem — Necessidade de Funcionamento</div>
+      <div class="sub" style="margin-bottom:8px">Usado no botão "📱 Avisar sobre Funcionamento" no cadastro da edificação. Use {OBM}, {NOME}, {RE}, {LINK_VISTORIA}.</div>
+      <textarea id="avisoModeloFuncNecessidade" rows="10" style="width:100%;font-family:inherit;font-size:13px;padding:10px;border-radius:10px;background:var(--card2);border:1px solid var(--border);color:var(--txt);margin-bottom:16px" onchange="salvarModeloAvisoFuncNecessidade()"></textarea>
+
       <div class="sec-title">Modelo de mensagem — Multa registrada</div>
       <div class="sub" style="margin-bottom:8px">Usado no botão "📱 Avisar via WhatsApp" na aba Multas. Use {OBM}, {NOME}, {RE}, {MULTA_NUMERO}, {MULTA_MOTIVO}, {MULTA_PRAZO}.</div>
       <textarea id="avisoModeloMulta" rows="10" style="width:100%;font-family:inherit;font-size:13px;padding:10px;border-radius:10px;background:var(--card2);border:1px solid var(--border);color:var(--txt);margin-bottom:16px" onchange="salvarModeloAvisoMulta()"></textarea>
@@ -630,48 +634,15 @@
     </div>
 
     <div class="sec-title">Protocolos</div>
-    <div class="sub" style="margin:-4px 0 8px">Cadastre aqui cada protocolo (Projeto, Habite-se ou Funcionamento) — as seções abaixo aparecem conforme você cadastra o protocolo correspondente.</div>
+    <div class="sub" style="margin:-4px 0 8px">Cadastre aqui cada protocolo (Projeto, Habite-se ou Funcionamento) — os dados de cada um ficam na própria linha.</div>
+    <div id="ef-hs-aviso-box" style="display:none;margin-bottom:10px">
+      <button id="ef-hs-aviso-btn" class="btn" onclick="enviarAvisoHabiteSe(edifEmEdicaoId)">📱 Avisar sobre necessidade de Habite-se</button>
+    </div>
+    <div id="ef-func-aviso-box" style="display:none;margin-bottom:10px">
+      <button id="ef-func-aviso-btn" class="btn" onclick="enviarAvisoFuncionamento(edifEmEdicaoId)">📱 Avisar sobre necessidade de Funcionamento</button>
+    </div>
     <div id="ef-projetos"></div>
     <button class="btn" style="margin-bottom:10px" onclick="addProjetoRow()">+ Adicionar protocolo</button>
-
-    <div id="ef-hs-secao" style="display:none">
-      <div class="sec-title">Habite-se</div>
-      <div class="frow">
-        <div class="fcol"><label class="lbl">Situação</label>
-          <select id="ef-hs-situacao" onchange="atualizarCamposHS()">
-            <option value="possui">Possui</option>
-            <option value="nao_possui">Não possui</option>
-            <option value="andamento">Em andamento</option>
-          </select>
-        </div>
-        <div class="fcol"><label class="lbl">Nº do protocolo</label><input type="text" id="ef-hs-protocolo" placeholder="Ex: 2024/001234"></div>
-      </div>
-      <div class="frow">
-        <div class="fcol"><label class="lbl">Data de emissão</label><input type="text" id="ef-hs-data" placeholder="DD/MM/AAAA"></div>
-        <div class="fcol"><label class="lbl">Observação</label><input type="text" id="ef-hs-obs" placeholder="Opcional"></div>
-      </div>
-      <div class="frow">
-        <div class="fcol"><label class="lbl">Protocolo vinculado (tipo Projeto)</label>
-          <select id="ef-hs-projeto" onchange="atualizarVinculoProjetoHS()"><option value="">— nenhum —</option></select>
-        </div>
-      </div>
-      <div id="ef-hs-aviso-box" style="display:none;margin-bottom:16px">
-        <button id="ef-hs-aviso-btn" class="btn" onclick="enviarAvisoHabiteSe(edifEmEdicaoId)">📱 Avisar sobre necessidade de Habite-se</button>
-      </div>
-    </div>
-
-    <div id="ef-func-secao" style="display:none">
-      <div class="sec-title">Funcionamento</div>
-      <div class="frow">
-        <div class="fcol"><label class="lbl">Situação do funcionamento</label>
-          <select id="ef-funcionamento" onchange="atualizarVencimentoAutomatico()"><option value="">—</option><option value="possui">Possui</option><option value="nao_possui">Não possui</option></select>
-        </div>
-        <div class="fcol"><label class="lbl">Data de emissão/renovação</label><input type="text" id="ef-func-emissao" placeholder="DD/MM/AAAA" onchange="atualizarVencimentoAutomatico()"></div>
-        <div class="fcol"><label class="lbl">Validade (anos)</label><input type="number" id="ef-func-validade-anos" min="1" style="width:70px" onchange="atualizarVencimentoAutomatico()"></div>
-        <div class="fcol"><label class="lbl">Vencimento <span style="font-weight:400;color:var(--sub)">(calculado — pode ajustar)</span></label><input type="text" id="ef-vencimento" placeholder="DD/MM/AAAA"></div>
-        <div class="fcol"><label class="lbl">Protocolo</label><input type="text" id="ef-protocolo-func" placeholder="Ex: F8013001873A"></div>
-      </div>
-    </div>
 
     <div class="sec-title">Inquilinos</div>
     <div id="ef-inquilinos"></div>
@@ -1076,28 +1047,32 @@ function riscoEfetivo(e){
   return e.grauRisco || null;
 }
 
+// Mostra o botão de avisar sobre Habite-se/Funcionamento quando NÃO existe nenhum protocolo
+// do tipo correspondente cadastrado — a mera existência de um protocolo desse tipo já
+// significa que a edificação tem (ou está com) aquele processo.
+function estilizarBotaoAviso(btn, jaEnviado, textoDefault){
+  if(jaEnviado){
+    btn.style.background = 'var(--card2)';
+    btn.style.border = '1px solid var(--amar)';
+    btn.style.color = 'var(--amar)';
+    btn.innerHTML = '✅ Aviso enviado em '+new Date(jaEnviado).toLocaleDateString('pt-BR')+' — Reenviar';
+  } else {
+    btn.style.background = 'var(--red2)';
+    btn.style.border = 'none';
+    btn.style.color = '#fff';
+    btn.innerHTML = textoDefault;
+  }
+}
 function atualizarCamposHS(){
-  var situacao = document.getElementById('ef-hs-situacao').value;
-  var mostrar = situacao !== 'nao_possui';
-  document.getElementById('ef-hs-protocolo').closest('.fcol').style.display = mostrar ? 'block' : 'none';
-  document.getElementById('ef-hs-data').closest('.fcol').style.display = (situacao==='possui') ? 'block' : 'none';
-  document.getElementById('ef-hs-aviso-box').style.display = (situacao!=='possui' && edifEmEdicaoId) ? 'block' : 'none';
-  var btn = document.getElementById('ef-hs-aviso-btn');
+  var temHS = efProjetos.some(function(p){ return p.tipo==='habite-se'; });
+  var temFunc = efProjetos.some(function(p){ return p.tipo==='funcionamento'; });
+  document.getElementById('ef-hs-aviso-box').style.display = (!temHS && edifEmEdicaoId) ? 'block' : 'none';
+  document.getElementById('ef-func-aviso-box').style.display = (!temFunc && edifEmEdicaoId) ? 'block' : 'none';
   if(edifEmEdicaoId){
     var db = loadDB();
     var e = db.edificacoes.find(function(x){return x.id===edifEmEdicaoId;});
-    var jaEnviado = e && e.habiteSe && e.habiteSe.avisoEnviadoEm;
-    if(jaEnviado){
-      btn.style.background = 'var(--card2)';
-      btn.style.border = '1px solid var(--amar)';
-      btn.style.color = 'var(--amar)';
-      btn.innerHTML = '✅ Aviso enviado em '+new Date(jaEnviado).toLocaleDateString('pt-BR')+' — Reenviar';
-    } else {
-      btn.style.background = 'var(--red2)';
-      btn.style.border = 'none';
-      btn.style.color = '#fff';
-      btn.innerHTML = '📱 Avisar sobre necessidade de Habite-se';
-    }
+    estilizarBotaoAviso(document.getElementById('ef-hs-aviso-btn'), e && e.habiteSe && e.habiteSe.avisoEnviadoEm, '📱 Avisar sobre necessidade de Habite-se');
+    estilizarBotaoAviso(document.getElementById('ef-func-aviso-btn'), e && e.vigenciaFuncionamento && e.vigenciaFuncionamento.avisoEnviadoEm, '📱 Avisar sobre necessidade de Funcionamento');
   }
 }
 
@@ -1106,27 +1081,20 @@ function carregarValidadeFuncAnos(){
   var v = parseInt(localStorage.getItem('vistoria_validade_func_anos'), 10);
   return (!isNaN(v) && v>0) ? v : VALIDADE_FUNC_ANOS_PADRAO;
 }
-function atualizarVencimentoAutomatico(){
-  var anos = parseInt(document.getElementById('ef-func-validade-anos').value, 10) || carregarValidadeFuncAnos();
+// Recalcula o vencimento (emissão + validade em anos) direto na linha do protocolo de funcionamento
+function recalcularVencimentoProtocolo(id){
+  var p = efProjetos.find(function(x){return x.id===id;});
+  if(!p) return;
+  var anos = parseInt(p.validadeAnos, 10) || carregarValidadeFuncAnos();
   localStorage.setItem('vistoria_validade_func_anos', anos); // lembra o último valor usado como novo padrão
-  var emissao = parseDataBR(document.getElementById('ef-func-emissao').value);
-  if(!emissao) return; // sem data de emissão não dá pra calcular — deixa o vencimento como está (editável manualmente)
+  var emissao = parseDataBR(p.dataEmissao);
+  if(!emissao) { renderProjetos(); return; } // sem data de emissão não dá pra calcular — deixa como está
   var venc = new Date(emissao);
   venc.setFullYear(venc.getFullYear() + anos);
-  var p = function(n){return (n<10?'0':'')+n;};
-  document.getElementById('ef-vencimento').value = p(venc.getDate())+'/'+p(venc.getMonth()+1)+'/'+venc.getFullYear();
+  var f = function(n){return (n<10?'0':'')+n;};
+  p.vencimento = f(venc.getDate())+'/'+f(venc.getMonth()+1)+'/'+venc.getFullYear();
+  renderProjetos();
 }
-
-function atualizarSelectProjetoHS(){
-  var sel = document.getElementById('ef-hs-projeto');
-  var atual = sel.value;
-  var opcoesProjeto = efProjetos.filter(function(p){ return p.tipo==='projeto'; });
-  sel.innerHTML = '<option value="">— nenhum —</option>'+opcoesProjeto.map(function(p){
-    return '<option value="'+p.id+'">'+(p.num||'(sem número)')+'</option>';
-  }).join('');
-  if(opcoesProjeto.some(function(p){return p.id===atual;})) sel.value = atual;
-}
-function atualizarVinculoProjetoHS(){ /* só existe pro onchange dar feedback visual futuro, se precisar */ }
 
 function renderPendentesCampoNaEdif(db){
   var pendentes = (db.pontos||[]).filter(function(p){
@@ -1268,33 +1236,41 @@ function addProjetoRow(item){
 }
 function renderProjetos(){
   document.getElementById('ef-projetos').innerHTML = efProjetos.map(function(p){
-    return '<div class="rowlist-item">'+
-      '<select onchange="atualizarProjeto(\''+p.id+'\',\'tipo\',this.value)" style="flex:0 0 140px">'+
-        '<option value="projeto" '+(p.tipo==='projeto'?'selected':'')+'>Projeto</option>'+
-        '<option value="habite-se" '+(p.tipo==='habite-se'?'selected':'')+'>Habite-se</option>'+
-        '<option value="funcionamento" '+(p.tipo==='funcionamento'?'selected':'')+'>Funcionamento</option>'+
-      '</select>'+
-      '<input type="text" placeholder="Nº do protocolo" value="'+(p.num||'').replace(/"/g,'&quot;')+'" onchange="atualizarProjeto(\''+p.id+'\',\'num\',this.value)">'+
-      '<input type="text" placeholder="Situação" value="'+(p.hs||'').replace(/"/g,'&quot;')+'" onchange="atualizarProjeto(\''+p.id+'\',\'hs\',this.value)">'+
-      '<button class="rowlist-del" onclick="removerProjeto(\''+p.id+'\')">✕</button>'+
+    var extra = '';
+    if(p.tipo==='habite-se'){
+      var opcoesProjeto = efProjetos.filter(function(x){ return x.tipo==='projeto'; });
+      extra = '<div class="frow" style="margin-top:6px">'+
+        '<div class="fcol"><label class="lbl">Projeto vinculado</label>'+
+          '<select onchange="atualizarProjeto(\''+p.id+'\',\'projetoVinculadoId\',this.value)">'+
+            '<option value="">— nenhum —</option>'+
+            opcoesProjeto.map(function(op){ return '<option value="'+op.id+'" '+(p.projetoVinculadoId===op.id?'selected':'')+'>'+(op.num||'(sem número)')+'</option>'; }).join('')+
+          '</select>'+
+        '</div>'+
+      '</div>';
+    } else if(p.tipo==='funcionamento'){
+      extra = '<div class="frow" style="margin-top:6px">'+
+        '<div class="fcol"><label class="lbl">Emissão/renovação</label><input type="text" placeholder="DD/MM/AAAA" value="'+(p.dataEmissao||'').replace(/"/g,'&quot;')+'" onchange="atualizarProjeto(\''+p.id+'\',\'dataEmissao\',this.value);recalcularVencimentoProtocolo(\''+p.id+'\')"></div>'+
+        '<div class="fcol"><label class="lbl">Validade (anos)</label><input type="number" min="1" style="width:70px" value="'+(p.validadeAnos||carregarValidadeFuncAnos())+'" onchange="atualizarProjeto(\''+p.id+'\',\'validadeAnos\',this.value);recalcularVencimentoProtocolo(\''+p.id+'\')"></div>'+
+        '<div class="fcol"><label class="lbl">Validade <span style="font-weight:400;color:var(--sub)">(calculada — pode ajustar)</span></label><input type="text" placeholder="DD/MM/AAAA" value="'+(p.vencimento||'').replace(/"/g,'&quot;')+'" onchange="atualizarProjeto(\''+p.id+'\',\'vencimento\',this.value)"></div>'+
+      '</div>';
+    }
+    return '<div class="rowlist-item" style="flex-direction:column;align-items:stretch;gap:4px">'+
+      '<div style="display:flex;gap:8px">'+
+        '<select onchange="atualizarProjeto(\''+p.id+'\',\'tipo\',this.value)" style="flex:0 0 140px">'+
+          '<option value="projeto" '+(p.tipo==='projeto'?'selected':'')+'>Projeto</option>'+
+          '<option value="habite-se" '+(p.tipo==='habite-se'?'selected':'')+'>Habite-se</option>'+
+          '<option value="funcionamento" '+(p.tipo==='funcionamento'?'selected':'')+'>Funcionamento</option>'+
+        '</select>'+
+        '<input type="text" placeholder="Nº do protocolo" value="'+(p.num||'').replace(/"/g,'&quot;')+'" onchange="atualizarProjeto(\''+p.id+'\',\'num\',this.value)">'+
+        '<button class="rowlist-del" onclick="removerProjeto(\''+p.id+'\')">✕</button>'+
+      '</div>'+
+      extra+
     '</div>';
   }).join('') || '<div class="sub" style="margin-bottom:8px">Nenhum protocolo cadastrado.</div>';
-  atualizarSelectProjetoHS();
-  atualizarSecoesProtocolo();
+  atualizarCamposHS();
 }
-function atualizarProjeto(id,campo,val){ var p=efProjetos.find(function(x){return x.id===id;}); if(p) p[campo]=val; atualizarSelectProjetoHS(); atualizarSecoesProtocolo(); }
+function atualizarProjeto(id,campo,val){ var p=efProjetos.find(function(x){return x.id===id;}); if(p) p[campo]=val; if(campo==='tipo') renderProjetos(); else atualizarCamposHS(); }
 function removerProjeto(id){ efProjetos = efProjetos.filter(function(x){return x.id!==id;}); renderProjetos(); }
-
-// Mostra a seção Habite-se só se existir um protocolo do tipo "habite-se" cadastrado,
-// e a seção Funcionamento só se existir um do tipo "funcionamento" — assim as seções
-// aparecem conforme o usuário vai cadastrando em Protocolos.
-function atualizarSecoesProtocolo(){
-  var temHS = efProjetos.some(function(p){ return p.tipo==='habite-se'; });
-  var temFunc = efProjetos.some(function(p){ return p.tipo==='funcionamento'; });
-  document.getElementById('ef-hs-secao').style.display = temHS ? 'block' : 'none';
-  document.getElementById('ef-func-secao').style.display = temFunc ? 'block' : 'none';
-  if(temHS) atualizarCamposHS();
-}
 
 // Sistemas preventivos que têm laudo próprio (validade/observação) — o campo só faz
 // sentido se a edificação tiver esse sistema ativo, então fica dentro do card dele.
@@ -1652,19 +1628,24 @@ function abrirFormEdif(id){
   document.getElementById('ef-resp-tel').value = e ? ((e.responsavel&&e.responsavel.tel)||'') : '';
 
   efProjetos = e && e.projetos ? JSON.parse(JSON.stringify(e.projetos)).map(function(p){p.id=p.id||('proj_'+Math.random().toString(36).slice(2,8));return p;}) : [];
-  renderProjetos();
 
-  document.getElementById('ef-hs-situacao').value = e && e.habiteSe ? (e.habiteSe.situacao||'possui') : 'possui';
-  document.getElementById('ef-hs-protocolo').value = e && e.habiteSe ? (e.habiteSe.protocolo||'') : '';
-  document.getElementById('ef-hs-data').value = e && e.habiteSe ? (e.habiteSe.dataEmissao||'') : '';
-  document.getElementById('ef-hs-obs').value = e && e.habiteSe ? (e.habiteSe.obs||'') : '';
-  document.getElementById('ef-hs-projeto').value = e && e.habiteSe ? (e.habiteSe.projetoId||'') : '';
-  atualizarCamposHS();
-  document.getElementById('ef-funcionamento').value = e ? ((e.vigenciaFuncionamento&&e.vigenciaFuncionamento.situacao)||'') : '';
-  document.getElementById('ef-func-emissao').value = e ? ((e.vigenciaFuncionamento&&e.vigenciaFuncionamento.dataEmissao)||'') : '';
-  document.getElementById('ef-func-validade-anos').value = e && e.vigenciaFuncionamento && e.vigenciaFuncionamento.validadeAnos ? e.vigenciaFuncionamento.validadeAnos : carregarValidadeFuncAnos();
-  document.getElementById('ef-vencimento').value = e ? ((e.vigenciaFuncionamento&&e.vigenciaFuncionamento.vencimento)||'') : '';
-  document.getElementById('ef-protocolo-func').value = e ? ((e.vigenciaFuncionamento&&e.vigenciaFuncionamento.protocolo)||'') : '';
+  // migração de dados antigos (formato anterior, com Habite-se/Funcionamento em seções separadas):
+  // cria a linha de protocolo correspondente se ainda não existir, e completa os campos novos
+  if(e && e.habiteSe && (e.habiteSe.situacao==='possui' || e.habiteSe.situacao==='andamento' || e.habiteSe.protocolo)){
+    var linhaHS = efProjetos.find(function(p){ return p.tipo==='habite-se'; });
+    if(!linhaHS){ linhaHS = {id:'proj_'+Math.random().toString(36).slice(2,8), tipo:'habite-se'}; efProjetos.push(linhaHS); }
+    if(!linhaHS.num && e.habiteSe.protocolo) linhaHS.num = e.habiteSe.protocolo;
+    if(linhaHS.projetoVinculadoId==null && e.habiteSe.projetoId) linhaHS.projetoVinculadoId = e.habiteSe.projetoId;
+  }
+  if(e && e.vigenciaFuncionamento && (e.vigenciaFuncionamento.situacao==='possui' || e.vigenciaFuncionamento.protocolo || e.vigenciaFuncionamento.vencimento)){
+    var linhaFunc = efProjetos.find(function(p){ return p.tipo==='funcionamento'; });
+    if(!linhaFunc){ linhaFunc = {id:'proj_'+Math.random().toString(36).slice(2,8), tipo:'funcionamento'}; efProjetos.push(linhaFunc); }
+    if(!linhaFunc.num && e.vigenciaFuncionamento.protocolo) linhaFunc.num = e.vigenciaFuncionamento.protocolo;
+    if(!linhaFunc.dataEmissao && e.vigenciaFuncionamento.dataEmissao) linhaFunc.dataEmissao = e.vigenciaFuncionamento.dataEmissao;
+    if(!linhaFunc.validadeAnos && e.vigenciaFuncionamento.validadeAnos) linhaFunc.validadeAnos = e.vigenciaFuncionamento.validadeAnos;
+    if(!linhaFunc.vencimento && e.vigenciaFuncionamento.vencimento) linhaFunc.vencimento = e.vigenciaFuncionamento.vencimento;
+  }
+  renderProjetos();
 
   efInquilinos = e && e.inquilinos ? JSON.parse(JSON.stringify(e.inquilinos)).map(function(i){i.id=i.id||('inq_'+Math.random().toString(36).slice(2,8));return i;}) : [];
   efPreventivos = e && e.preventivos ? JSON.parse(JSON.stringify(e.preventivos)) : {};
@@ -1704,6 +1685,10 @@ function salvarFormEdif(){
   if(!nome){ alert('Informe o nome da edificação.'); return; }
 
   var db = loadDB();
+  var linhaHSAtual = efProjetos.filter(function(p){return p.tipo==='habite-se';}).pop();
+  var linhaFuncAtual = efProjetos.filter(function(p){return p.tipo==='funcionamento';}).pop();
+  var edifAntes = edifEmEdicaoId ? db.edificacoes.find(function(x){return x.id===edifEmEdicaoId;}) : null;
+
   var dados = {
     re: document.getElementById('ef-re').value.trim(),
     competencia: document.getElementById('ef-fora-comp').checked ? 'fora' : 'bombeiro',
@@ -1720,11 +1705,10 @@ function salvarFormEdif(){
       tel: document.getElementById('ef-resp-tel').value.trim()
     },
     habiteSe: {
-      situacao: document.getElementById('ef-hs-situacao').value,
-      protocolo: document.getElementById('ef-hs-protocolo').value.trim(),
-      dataEmissao: document.getElementById('ef-hs-data').value.trim(),
-      obs: document.getElementById('ef-hs-obs').value.trim(),
-      projetoId: document.getElementById('ef-hs-projeto').value || null
+      situacao: linhaHSAtual ? 'possui' : 'nao_possui',
+      protocolo: linhaHSAtual ? (linhaHSAtual.num||'') : '',
+      projetoId: linhaHSAtual ? (linhaHSAtual.projetoVinculadoId||null) : null,
+      avisoEnviadoEm: (edifAntes && edifAntes.habiteSe) ? edifAntes.habiteSe.avisoEnviadoEm : null
     },
     inquilinos: efInquilinos,
     projetos: efProjetos,
@@ -1732,11 +1716,12 @@ function salvarFormEdif(){
     blocos: efBlocos,
     grauRisco: document.getElementById('ef-risco').value || null,
     vigenciaFuncionamento: {
-      situacao: document.getElementById('ef-funcionamento').value || '',
-      dataEmissao: document.getElementById('ef-func-emissao').value.trim(),
-      validadeAnos: parseInt(document.getElementById('ef-func-validade-anos').value,10) || carregarValidadeFuncAnos(),
-      vencimento: document.getElementById('ef-vencimento').value.trim(),
-      protocolo: document.getElementById('ef-protocolo-func').value.trim()
+      situacao: linhaFuncAtual ? 'possui' : 'nao_possui',
+      protocolo: linhaFuncAtual ? (linhaFuncAtual.num||'') : '',
+      dataEmissao: linhaFuncAtual ? (linhaFuncAtual.dataEmissao||'') : '',
+      validadeAnos: linhaFuncAtual ? (parseInt(linhaFuncAtual.validadeAnos,10)||carregarValidadeFuncAnos()) : carregarValidadeFuncAnos(),
+      vencimento: linhaFuncAtual ? (linhaFuncAtual.vencimento||'') : '',
+      avisoEnviadoEm: (edifAntes && edifAntes.vigenciaFuncionamento) ? edifAntes.vigenciaFuncionamento.avisoEnviadoEm : null
     },
     atualizadoEm: new Date().toISOString()
   };
@@ -2918,6 +2903,50 @@ function enviarAvisoHabiteSe(edifId){
   atualizarCamposHS();
 }
 
+// Mensagem pra edificação sem Funcionamento cadastrado — mesmo padrão do Habite-se
+var MODELO_AVISO_FUNC_NECESSIDADE_PADRAO =
+'*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*\n*{OBM}*\n\n'+
+'Olá, boa tarde.\n'+
+'I. Informamos que a edificação *{NOME} - RE{RE}* não possui Atestado de Funcionamento junto a este Corpo de Bombeiros. É necessário solicitar a Vistoria para Funcionamento no sistema e-SCI.\n\n'+
+'II. Caso não seja dado prosseguimento à solicitação, a edificação ficará sujeita às infrações administrativas previstas na legislação.\n\n'+
+'III. Segue o link do tutorial de como solicitar Vistoria para Funcionamento: {LINK_VISTORIA}\n\n'+
+'VI. *Favor desconsiderar essa mensagem, caso a solicitação já esteja cadastrada no sistema e-SCI.*\n\n'+
+'Att.,\n'+
+'SSCI da {OBM}';
+function carregarModeloAvisoFuncNecessidade(){
+  return localStorage.getItem('vistoria_modelo_aviso_func_necessidade') || MODELO_AVISO_FUNC_NECESSIDADE_PADRAO;
+}
+function salvarModeloAvisoFuncNecessidade(){
+  localStorage.setItem('vistoria_modelo_aviso_func_necessidade', document.getElementById('avisoModeloFuncNecessidade').value);
+}
+function montarMensagemAvisoFuncNecessidade(e){
+  var obm = carregarDadosObm();
+  return carregarModeloAvisoFuncNecessidade()
+    .replace(/{OBM}/g, obm.nome||'')
+    .replace(/{NOME}/g, e.nome||'')
+    .replace(/{RE}/g, e.re||'')
+    .replace(/{LINK_VISTORIA}/g, obm.linkVistoria||'');
+}
+function enviarAvisoFuncionamento(edifId){
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===edifId;});
+  if(!e) return;
+  var telWa = telefoneParaWhatsapp(e.responsavel && e.responsavel.tel);
+  if(!telWa){ alert('Esta edificação não tem telefone cadastrado.'); return; }
+  var jaEnviado = e.vigenciaFuncionamento && e.vigenciaFuncionamento.avisoEnviadoEm;
+  if(jaEnviado){
+    var ok = confirm('Este aviso já foi enviado em '+new Date(jaEnviado).toLocaleString('pt-BR')+'. Enviar de novo mesmo assim?');
+    if(!ok) return;
+  }
+  var texto = window.prompt('Revise a mensagem antes de enviar (pode editar):', montarMensagemAvisoFuncNecessidade(e));
+  if(texto==null) return;
+  window.open('https://wa.me/'+telWa+'?text='+encodeURIComponent(texto), '_blank');
+  e.vigenciaFuncionamento = e.vigenciaFuncionamento || {};
+  e.vigenciaFuncionamento.avisoEnviadoEm = new Date().toISOString();
+  saveDB(db);
+  atualizarCamposHS();
+}
+
 function montarMensagemAvisoMulta(e, m){
   var obm = carregarDadosObm();
   return carregarModeloAvisoMulta()
@@ -3055,6 +3084,7 @@ function renderAvisos(){
   document.getElementById('avisoModelo').value = carregarModeloAviso();
   document.getElementById('avisoModeloPos').value = carregarModeloAvisoPos();
   document.getElementById('avisoModeloHabiteSe').value = carregarModeloAvisoHabiteSe();
+  document.getElementById('avisoModeloFuncNecessidade').value = carregarModeloAvisoFuncNecessidade();
   document.getElementById('avisoModeloMulta').value = carregarModeloAvisoMulta();
   document.getElementById('diasPosVencimento').value = carregarDiasPosVencimento();
   var janelas = carregarJanelasAviso();
