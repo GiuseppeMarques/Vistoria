@@ -165,7 +165,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v40</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v43</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -425,7 +425,15 @@
     <div class="view" id="v-dados">
       <h2>Dados</h2><div class="lead">Sincronização por arquivo (.vst) com o Vistoria Campo — funciona 100% offline, sem servidor.</div>
 
-      <div class="card2-box">
+      <div class="card2-box" style="border:1px solid var(--red2)">
+        <div class="sec-title" style="margin-top:0">💾 Backup completo</div>
+        <div class="sub" style="margin-bottom:14px">Salva TUDO deste computador: todas as edificações, todas as vistorias (concluídas e pendentes), rotas, avisos já enviados, e as configurações de Avisos (nome da OBM, links, mensagens, datas). É diferente do "Exportar pro Campo" ao lado, que só manda uma parte pra sincronizar com o celular. Guarde esse arquivo num lugar seguro (nuvem, pendrive) — é ele que te salva se perder o navegador ou o computador.</div>
+        <button class="btn primary" onclick="exportarBackupCompleto()">💾 Baixar backup completo</button>
+        <input type="file" id="importBackupInput" accept=".vst,.json" style="display:none" onchange="restaurarBackupCompleto(this)">
+        <button class="btn" style="margin-top:8px" onclick="document.getElementById('importBackupInput').click()">♻️ Restaurar backup completo</button>
+      </div>
+
+      <div class="card2-box" style="margin-top:16px">
         <div class="sec-title" style="margin-top:0">Enviar pro Campo</div>
         <div class="sub" style="margin-bottom:14px">Gera um arquivo com edificações, vistorias planejadas e rotas — leve pro celular e importe lá em "Mais".</div>
         <button class="btn primary" onclick="exportarParaCampo()">⬇️ Exportar pacote (.vst)</button>
@@ -1920,25 +1928,28 @@ function abrirRelatorio(vistId){
   var gruposAtivos = getGruposAtivosQuartel(e);
   var grupos = Object.keys(cl).filter(function(g){return gruposAtivos.indexOf(g)>=0;});
 
-  // Pendências gerais (checklist — não ligadas a um bloco/andar específico)
+  // Pendências gerais (checklist — não ligadas a um bloco/andar específico).
+  // Item nunca marcado (não avaliado) agora conta como APROVADO — só entra aqui o que foi
+  // explicitamente marcado como não conforme.
   var pendGerais = [];
   var reprovadosChecklist = 0;
   grupos.forEach(function(g){
     cl[g].forEach(function(it){
       var d = v.checklist[it.id];
-      var st = (d&&d.status) || 'naoAv';
-      if(st==='nao' || st==='naoAv'){
+      var st = (d&&d.status) || 'ok';
+      if(st==='nao'){
         reprovadosChecklist++;
         pendGerais.push({
           texto: it.c,
-          motivo: st==='naoAv' ? 'Item não avaliado durante a vistoria' : (d.causa || 'Não conforme'),
+          motivo: d.causa || 'Não conforme',
           obs: d && d.obs
         });
       }
     });
   });
 
-  // Pendências de preventivos, organizadas por Bloco > Pavimento
+  // Pendências de preventivos quantificados, organizadas por Bloco > Pavimento —
+  // aqui o que não foi contado continua marcado como falta (regra diferente da não-quantificada).
   var porBloco = []; // [{nomeBloco, pavimentos:[{label, itens:[...]}]}]
   var totalPendBloco = 0;
   if(e && e.blocos && e.blocos.length){
@@ -1962,9 +1973,9 @@ function abrirRelatorio(vistId){
             itensPav.push({ texto:(s?s.l:sid), motivo: m.qtd+' un. reprovada(s): '+(m.motivo||'motivo não especificado'), obs: qd.obs });
           });
           if(aprovados==null && motivos.length===0){
-            itensPav.push({ texto:(s?s.l:sid), motivo:'Não contado durante a vistoria (esperado '+esperado+' un.)', obs: qd.obs });
+            itensPav.push({ texto:(s?s.l:sid), motivo:'Falta contar (esperado '+esperado+' un., nenhuma verificada)', obs: qd.obs });
           } else if(totalContado < esperado){
-            itensPav.push({ texto:(s?s.l:sid), motivo:'Faltam '+(esperado-totalContado)+' un. não localizada(s) (esperado '+esperado+')', obs: qd.obs });
+            itensPav.push({ texto:(s?s.l:sid), motivo:'Falta '+(esperado-totalContado)+' un. (esperado '+esperado+', encontrado '+totalContado+')', obs: qd.obs });
           }
         });
         if(itensPav.length){ pavsComPend.push({label: pav.label, itens: itensPav}); totalPendBloco += itensPav.length; }
@@ -1976,38 +1987,12 @@ function abrirRelatorio(vistId){
   var totalItens = grupos.reduce(function(n,g){return n+cl[g].length;}, 0);
   var totalPendencias = pendGerais.length + totalPendBloco;
 
-  var html = '<h3>'+(e?e.nome:'—')+'</h3>'+
-    '<div class="sub">'+(e?e.re:'')+' · '+(v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+' · concluída em '+
-    (v.concluidaEm?new Date(v.concluidaEm).toLocaleString('pt-BR'):'—')+'</div>';
-  html += '<div class="rep-grp" style="margin-top:16px">Resumo</div>'+
-    '<div class="rep-item">'+(totalItens-reprovadosChecklist)+' de '+totalItens+' itens do checklist conformes · '+totalPendencias+' pendência(s) no total</div>';
-
-  if(totalPendencias===0){
-    html += '<div class="rep-item">✅ Nenhuma pendência — todos os itens avaliados e conformes.</div>';
-  } else {
-    if(porBloco.length){
-      html += '<div class="rep-grp">Pendências por bloco e pavimento</div>';
-      porBloco.forEach(function(b){
-        html += '<div style="font-weight:800;margin-top:10px">'+b.nomeBloco+'</div>';
-        b.pavimentos.forEach(function(p){
-          html += '<div style="font-weight:700;color:var(--sub);margin:4px 0 4px 8px">'+p.label+'</div>';
-          p.itens.forEach(function(it){
-            html += '<div class="rep-item nc" style="margin-left:16px"><span class="st">❌</span><b>'+it.texto+'</b><div class="sub" style="margin-left:20px">'+it.motivo+(it.obs?'<br>Obs: '+it.obs:'')+'</div></div>';
-          });
-        });
-      });
-    }
-    if(pendGerais.length){
-      html += '<div class="rep-grp">Pendências gerais (checklist)</div>';
-      pendGerais.forEach(function(r){
-        html += '<div class="rep-item nc"><span class="st">❌</span><b>'+r.texto+'</b><div class="sub" style="margin-left:20px">'+r.motivo+(r.obs?'<br>Obs: '+r.obs:'')+'</div></div>';
-      });
-    }
-  }
-
   var textoRelatorio = gerarRelatorioTexto(e, v, pendGerais, porBloco, totalItens, reprovadosChecklist, totalPendencias);
   window._relatorioTextoAtual = textoRelatorio;
 
+  var html = '<pre style="white-space:pre-wrap;font-family:inherit;font-size:14px;line-height:1.6;margin:0">'+
+    textoRelatorio.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+
+  '</pre>';
   html += '<div class="modal-actions"><button class="btn" onclick="copiarRelatorioTexto()">📋 Copiar em texto</button><button class="btn primary" onclick="document.getElementById(\'modalRelatorio\').style.display=\'none\'">Fechar</button></div>';
   document.getElementById('relatorioBody').innerHTML = html;
   document.getElementById('modalRelatorio').style.display='flex';
@@ -2018,10 +2003,11 @@ function gerarRelatorioTexto(e, v, pendGerais, porBloco, totalItens, reprovadosC
   linhas.push((e?e.nome:'—')+' — RE '+(e?e.re:''));
   linhas.push((v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+' · concluída em '+(v.concluidaEm?new Date(v.concluidaEm).toLocaleString('pt-BR'):'—'));
   linhas.push('');
-  linhas.push('RESUMO: '+(totalItens-reprovadosChecklist)+' de '+totalItens+' itens do checklist conformes · '+totalPendencias+' pendência(s) no total');
+  linhas.push('RESUMO: '+(totalItens-reprovadosChecklist)+' de '+totalItens+' itens do checklist aprovados · '+totalPendencias+' pendência(s) no total');
+  linhas.push('(Item de checklist não marcado é considerado aprovado. Item quantificado não contado é considerado falta.)');
   linhas.push('');
   if(totalPendencias===0){
-    linhas.push('Nenhuma pendência — todos os itens avaliados e conformes.');
+    linhas.push('Nenhuma pendência — todos os itens aprovados.');
   } else {
     if(porBloco.length){
       linhas.push('=== PENDÊNCIAS POR BLOCO E PAVIMENTO ===');
@@ -3112,6 +3098,7 @@ function excluirRota(id){
   db.vistorias.forEach(function(v){ if(v.rotaId===id) v.rotaId=null; });
   saveDB(db);
   renderRotas();
+  if(qmap) renderQMapaConteudo();
 }
 
 // ════════════════════════════════════════
@@ -3511,7 +3498,9 @@ function renderQMapaConteudo(){
     }).filter(Boolean);
     if(pontos.length>1){
       L.polyline(pontos, {color:'#E0393F', weight:3, opacity:.8, dashArray:'6,6'}).addTo(qlyRotas)
-        .bindTooltip(r.nome, {sticky:true});
+        .bindTooltip(r.nome, {sticky:true})
+        .bindPopup('<div style="text-align:center"><b>'+r.nome+'</b><br>'+r.vistorias.length+' vistorias<br>'+
+          '<button class="btn" style="background:var(--red2);margin-top:8px;width:100%" onclick="excluirRota(\''+r.id+'\')">🗑️ Excluir esta rota</button></div>');
     }
   });
 
@@ -3536,6 +3525,64 @@ function baixarPacote(pacote){
   a.href = URL.createObjectURL(blob);
   a.download = nomeArquivoVst();
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+// ════════════════════════════════════════
+// BACKUP COMPLETO — captura TUDO (db inteiro + configurações da aba Avisos que
+// ficam salvas fora do banco principal) — diferente do "Exportar pro Campo",
+// que só manda uma fatia dos dados pra sincronizar com o celular.
+// ════════════════════════════════════════
+var CHAVES_CONFIG_AVISOS = [
+  'vistoria_janelas_aviso','vistoria_dias_pos_vencimento','vistoria_modelo_aviso',
+  'vistoria_modelo_aviso_pos','vistoria_obm_nome','vistoria_obm_link_vistoria','vistoria_obm_link_renovacao'
+];
+
+function exportarBackupCompleto(){
+  var db = loadDB();
+  var configuracoes = {};
+  CHAVES_CONFIG_AVISOS.forEach(function(chave){ configuracoes[chave] = localStorage.getItem(chave); });
+
+  var pacote = {
+    tipo: 'backup-completo', versao: 1, geradoEm: new Date().toISOString(),
+    dados: db, // banco inteiro, sem filtrar nada — edificações, TODAS as vistorias, rotas, rotasFixas, avisosEnviados, pontos, trajetórias
+    configuracoes: configuracoes
+  };
+  var blob = new Blob([JSON.stringify(pacote, null, 2)], {type:'application/json'});
+  var a = document.createElement('a');
+  var d = new Date(); function p(n){return (n<10?'0':'')+n;}
+  a.href = URL.createObjectURL(blob);
+  a.download = 'BACKUP_COMPLETO_VISTORIA_'+d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'_'+p(d.getHours())+p(d.getMinutes())+'.vst';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+function restaurarBackupCompleto(input){
+  var file = input.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    try {
+      var pacote = JSON.parse(e.target.result);
+      if(pacote.tipo !== 'backup-completo'){
+        alert('Esse arquivo não é um backup completo (é um pacote de sincronização normal). Use "Importar arquivo do Campo" pra esse tipo de arquivo, ou gere um backup completo pra restaurar aqui.');
+        return;
+      }
+      if(!confirm('Restaurar este backup? Os dados salvos agora neste navegador serão SUBSTITUÍDOS pelos do arquivo (edificações, vistorias, rotas, avisos enviados e configurações). Essa ação não pode ser desfeita.')) return;
+
+      saveDB(pacote.dados || {});
+      if(pacote.configuracoes){
+        CHAVES_CONFIG_AVISOS.forEach(function(chave){
+          var val = pacote.configuracoes[chave];
+          if(val!=null) localStorage.setItem(chave, val); else localStorage.removeItem(chave);
+        });
+      }
+      alert('Backup restaurado com sucesso! A página vai recarregar.');
+      location.reload();
+    } catch(err){
+      alert('Não foi possível ler esse arquivo de backup.');
+    }
+  };
+  reader.readAsText(file);
+  input.value = '';
 }
 
 function exportarParaCampo(){
