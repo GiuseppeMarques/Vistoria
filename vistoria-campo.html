@@ -210,7 +210,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v36</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v37</div>
   </header>
 
   <main>
@@ -728,6 +728,15 @@ var GRUPOS_FIXOS = ['Documentação', 'Características Gerais do Bloco', 'Carac
 // também de um grupo separado no checklist, senão pergunta a mesma coisa duas vezes.
 var SIDS_SO_CARD_BLOCO = ['ext','shp','ilu','sal'];
 
+// Ordem de exibição de um sistema durante a vistoria — segue a ordem que foi clicada no
+// cadastro da edificação, no Quartel (e.preventivos[sid].ordem). Sem ordem definida (dado
+// antigo), cai pro final, na ordem original do SIST.
+function ordemSist(e, sid){
+  var p = e && e.preventivos && e.preventivos[sid];
+  if(p && p.ordem) return p.ordem;
+  return 1000 + SIST.findIndex(function(s){return s.id===sid;});
+}
+
 function getGruposAtivos(edif, tipo){
   var ativos = GRUPOS_FIXOS.slice();
   var prev = edif ? edif.preventivos||{} : {};
@@ -1191,7 +1200,8 @@ function renderExecucao(){
     e.blocos.forEach(function(bloco, bi){
       html += '<div class="grupo-title">'+bloco.nome+'</div>';
       (bloco.pavimentos||[]).forEach(function(pav, pi){
-        var sids = Object.keys(pav.sist||{}).filter(function(sid){ return pav.sist[sid].ativo; });
+        var sids = Object.keys(pav.sist||{}).filter(function(sid){ return pav.sist[sid].ativo; })
+          .sort(function(a,b){ return ordemSist(e,a)-ordemSist(e,b); });
         html += '<div class="pav-card" style="margin-bottom:10px"><div class="pav-h">'+pav.label+'</div>';
         if(!sids.length){
           html += '<div class="sub" style="padding:2px 0">Nenhum sistema detalhado neste andar.</div>';
@@ -2742,6 +2752,7 @@ function abrirDetalhesCompletos(id){
       '</div>';
       (bloco.pavimentos||[]).forEach(function(pav){
         var sistPav = Object.keys(pav.sist||{}).filter(function(sid){ return pav.sist[sid].ativo; })
+          .sort(function(a,b){ return ordemSist(e,a)-ordemSist(e,b); })
           .map(function(sid){
             var s=SIST.find(function(x){return x.id===sid;});
             var pd = pav.sist[sid];

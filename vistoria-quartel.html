@@ -165,7 +165,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v43</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v44</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -589,6 +589,10 @@
       <div class="fcol"><label class="lbl">Telefone</label><input type="text" id="ef-resp-tel"></div>
     </div>
 
+    <div class="sec-title">Projetos</div>
+    <div id="ef-projetos"></div>
+    <button class="btn" style="margin-bottom:10px" onclick="addProjetoRow()">+ Adicionar projeto</button>
+
     <div class="sec-title">Habite-se</div>
     <div class="frow">
       <div class="fcol"><label class="lbl">Situação</label>
@@ -604,23 +608,26 @@
       <div class="fcol"><label class="lbl">Data de emissão</label><input type="text" id="ef-hs-data" placeholder="DD/MM/AAAA"></div>
       <div class="fcol"><label class="lbl">Observação</label><input type="text" id="ef-hs-obs" placeholder="Opcional"></div>
     </div>
+    <div class="frow">
+      <div class="fcol"><label class="lbl">Projeto vinculado</label>
+        <select id="ef-hs-projeto" onchange="atualizarVinculoProjetoHS()"><option value="">— nenhum —</option></select>
+      </div>
+    </div>
 
     <div class="sec-title">Funcionamento e laudos</div>
     <div class="frow">
       <div class="fcol"><label class="lbl">Situação do funcionamento</label>
-        <select id="ef-funcionamento"><option value="">—</option><option value="valido">Válido</option><option value="vencido">Vencido</option><option value="nao_possui">Não possui</option></select>
+        <select id="ef-funcionamento" onchange="atualizarVencimentoAutomatico()"><option value="">—</option><option value="valido">Válido</option><option value="vencido">Vencido</option><option value="nao_possui">Não possui</option></select>
       </div>
-      <div class="fcol"><label class="lbl">Vencimento</label><input type="text" id="ef-vencimento" placeholder="DD/MM/AAAA"></div>
+      <div class="fcol"><label class="lbl">Data de emissão/renovação</label><input type="text" id="ef-func-emissao" placeholder="DD/MM/AAAA" onchange="atualizarVencimentoAutomatico()"></div>
+      <div class="fcol"><label class="lbl">Validade (anos)</label><input type="number" id="ef-func-validade-anos" min="1" style="width:70px" onchange="atualizarVencimentoAutomatico()"></div>
+      <div class="fcol"><label class="lbl">Vencimento <span style="font-weight:400;color:var(--sub)">(calculado — pode ajustar)</span></label><input type="text" id="ef-vencimento" placeholder="DD/MM/AAAA"></div>
       <div class="fcol"><label class="lbl">Protocolo</label><input type="text" id="ef-protocolo-func" placeholder="Ex: F8013001873A"></div>
     </div>
     <div class="frow">
       <div class="fcol"><label class="lbl">Laudo do Alarme</label><input type="text" id="ef-laudo-alarme" placeholder="Validade / observação"></div>
       <div class="fcol"><label class="lbl">Laudo do Hidrante</label><input type="text" id="ef-laudo-hidrante" placeholder="Validade / observação"></div>
     </div>
-
-    <div class="sec-title">Projetos</div>
-    <div id="ef-projetos"></div>
-    <button class="btn" style="margin-bottom:10px" onclick="addProjetoRow()">+ Adicionar projeto</button>
 
     <div class="sec-title">Inquilinos</div>
     <div id="ef-inquilinos"></div>
@@ -919,6 +926,15 @@ var GRUPOS_FIXOS = ['Documentação', 'Características Gerais do Bloco', 'Carac
 // também de um grupo separado no checklist, senão pergunta a mesma coisa duas vezes.
 var SIDS_SO_CARD_BLOCO = ['ext','shp','ilu','sal'];
 
+// Ordem de exibição de um sistema durante a vistoria — segue a ordem que foi clicada no
+// cadastro da edificação (e.preventivos[sid].ordem). Sem ordem definida (dado antigo), cai
+// pro final, na ordem original do SIST.
+function ordemSist(e, sid){
+  var p = e && e.preventivos && e.preventivos[sid];
+  if(p && p.ordem) return p.ordem;
+  return 1000 + SIST.findIndex(function(s){return s.id===sid;});
+}
+
 function getGruposAtivosQuartel(edif){
   var ativos = GRUPOS_FIXOS.slice();
   var prev = edif ? edif.preventivos||{} : {};
@@ -1021,6 +1037,33 @@ function atualizarCamposHS(){
   document.getElementById('ef-hs-protocolo').closest('.fcol').style.display = mostrar ? 'block' : 'none';
   document.getElementById('ef-hs-data').closest('.fcol').style.display = (situacao==='possui') ? 'block' : 'none';
 }
+
+var VALIDADE_FUNC_ANOS_PADRAO = 1;
+function carregarValidadeFuncAnos(){
+  var v = parseInt(localStorage.getItem('vistoria_validade_func_anos'), 10);
+  return (!isNaN(v) && v>0) ? v : VALIDADE_FUNC_ANOS_PADRAO;
+}
+function atualizarVencimentoAutomatico(){
+  var anos = parseInt(document.getElementById('ef-func-validade-anos').value, 10) || carregarValidadeFuncAnos();
+  localStorage.setItem('vistoria_validade_func_anos', anos); // lembra o último valor usado como novo padrão
+  var emissao = parseDataBR(document.getElementById('ef-func-emissao').value);
+  if(!emissao) return; // sem data de emissão não dá pra calcular — deixa o vencimento como está (editável manualmente)
+  var venc = new Date(emissao);
+  venc.setFullYear(venc.getFullYear() + anos);
+  var p = function(n){return (n<10?'0':'')+n;};
+  document.getElementById('ef-vencimento').value = p(venc.getDate())+'/'+p(venc.getMonth()+1)+'/'+venc.getFullYear();
+}
+
+function atualizarSelectProjetoHS(){
+  var sel = document.getElementById('ef-hs-projeto');
+  var atual = sel.value;
+  var opcoesProjeto = efProjetos.filter(function(p){ return p.tipo==='projeto'; });
+  sel.innerHTML = '<option value="">— nenhum —</option>'+opcoesProjeto.map(function(p){
+    return '<option value="'+p.id+'">'+(p.num||'(sem número)')+'</option>';
+  }).join('');
+  if(opcoesProjeto.some(function(p){return p.id===atual;})) sel.value = atual;
+}
+function atualizarVinculoProjetoHS(){ /* só existe pro onchange dar feedback visual futuro, se precisar */ }
 
 function renderPendentesCampoNaEdif(db){
   var pendentes = (db.pontos||[]).filter(function(p){
@@ -1173,8 +1216,9 @@ function renderProjetos(){
       '<button class="rowlist-del" onclick="removerProjeto(\''+p.id+'\')">✕</button>'+
     '</div>';
   }).join('') || '<div class="sub" style="margin-bottom:8px">Nenhum projeto cadastrado.</div>';
+  atualizarSelectProjetoHS();
 }
-function atualizarProjeto(id,campo,val){ var p=efProjetos.find(function(x){return x.id===id;}); if(p) p[campo]=val; }
+function atualizarProjeto(id,campo,val){ var p=efProjetos.find(function(x){return x.id===id;}); if(p) p[campo]=val; atualizarSelectProjetoHS(); }
 function removerProjeto(id){ efProjetos = efProjetos.filter(function(x){return x.id!==id;}); renderProjetos(); }
 
 function renderPreventivosForm(){
@@ -1186,9 +1230,14 @@ function renderPreventivosForm(){
       '</div>';
     }
     return '<div class="prev-item on" style="grid-column:1/-1;flex-direction:column;align-items:stretch;gap:6px">'+
-      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">'+
-        '<span class="name" style="cursor:pointer" onclick="togglePrevForm(\''+s.id+'\')">'+s.l+' <span class="sub">('+s.n+')</span></span>'+
-        '<input type="text" class="prev-qty" value="'+(p.qty||1)+'" onchange="setPrevQty(\''+s.id+'\',this.value)">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">'+
+        '<span class="name" style="cursor:pointer">'+(p.ordem?'<span style="color:var(--red2);font-weight:800;margin-right:4px">'+p.ordem+'º</span>':'')+
+        '<span onclick="togglePrevForm(\''+s.id+'\')" style="cursor:pointer">'+s.l+' <span class="sub">('+s.n+')</span></span></span>'+
+        '<div style="display:flex;align-items:center;gap:6px">'+
+          '<button class="btn" style="width:30px;padding:6px 0;font-size:14px" onclick="ajustarPrevQty(\''+s.id+'\',-1)">−</button>'+
+          '<input type="text" class="prev-qty" value="'+(p.qty||1)+'" onchange="setPrevQty(\''+s.id+'\',this.value)">'+
+          '<button class="btn" style="width:30px;padding:6px 0;font-size:14px" onclick="ajustarPrevQty(\''+s.id+'\',1)">+</button>'+
+        '</div>'+
       '</div>'+
       '<input type="text" placeholder="Detalhe / observação (opcional)" value="'+(p.info||'').replace(/"/g,'&quot;')+'" onchange="setPrevInfo(\''+s.id+'\',this.value)">'+
     '</div>';
@@ -1196,11 +1245,36 @@ function renderPreventivosForm(){
 }
 function togglePrevForm(sid){
   if(!efPreventivos[sid]) efPreventivos[sid]={ativo:false,qty:1,info:''};
-  efPreventivos[sid].ativo = !efPreventivos[sid].ativo;
+  var novoAtivo = !efPreventivos[sid].ativo;
+  efPreventivos[sid].ativo = novoAtivo;
+  if(novoAtivo){
+    // vira o próximo número na ordem de clique — assim a ordem que você ativa é a ordem que
+    // vai aparecer depois nos cards da vistoria, por bloco e andar
+    var maiorOrdem = Object.keys(efPreventivos).reduce(function(max,k){
+      return efPreventivos[k].ativo && efPreventivos[k].ordem ? Math.max(max, efPreventivos[k].ordem) : max;
+    }, 0);
+    efPreventivos[sid].ordem = maiorOrdem + 1;
+  } else {
+    efPreventivos[sid].ordem = null;
+  }
+  renderPreventivosForm();
+  renderBlocosForm();
+}
+function ajustarPrevQty(sid, delta){
+  if(!efPreventivos[sid]) return;
+  efPreventivos[sid].qty = Math.max(0, (efPreventivos[sid].qty||0) + delta);
   renderPreventivosForm();
 }
-function setPrevQty(sid,val){ if(efPreventivos[sid]) efPreventivos[sid].qty = parseInt(val)||1; }
+function setPrevQty(sid,val){ if(efPreventivos[sid]) efPreventivos[sid].qty = parseInt(val)||0; }
 function setPrevInfo(sid,val){ if(efPreventivos[sid]) efPreventivos[sid].info = val; }
+
+// ordem de exibição de um sistema, baseada na ordem de clique lá no toggle geral —
+// sistemas sem ordem definida (dados antigos) ficam no fim, na ordem original do SIST
+function ordemPrev(sid){
+  var p = efPreventivos[sid];
+  if(p && p.ordem) return p.ordem;
+  return 1000 + SIST.findIndex(function(s){return s.id===sid;});
+}
 
 function addBloco(){
   var letra = String.fromCharCode(65 + efBlocos.length); // A, B, C...
@@ -1245,8 +1319,15 @@ function setPavSistInfoBloco(bi, pi, sid, val){
   if(!sist[sid]) sist[sid]={ativo:false,qty:0,info:''};
   sist[sid].info = val;
 }
+function ajustarPavSistQty(bi, pi, sid, delta){
+  var sist = efBlocos[bi].pavimentos[pi].sist;
+  if(!sist[sid]) sist[sid]={ativo:false,qty:0,info:''};
+  sist[sid].qty = Math.max(0, (sist[sid].qty||0) + delta);
+  renderBlocosForm();
+}
 function renderBlocosForm(){
-  var ativos = Object.keys(efPreventivos).filter(function(sid){return efPreventivos[sid].ativo;});
+  var ativos = Object.keys(efPreventivos).filter(function(sid){return efPreventivos[sid].ativo;})
+    .sort(function(a,b){ return ordemPrev(a) - ordemPrev(b); });
   var box = document.getElementById('ef-blocos');
   if(!efBlocos.length){ box.innerHTML = '<div class="sub">Nenhum bloco cadastrado ainda. Se a edificação é uma construção só, não precisa criar bloco.</div>'; return; }
 
@@ -1258,7 +1339,13 @@ function renderBlocosForm(){
         return '<div class="pav-sist-row" style="flex-direction:column;align-items:stretch;gap:4px">'+
           '<div style="display:flex;align-items:center;gap:8px">'+
             '<label style="flex:1"><input type="checkbox" '+(pd.ativo?'checked':'')+' onchange="setPavSistAtivoBloco('+bi+','+pi+',\''+sid+'\',this.checked)"> '+s.l+'</label>'+
-            (pd.ativo ? '<input type="text" class="prev-qty" value="'+(pd.qty||0)+'" onchange="setPavSistQtyBloco('+bi+','+pi+',\''+sid+'\',this.value)">' : '')+
+            (pd.ativo ? (
+              '<div style="display:flex;align-items:center;gap:6px">'+
+                '<button class="btn" style="width:26px;padding:5px 0;font-size:13px" onclick="ajustarPavSistQty('+bi+','+pi+',\''+sid+'\',-1)">−</button>'+
+                '<input type="text" class="prev-qty" value="'+(pd.qty||0)+'" onchange="setPavSistQtyBloco('+bi+','+pi+',\''+sid+'\',this.value)">'+
+                '<button class="btn" style="width:26px;padding:5px 0;font-size:13px" onclick="ajustarPavSistQty('+bi+','+pi+',\''+sid+'\',1)">+</button>'+
+              '</div>'
+            ) : '')+
           '</div>'+
           (pd.ativo ? '<input type="text" placeholder="Detalhe / observação (opcional)" value="'+(pd.info||'').replace(/"/g,'&quot;')+'" onchange="setPavSistInfoBloco('+bi+','+pi+',\''+sid+'\',this.value)">' : '')+
         '</div>';
@@ -1483,19 +1570,25 @@ function abrirFormEdif(id){
   document.getElementById('ef-lng').value = e ? (e.lng||'') : '';
   document.getElementById('ef-resp-nome').value = e ? ((e.responsavel&&e.responsavel.nome)||'') : '';
   document.getElementById('ef-resp-tel').value = e ? ((e.responsavel&&e.responsavel.tel)||'') : '';
+
+  efProjetos = e && e.projetos ? JSON.parse(JSON.stringify(e.projetos)).map(function(p){p.id=p.id||('proj_'+Math.random().toString(36).slice(2,8));return p;}) : [];
+  renderProjetos();
+
   document.getElementById('ef-hs-situacao').value = e && e.habiteSe ? (e.habiteSe.situacao||'possui') : 'possui';
   document.getElementById('ef-hs-protocolo').value = e && e.habiteSe ? (e.habiteSe.protocolo||'') : '';
   document.getElementById('ef-hs-data').value = e && e.habiteSe ? (e.habiteSe.dataEmissao||'') : '';
   document.getElementById('ef-hs-obs').value = e && e.habiteSe ? (e.habiteSe.obs||'') : '';
+  document.getElementById('ef-hs-projeto').value = e && e.habiteSe ? (e.habiteSe.projetoId||'') : '';
   atualizarCamposHS();
   document.getElementById('ef-funcionamento').value = e ? ((e.vigenciaFuncionamento&&e.vigenciaFuncionamento.situacao)||'') : '';
+  document.getElementById('ef-func-emissao').value = e ? ((e.vigenciaFuncionamento&&e.vigenciaFuncionamento.dataEmissao)||'') : '';
+  document.getElementById('ef-func-validade-anos').value = e && e.vigenciaFuncionamento && e.vigenciaFuncionamento.validadeAnos ? e.vigenciaFuncionamento.validadeAnos : carregarValidadeFuncAnos();
   document.getElementById('ef-vencimento').value = e ? ((e.vigenciaFuncionamento&&e.vigenciaFuncionamento.vencimento)||'') : '';
   document.getElementById('ef-protocolo-func').value = e ? ((e.vigenciaFuncionamento&&e.vigenciaFuncionamento.protocolo)||'') : '';
   document.getElementById('ef-laudo-alarme').value = e ? (e.laudoAlarme||'') : '';
   document.getElementById('ef-laudo-hidrante').value = e ? (e.laudoHidrante||'') : '';
 
   efInquilinos = e && e.inquilinos ? JSON.parse(JSON.stringify(e.inquilinos)).map(function(i){i.id=i.id||('inq_'+Math.random().toString(36).slice(2,8));return i;}) : [];
-  efProjetos = e && e.projetos ? JSON.parse(JSON.stringify(e.projetos)).map(function(p){p.id=p.id||('proj_'+Math.random().toString(36).slice(2,8));return p;}) : [];
   efPreventivos = e && e.preventivos ? JSON.parse(JSON.stringify(e.preventivos)) : {};
 
   if(e && e.blocos){
@@ -1549,7 +1642,8 @@ function salvarFormEdif(){
       situacao: document.getElementById('ef-hs-situacao').value,
       protocolo: document.getElementById('ef-hs-protocolo').value.trim(),
       dataEmissao: document.getElementById('ef-hs-data').value.trim(),
-      obs: document.getElementById('ef-hs-obs').value.trim()
+      obs: document.getElementById('ef-hs-obs').value.trim(),
+      projetoId: document.getElementById('ef-hs-projeto').value || null
     },
     laudoAlarme: document.getElementById('ef-laudo-alarme').value.trim(),
     laudoHidrante: document.getElementById('ef-laudo-hidrante').value.trim(),
@@ -1560,6 +1654,8 @@ function salvarFormEdif(){
     grauRisco: document.getElementById('ef-risco').value || null,
     vigenciaFuncionamento: {
       situacao: document.getElementById('ef-funcionamento').value || '',
+      dataEmissao: document.getElementById('ef-func-emissao').value.trim(),
+      validadeAnos: parseInt(document.getElementById('ef-func-validade-anos').value,10) || carregarValidadeFuncAnos(),
       vencimento: document.getElementById('ef-vencimento').value.trim(),
       protocolo: document.getElementById('ef-protocolo-func').value.trim()
     },
@@ -1957,7 +2053,7 @@ function abrirRelatorio(vistId){
       var pavsComPend = [];
       (bloco.pavimentos||[]).forEach(function(pav, pi){
         var itensPav = [];
-        Object.keys(pav.sist||{}).forEach(function(sid){
+        Object.keys(pav.sist||{}).sort(function(a,b){return ordemSist(e,a)-ordemSist(e,b);}).forEach(function(sid){
           if(!pav.sist[sid].ativo) return;
           var esperado = pav.sist[sid].qty||0;
           var chave = bi+'_'+pi+'_'+sid;
@@ -2348,7 +2444,8 @@ function renderExecucaoQuartel(){
     e.blocos.forEach(function(bloco, bi){
       html += '<div class="grupo-title">'+bloco.nome+'</div>';
       (bloco.pavimentos||[]).forEach(function(pav, pi){
-        var sids = Object.keys(pav.sist||{}).filter(function(sid){ return pav.sist[sid].ativo; });
+        var sids = Object.keys(pav.sist||{}).filter(function(sid){ return pav.sist[sid].ativo; })
+          .sort(function(a,b){ return ordemSist(e,a)-ordemSist(e,b); });
         html += '<div class="pav-card" style="margin-bottom:10px"><div class="pav-h">'+pav.label+'</div>';
         if(!sids.length){
           html += '<div class="sub" style="padding:2px 0">Nenhum sistema detalhado neste andar.</div>';
