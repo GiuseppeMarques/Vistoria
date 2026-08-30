@@ -210,7 +210,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v39</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v40</div>
   </header>
 
   <main>
@@ -309,6 +309,7 @@
     <!-- VISTORIAS -->
     <div class="view" id="v-vist">
       <div id="vistRotaFiltro" style="margin-bottom:4px"></div>
+      <button class="btn" style="background:var(--red2);margin-bottom:8px" onclick="excluirTodasVistoriasCampo()">🗑️ Excluir todas (dessa lista)</button>
       <div id="vistCampoList" style="padding-top:4px"></div>
     </div>
 
@@ -861,6 +862,30 @@ function abrirExecucao(edificacaoId){
   document.getElementById('modalEdif').style.display='none';
   document.getElementById('execOverlay').style.display='flex';
   renderExecucao();
+}
+
+function excluirTodasVistoriasCampo(){
+  var db = loadDB();
+  var alvo = (db.vistorias||[]).filter(function(v){
+    if(vistFiltroRota==='') return true;
+    if(vistFiltroRota==='sem') return !v.rotaId;
+    return v.rotaId===vistFiltroRota;
+  });
+  if(!alvo.length){ alert('Não há vistorias nessa lista pra excluir.'); return; }
+  var ok = confirm('Excluir '+alvo.length+' vistoria(s)? Essa ação NÃO PODE ser desfeita.');
+  if(!ok) return;
+  var ok2 = confirm('Tem certeza mesmo? '+alvo.length+' vistoria(s) serão apagadas permanentemente.');
+  if(!ok2) return;
+  var idsAlvo = alvo.map(function(v){return v.id;});
+  db.vistorias = (db.vistorias||[]).filter(function(v){ return idsAlvo.indexOf(v.id)<0; });
+  (db.trajetorias||[]).forEach(function(t){
+    if(t.vistoriasRealizadas) t.vistoriasRealizadas = t.vistoriasRealizadas.filter(function(id){return idsAlvo.indexOf(id)<0;});
+  });
+  (db.rotas||[]).forEach(function(r){
+    if(r.vistorias) r.vistorias = r.vistorias.filter(function(id){return idsAlvo.indexOf(id)<0;});
+  });
+  saveDB(db);
+  renderVistoriasCampo();
 }
 
 function excluirVistoriaCampo(vistId){

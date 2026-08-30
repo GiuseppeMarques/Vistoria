@@ -165,7 +165,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v52</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v53</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -221,6 +221,7 @@
           <button data-f="concluidas" onclick="setFiltroVist('concluidas')">Concluídas</button>
         </div>
         <button class="btn primary" onclick="abrirPlanejarVist()">+ Planejar vistoria</button>
+        <button class="btn" style="background:var(--red2)" onclick="excluirTodasVistorias()">🗑️ Excluir todas</button>
       </div>
       <div id="vistList"></div>
     </div>
@@ -1778,6 +1779,28 @@ function excluirEdificacao(){
   saveDB(db);
   fecharFormEdif();
   renderEdificacoes();
+}
+
+function excluirTodasVistorias(){
+  var db = loadDB();
+  var alvo = (db.vistorias||[]).filter(function(v){
+    if(filtroVist==='pendentes') return !v.concluida;
+    if(filtroVist==='concluidas') return v.concluida;
+    return true;
+  });
+  if(!alvo.length){ alert('Não há vistorias nessa lista pra excluir.'); return; }
+  var rotulo = filtroVist==='pendentes' ? 'PENDENTES' : (filtroVist==='concluidas' ? 'CONCLUÍDAS' : 'TODAS');
+  var ok = confirm('Excluir '+alvo.length+' vistoria(s) '+rotulo+'? Essa ação NÃO PODE ser desfeita.');
+  if(!ok) return;
+  var ok2 = confirm('Tem certeza mesmo? '+alvo.length+' vistoria(s) serão apagadas permanentemente.');
+  if(!ok2) return;
+  var idsAlvo = alvo.map(function(v){return v.id;});
+  db.vistorias = (db.vistorias||[]).filter(function(v){ return idsAlvo.indexOf(v.id)<0; });
+  (db.rotas||[]).forEach(function(r){
+    if(r.vistorias) r.vistorias = r.vistorias.filter(function(id){return idsAlvo.indexOf(id)<0;});
+  });
+  saveDB(db);
+  renderVistorias();
 }
 
 function excluirVistoria(vistId){
