@@ -165,7 +165,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v50</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v52</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -884,7 +884,6 @@ var CL_FN = {
     {id:'f9',obj:'IN 6',c:'Extintores pressurizados, lacre intacto, hidrostático válido (5 anos)',ca:'Todos os extintores devem estar com lacre intacto, pressurizados e hidrostático válido (5 anos).'}
   ],
   'Sistema Hidráulico Preventivo — IN 7': [
-    {id:'f10',obj:'IN 7',c:'Inspeção do reservatório e tubulações a cada 5 anos por RT (DRT)',ca:'Necessário realizar inspeção do reservatório e tubulações por RT, com emissão de DRT.'},
     {id:'f11',obj:'IN 7',c:'Manutenção das bombas de incêndio a cada 3 anos (DRT)',ca:'Necessário realizar manutenção das bombas de incêndio com DRT.'},
     {id:'f12',obj:'IN 7',c:'Abrigos com mangueira, esguicho e conexão tipo storz',ca:'Todos os abrigos devem possuir mangueira(s), esguicho e conexão tipo storz.'},
     {id:'f13',obj:'IN 7',c:'Hidrante de recalque com adaptador storz, tampão e livre de entulho',ca:'Falta adaptador storz / tampão no hidrante de recalque ou há sujeira/entulhos.'}
@@ -903,10 +902,6 @@ var CL_FN = {
   'Iluminação de Emergência — IN 11': [
     {id:'f19',obj:'IN 11',c:'Sistema funcionando (teste amostragem)',ca:'As luminárias de emergência não estão funcionando.'},
     {id:'f20',obj:'IN 11',c:'Quantidade de pontos conforme PPCI',ca:'Quantidade de pontos de iluminação em desacordo com o PPCI.'}
-  ],
-  'Detecção e Alarme — IN 12': [
-    {id:'f21',obj:'IN 12',c:'Relatório de manutenção anual com DRT (com detectores automáticos)',ca:'Necessário apresentar relatório de manutenção anual com DRT, conforme Art. 48 da IN 12.'},
-    {id:'f22',obj:'IN 12',c:'Relatório de manutenção a cada 3 anos (sem detectores automáticos)',ca:'Necessário apresentar relatório de manutenção a cada 3 anos com DRT, conforme Art. 48 da IN 12.'}
   ],
   'Sinalização de Abandono — IN 13': [
     {id:'f23',obj:'IN 13',c:'Placas de SAL nas mudanças de direção, saídas e acessos a escadas',ca:'Instalar sinalização de abandono nas mudanças de direção, saídas e acessos a escadas e rampas.'},
@@ -1275,6 +1270,19 @@ function removerProjeto(id){ efProjetos = efProjetos.filter(function(x){return x
 // Sistemas preventivos que têm laudo próprio (validade/observação) — o campo só faz
 // sentido se a edificação tiver esse sistema ativo, então fica dentro do card dele.
 var SIDS_COM_LAUDO = ['shp','ala'];
+var PERIODICIDADE_LAUDO_PADRAO = {shp: 5, ala: 1}; // anos — shp fixo (IN 7, inspeção reservatório/tubulações), ala escolhido pelo usuário (IN 12)
+
+function statusLaudo(dataStr, anos){
+  var data = parseDataBR(dataStr);
+  if(!data) return null;
+  var venc = new Date(data);
+  venc.setFullYear(venc.getFullYear() + anos);
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  var vencDia = new Date(venc); vencDia.setHours(0,0,0,0);
+  var f = function(n){return (n<10?'0':'')+n;};
+  var vencTxt = f(venc.getDate())+'/'+f(venc.getMonth()+1)+'/'+venc.getFullYear();
+  return {vencido: vencDia < hoje, vencTxt: vencTxt};
+}
 
 function renderPreventivosForm(){
   document.getElementById('ef-preventivos').innerHTML = SIST.map(function(s){
@@ -1282,6 +1290,27 @@ function renderPreventivosForm(){
     if(!p.ativo){
       return '<div class="prev-item">'+
         '<span class="name" style="cursor:pointer" onclick="togglePrevForm(\''+s.id+'\')">'+s.l+' <span class="sub">('+s.n+')</span></span>'+
+      '</div>';
+    }
+    var laudoHtml = '';
+    if(SIDS_COM_LAUDO.indexOf(s.id)>=0){
+      var anos = s.id==='ala' ? (parseInt(p.laudoPeriodicidade,10)||1) : PERIODICIDADE_LAUDO_PADRAO.shp;
+      var status = statusLaudo(p.laudoData, anos);
+      laudoHtml = '<div style="border-top:1px solid var(--border);margin-top:4px;padding-top:8px">'+
+        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+          '<div><label class="lbl" style="margin:0">Data do último laudo apresentado</label>'+
+            '<input type="text" placeholder="DD/MM/AAAA" style="width:120px" value="'+(p.laudoData||'').replace(/"/g,'&quot;')+'" onchange="setPrevLaudoData(\''+s.id+'\',this.value)"></div>'+
+          (s.id==='ala' ? (
+            '<div><label class="lbl" style="margin:0">Periodicidade</label>'+
+              '<select onchange="setPrevLaudoPeriodicidade(\''+s.id+'\',this.value)">'+
+                '<option value="1" '+((p.laudoPeriodicidade||1)==1?'selected':'')+'>Anual (com detectores automáticos)</option>'+
+                '<option value="3" '+(p.laudoPeriodicidade==3?'selected':'')+'>A cada 3 anos (sem detectores automáticos)</option>'+
+              '</select></div>'
+          ) : '')+
+        '</div>'+
+        (status ? '<div style="margin-top:6px;font-size:12px;font-weight:700;color:'+(status.vencido?'var(--red2)':'var(--verde)')+'">'+
+          (status.vencido ? '⚠️ Laudo vencido em '+status.vencTxt : '✅ Laudo válido até '+status.vencTxt)+
+        '</div>' : '<div class="sub" style="margin-top:6px">Informe a data pra calcular a validade.</div>')+
       '</div>';
     }
     return '<div class="prev-item on" style="grid-column:1/-1;flex-direction:column;align-items:stretch;gap:6px">'+
@@ -1295,11 +1324,12 @@ function renderPreventivosForm(){
         '</div>'+
       '</div>'+
       '<input type="text" placeholder="Detalhe / observação (opcional)" value="'+(p.info||'').replace(/"/g,'&quot;')+'" onchange="setPrevInfo(\''+s.id+'\',this.value)">'+
-      (SIDS_COM_LAUDO.indexOf(s.id)>=0 ? '<input type="text" placeholder="Laudo — validade / observação" value="'+(p.laudo||'').replace(/"/g,'&quot;')+'" onchange="setPrevLaudo(\''+s.id+'\',this.value)">' : '')+
+      laudoHtml+
     '</div>';
   }).join('');
 }
-function setPrevLaudo(sid,val){ if(efPreventivos[sid]) efPreventivos[sid].laudo = val; }
+function setPrevLaudoData(sid,val){ if(efPreventivos[sid]){ efPreventivos[sid].laudoData = val; renderPreventivosForm(); } }
+function setPrevLaudoPeriodicidade(sid,val){ if(efPreventivos[sid]){ efPreventivos[sid].laudoPeriodicidade = parseInt(val,10); renderPreventivosForm(); } }
 function togglePrevForm(sid){
   if(!efPreventivos[sid]) efPreventivos[sid]={ativo:false,qty:1,info:''};
   var novoAtivo = !efPreventivos[sid].ativo;
@@ -2253,7 +2283,7 @@ function quTocarMotivoRapido(chave, sid, textoMotivo){
   saveDB(db);
   renderExecucaoQuartel();
 }
-function quRenderCardPrev(label, esperado, chave, qd, anteriorInfo, sid){
+function quRenderCardPrev(label, esperado, chave, qd, anteriorInfo, sid, prevInfo){
   var aprovados = qd.aprovados!=null ? qd.aprovados : (qd.val!=null ? qd.val : null);
   var motivos = qd.motivos || [];
   var reprovadosTotal = motivos.reduce(function(s,m){return s+(m.qtd||0);}, 0);
@@ -2298,6 +2328,19 @@ function quRenderCardPrev(label, esperado, chave, qd, anteriorInfo, sid){
       }).join('')+
     '</div>';
   }
+
+  if(SIDS_COM_LAUDO.indexOf(sid)>=0 && prevInfo){
+    var anosLaudo = sid==='ala' ? (parseInt(prevInfo.laudoPeriodicidade,10)||1) : PERIODICIDADE_LAUDO_PADRAO.shp;
+    var statusL = statusLaudo(prevInfo.laudoData, anosLaudo);
+    if(statusL){
+      html += '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:12px;font-weight:700;color:'+(statusL.vencido?'var(--red2)':'var(--verde)')+'">'+
+        (statusL.vencido ? '⚠️ Laudo vencido em '+statusL.vencTxt : '✅ Laudo válido até '+statusL.vencTxt)+
+      '</div>';
+    } else {
+      html += '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;color:var(--sub)">Data do laudo não informada no cadastro.</div>';
+    }
+  }
+
 
   motivos.forEach(function(m, idx){
     html += '<div style="display:flex;align-items:center;gap:6px;margin:6px 0;padding-left:8px;border-left:2px solid var(--red2)">'+
@@ -2519,7 +2562,7 @@ function renderExecucaoQuartel(){
             var chave = bi+'_'+pi+'_'+sid;
             var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
             var anteriorInfo = quCalcAnteriorInfo(vAnterior, chave);
-            html += quRenderCardPrev(s?s.l:sid, pav.sist[sid].qty||0, chave, qd, anteriorInfo, sid);
+            html += quRenderCardPrev(s?s.l:sid, pav.sist[sid].qty||0, chave, qd, anteriorInfo, sid, e.preventivos && e.preventivos[sid]);
           });
         }
         html += '</div>';
