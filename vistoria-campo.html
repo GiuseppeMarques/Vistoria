@@ -210,7 +210,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v40</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v41</div>
   </header>
 
   <main>
@@ -784,10 +784,25 @@ function renderVistRotaFiltro(){
   if(!rotas.length){ el.innerHTML=''; return; }
   var chips = '<button class="chip '+(vistFiltroRota===''?'on':'')+'" onclick="setVistFiltroRota(\'\')">Todas</button>'+
     rotas.map(function(r){
-      return '<button class="chip '+(vistFiltroRota===r.id?'on':'')+'" onclick="setVistFiltroRota(\''+r.id+'\')">🧭 '+r.nome+'</button>';
+      return '<span style="display:inline-flex;align-items:center;gap:2px">'+
+        '<button class="chip '+(vistFiltroRota===r.id?'on':'')+'" onclick="setVistFiltroRota(\''+r.id+'\')">🧭 '+r.nome+'</button>'+
+        '<button class="chip" style="padding:6px 8px;background:var(--red2);color:#fff" onclick="excluirRotaCampo(\''+r.id+'\')" title="Excluir esta rota">🗑️</button>'+
+      '</span>';
     }).join('')+
     '<button class="chip '+(vistFiltroRota==='sem'?'on':'')+'" onclick="setVistFiltroRota(\'sem\')">Sem rota</button>';
   el.innerHTML = '<div class="btnrow" style="gap:6px;flex-wrap:wrap">'+chips+'</div>';
+}
+function excluirRotaCampo(rotaId){
+  var db = loadDB();
+  var r = (db.rotas||[]).find(function(x){return x.id===rotaId;});
+  if(!r) return;
+  if(!confirm('Excluir a rota "'+r.nome+'"? As vistorias dela continuam existindo, só ficam sem rota. Essa ação não pode ser desfeita.')) return;
+  db.rotas = (db.rotas||[]).filter(function(x){return x.id!==rotaId;});
+  (db.vistorias||[]).forEach(function(v){ if(v.rotaId===rotaId) v.rotaId=null; });
+  saveDB(db);
+  if(vistFiltroRota===rotaId) vistFiltroRota=''; // se estava filtrando por essa rota, volta pra "Todas"
+  renderVistRotaFiltro();
+  renderVistoriasCampo();
 }
 function setVistFiltroRota(id){
   vistFiltroRota = id;
