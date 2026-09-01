@@ -1,0 +1,1764 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eventos Quartel</title>
+<link rel="manifest" href="./manifest-eventos-quartel.json">
+<link rel="icon" type="image/png" href="data:image/png;base64,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">
+<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAYAAAD0eNT6AAAT60lEQVR4nO3d2XUdxxVA0aIXs1AodhAKhOEwEAVhh+I46A8aIgC+qaeqO+z9aWtoVAt9T1U/EGMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABATV9WXwBz/PvP8WP1NQB5/Osv86E6N7gIAx6YSSDk5wYmZNgDEYmCXNysBAx8ICNBEJubE5CBD1QkCGJxM4K4euj/848r/+lANf/577X/fDGwnhuw0NlD35AHZjg7DsTAGhZ9sjOGvkEPRHRGGIiBeSz0JEcGv4EPZHQkCITA9SzwhQx9gJ/EQDwW9QJ7Br+BD3SyJwiEwLks5okMfoBthMA6FvEEWwe/oQ/wu60xIASOsXgHGPwA5xMCc1i0HbYMfkMfYL8tMSAEtrFYG706/A1+gPO8GgIi4HUW6kUGP8B6QuA8FugJgx8gHiFwnIV54JXhb/ADrPNKCIiA2yzKDQY/QC5CYLt/rL6AaAx/gHxeeS5f/WvXs1FD7zz7j8PgB4jv2WmAk4CfLMKw6weoxiuB51p/8WPY9QNU5jTgvtafATD8AWp79hzv/LmAluVj8AP04zTgo3YnAIY/QE9OAz5qFQCGP0BvIuCXNscdj26qwQ/Qz6NXAh1eB7Q4ATD8Afjs0fO/w0lA+QAw/AG4p3MElA4Awx+AZ7pGQNkAMPwBeFXHCCj5IYd7N8vgB+CZex8OrPbBwHInAIY/AEfcmxfVTgJKBYDhD8AZOkRAmQAw/AE4U/UIKBEAhj8AV6gcAekDwPAH4EpVIyB1ABj+AMxQMQLSBkDmRQegjqzzKGUA+EN+AJit2h8WlDIA7jH8AbhSpTmTLgC89wdgpSqfB0gVAIY/ABFUiIA0AWD4AxBJ9ghIEwAAwHlSBIDdPwARZT4FCB8Ahj8AkWWNgNABYPgDkEHGCAgdAADANcIGgN0/AJlkOwUIGQCGPwAZZYqAkAEAAFwrXADY/QOQWZZTgHABcIvhD0AmGeZWqACIVkcAcKZIcy5MADj6B6CS6K8CwgTALYY/AJlFnmMhAiBKDQHADBHmXogAuCVyNQHAq6LOs+UBEKGCAGC21fNveQDcErWWAGCPiHNtaQCsrh8AWGnlHAx3AhCxkgDgqGjzbVkA2P0DwLp5GOoEIFodAcCZIs25JQFg9w8Av6yYi2FOACJVEQBcJcq8CxMAAMA80wPA8T8A/G72fAxxAhDlOAQAZogw96YGgN0/ANw3c04uPwGIUEEAMNvq+bc8AACA+aYFgON/AHhu1rxcegKw+vgDAFZaOQe9AoDOvjuYg66mBMCt4wy7f1jsbfiLAFjq1jyc8RrACQAANCQAoKPPu36nANDO5QHg0/8AsN3V83PJCYD3/7DQvd2+UwBYZsVc9AoAABoSANDJs12+UwBo49IA8ON/APCa2T8O6AQAunh1d+8UAFoQAADQkACADrbu6p0CQHmXBYD3/wCwzczPATgBgOr27uadAkBpAgAAGhIAUNnRXbxTAChLAABAQ5cEgF8ABAGctXt3CgDLXTFXp50A+AkAAHhu1rz0CgAqOnvX7hQAyhEAANCQAIBqrtqtOwWAUgQAADQkAKCSq3fpTgGgDAEAAA2dHgB+CRAsMmt37hQALjfjlwI5AYAK9g7lb1/OvQ4gDQEAXb0N/z0R4BQA0hMAkJ1hDOwgAKCjz7t+pwDQjgCAzAxhYCcBAN3c2+07BYBWBABkFWX4RrkOYBMBAJ082+X7sUBoQwBARtF23dGuB3hKAEAXr+7unQJACwIAsom62456XcBNAgA62LqrdwoA5QkAyCT6Ljv69QF/EwBQ3d7dvFMAKE0AQBZZdtdZrhOaEwBQ2dFdvFMAKEsAQAbZdtXZrhcaEgBQ1Vm7d6cAUJIAgOiy7qazXjc0IQCgorN37U4BoBwBAJFl30Vnv34oTABANVft1p0CQCkCAKKqsnuu8nVAMQIAKrl6l+4UAMoQABBRtV1zta8HChAAEM3eYTlrd+4UAEoQAMAcTgEgFAEAkUTf/a/69wGnEwCQXaZh7BQAwhAAEEW24ZgpPIDfCADILOMQzhY6UJQAgAiyDsWMAQKMMQQA5JV5+GYNHihEAMBq2Ydh5hCBxgQAZBRt6O65nuzhA8kJAFip+xDs/vXDQgIAsom2+38T9bqAmwQArGL3+5N1gCUEAGQSfZcd/fqAvwkAWMGu9yPrAdMJAMgiy+46y3VCcwIAZrPbvc26wFQCADLItqvOdr3QkACAmexyH7M+MI0AgOiy7qazXjc0IQBgFrvb11gnmEIAQGTZd9HZrx8KEwAwg13tNtYLLicAIKoqu+cqXwcUIwDganaz+1g3uJQAgCvtHWLVds3Vvh4oQAAAcTkFgMsIALiK3f9HVb8uSEoAQCSG5O+cAsAlBABcwdC6TeBAGAIAojAc7xNUcDoBAGczrB4TOhCCAIAIDMXnhBWcSgDAmQyp1wgeWE4AwGqG4esEFpxGAMBZDKdthA8sJQBgJUNwO6EFpxAAcAZDaR8BBMsIAFjF8NtPcMFhAgCOMoyOEUKwhACAFQy944QXHCIA4AhD6Bx7g8j6w24CAGaz+wcCEACwl93nuZwCwFQCAGay+3/M+sA0AgD2sOuMxf2AzQQAzGJ3+xrrBFMIANjKbjMm9wU2EQAwg13tNtYLLicAYAu7zNjcH3iZAIBX7R0udrP7WDe41NfVFwBM9ihkKgzd7z9qfB1wMQEAr8i++3/1+t//dRGu/dsXx/pwEa8AoLq9AzTz4M187TCJAIBnMu/+jw7CCIM0wjpCQQIArhBhaJ01vCNEwB5ZrxsmEQDwSNYhcvZ1r16HCEEFxQgAONvqYXXVsF4dAXtkvGaYRADAPRmHx9XXvHJNVocVFCMA4EyGVDwZQw4mEABwi6ERk8CC0wgAOMvq4TQrWjLGUcZrhosJAPjMsIhtdWhBEQIAzmAoxSfs4AMBAO8ZEjkILjhMAMBRhlEeAg/+JgDgjeGQi/CCQwQAHGEI5SP0YIwhAOAnQyEnAQa7CQDYy/DJS/CBAADDIDkhBrsIANjD0MlP+NGcAKA3Q6CGvUHm/tOYAICt7P6BAgQAfdn91eIUADYRAPS096Fv9w8UIQCAOpwCwMsEAP3Y/dfmPsFLBADAGE4BaEcA0Ivdfw/uFzwlAOAZw6QPpwA0IgDow8O9F+EGDwkAeMQQ6Uco0oQAoAcP9Z4EHNwlAOAew6MvwUgDAoD6PMx7E3JwkwCAWwwNhCPFCQBq8xBnDEEHNwgA+Myw4I2ApDABQF0e3rwn7OADAQDvGRJ8JiQpSgBQk4c2twg8+JsAgDeGA/cISgoSANTjYc0jQg/GGAIAfjIUeEZYUowAoBYPaV4h+EAAgGHAywQmhQgA6vBwZgvhR3MCgBr2Dn9DgK2EJkUIAKAvAUhjAoD87P6ZzSkABQgAoLe9ISgCSE4AkJvdP8AuAgDAKQANCQDysvsH2E0AAIzhFIB2BAA52f0DHCIA6MPw5xmnADQiAMjHwxbgMAFAD3b/vMopAE0IAHLxkGUGwUgDAoD6PMyZRaCSiAAgDw9XZhKOFCcAqM1DnNmEKkkIAHLwUGUFAUlhAoC6PLxZRbCSgAAgPg9TVhKSFCUAqMlDm9WEK8EJAGLzECUCQUlBAoB6PKyJQsASmAAgLg9PIhGWFCMAqMVDmmiELEEJAGLy0NxuVvx0jqzOXzvlCADi2Tv8PZyJStASkAAA2EJoUoQAIBa7/2OuXgfrvJ9TAIIRAFDNVUPa8P/FWlCAACAOu//znL0m1vgcTgEIRABAVWcNbcP/NutCcgKAGOz+r3F0fazv+ZwCEIQAgOr2DnHD/zlrRGJfV18A2P1P8H6tHq23NZ3j+w9rzXICgJw8PPezduf69mVfxIoAFvMKgLW8DwVYQgCQj10T0ez9b1IAs5AAYB0PP4BlBAC52P0TlVMAkhEArOGhB7CUACAPu3+icwpAIgKA+TzsAJYTAORg908WTgFIQgAwl4ccQAgCgPjs/snGKQAJCADm8XCjE+FKcAKA2DxE6UYoM4kAYA4PNToSsAQmAIjLw5OuBDMTCACu52FGZ0KWoAQA19o7/D006U44czEBAHA1QUtAX1dfAIXZ/cfz7J5Y+1i+/3BPuIwAgOq2hNj7v9bgOde3L471CcUrAK5h97/e9x/HBs7Rv59zuAdcRABARWcODQPoPAKXQAQA57P7X+uKgS0C1rL+XEAAQCVXDgpD6BxClyAEAOey+19nxoAWAetYe04mAKCCmcPBIDpO8BKAAOA8dv9rrBjIImAN686JBABrGf505b99FhMAnMPOZI2V6+6er2HdOYkAYB07ILrzPcBCAoDj7EhgLt9znEAAsIadz3ERhkCEa8hu7/eCtecgAcAxHkIAKQkA5rP7h4+cArCAAGA/Dx+AtAQAc9n9w21OAZhMALCPhw5AagKAeez+4TGnAEwkANjOwwYgPQHAHHb/54uwphGuoRqnAEwiANjGQwagBAHA6/y6X5jDKQATCADIbGVcCTtITQDwGrt/mMspABcTAJDdisgSdpCeAOA5u//4Zq61+zqPUwAuJACgihmD2fCfz5pzEQHAY3b/uVy57u5pLk4BeEIAQDVXDGrDfy3rzwUEAPfZ/ed15j1wP/NyCsADAgCq+vbl2PA++vdzLveCk31dfQEEZfdfx/t78uy+un/1fP/hvnKTAOA8HjLxuUe5ffviWJ/TeAXA7zxgoBbf09wgADiHnSXM4XuNkwgAPrJTgJp8b/OJAOA4OxKYy/ccJxAA/GKHALX5HucdAcAxdiKwhu89DhIA/GRnAD34Xuf/BAD72YHAWn5dMAcIADwMABoSAOxj9w8xOAVgJwHQnYcAQEsCgO3s/iEWpwDsIAA6880P0JYA6Mqv+4VanAKwkQAAgIYEQEd2/1CTUwA2EAAA0JAA6MbuH2pzCsCLBAAANCQAOrH7hx6cAvACAQAADQmALuz+oRenADwhAACgIQHQgd0/9OQUgAcEAAA0JACqs/uH3pwCcMfX1RdAUL75AUpzAlCZIQ4c4RlSmgAAgIYEQFXKHTiDZ0lZAgAAGhIAFSl24EyeKSUJAABoSABUo9SBK3i2lCMAAKAhAVCJQgeu5BlTigAAgIYEQBXKHJjBs6YMvwugCr+8B4ANnAAAQEMCAAAaEgAA0JAAAICGBAAANCQAAKAhAQAADQkAAGhIAABAQwIAABoSAADQkAAAgIYEAAA0JAAAoCEBAAANCQAAaEgAAEBDAgAAGhIAANDQ6QHwr7/Gl8//23/+e/a/BQDqujU3b83XI5wAAEBDAgAAGhIAANCQAACAhgQAADQkAACgoWkB4EcBAeC5WfPykgA4+2cVAaCzK+aqVwAA0JAAAICGBAAANCQAAKChywLALwUCgG1m/BKgN04AAKAhAQAADQkAAGjo0gDwOQAAeM3M9/9jOAEAgJYEAAA0tCQAvAYAgF9WzMXLA8AvBgKA7a6en14BAEBDAgAAGpoSAH4cEABum/3jf2+cAABAQ0sDwCkAAJ2tnIPTAsBPAwDAc7PmpVcAANDQ8gDwGgCAjlbPv6kB4DUAANw3c04uPwEYY30FAcBMEebe9ABwCgAAv5s9H0OcAAAAc4UJgAjHIQBwtSjzbkkAeA0AAL+smIthTgDGiFNFAHCFSHNuWQA4BQCAdfMw1AnAGLHqCADOEm2+LQ0ApwAAdLZyDoY7ARgjXiUBwBER59ryAHAKAEBHq+ff8gC4J2ItAcBWUedZiABYXUEAMFOEuRciAO6JWk0A8IrIcyxMANyrociLBwD33JtfEXb/YwQKgDHiLAoAXCHSnAsVAPc4BQAgkwxzK1wAeBUAQGbRj/7fhAsAAOB6IQPAKQAAGWXZ/Y8RNADGEAEA5JJp+I8ROAAAgOuEDgCnAABkkG33P0bwABhDBAAQW8bhP0aCABhDBAAQU9bhP0aSAAAAzpUmAJwCABBJ5t3/GIkCYAwRAEAM2Yf/GMkCYAwRAMBaFYb/GAkD4BERAMCVKs2ZlAHwqLIq3RwA4ng0X7Lt/sdIGgBj5FxsAOrJOo/SBsAYPg8AwBxV3vu/lzoAxhABAFyr4vAfo0AAjCECALhG1eE/RpEAGEMEAHCuysN/jEIBMIYIAOAc1Yf/GMUCYAwRAMAxHYb/GKPWF/Pev/8cP+79f//8Y+aVAJBBtZ/zf6bcCcAbf1gQAK/qNvzHKBwAY4gAAJ7rOPzHKB4AY4gAAO7rOvzHaBAAY4gAAH7XefiPUfhDgLc8+mDgGD4cCNDBs41fh+E/RpMTgDfPbqrTAIDaDP9fWgXAGCIAoCvD/6NWX+xnXgkA1Gfw39buBOA9pwEAtRn+97X9wt97dhIwhtMAgExe2cB1Hv5jCIAPvBIAyM+u/zUW4ROnAQA52fVv0/ozALe88h+HzwYAxGL4b2cxHnAaABCbwb+fRXnilQgYQwgAzPTqSazhf5+FeZEQAFjP4D+PBdpICADMZ/Cfz0Lt8GoEjCEEAI7Y8qFrw38bi3XAlhAYQwwAvGLrT1oZ/PtYtBMIAYDjDP65LN6JtobAGGIA6G3Pn6ti8J/DIl5ACAA8ZvCvZzEvtCcE3ggCoJIjf4KqwX8NizqJGAC6MfRjs8CTHQmBN4IAiOiM35Ni8M9joRc6IwbeEwbADGf/QjRDfw2LHsTZMfCZOAC2uPq3nhr667kBAV0dAwArGPqxuBkJCAIgIwM/NjcnIUEARGTg5+JmFSEKgJkM+/zcwCYEArCFAQ8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFPE/imUTHkDtwIcAAAAASUVORK5CYII=">
+<meta name="theme-color" content="#FF6B00">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root{
+    --bg:#0E0E10; --card:#1C1C1E; --card2:#242427; --acc:#FF6B00; --acc2:#FF8A3D;
+    --txt:#F2F2F4; --sub:#9A9AA0; --verde:#34C759; --amar:#FF9F0A; --border:#2C2C2E;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+  #app{display:flex;height:100vh;}
+  aside{width:210px;flex:0 0 auto;background:var(--card);border-right:1px solid var(--border);padding:16px 10px;}
+  aside h1{font-size:16px;margin:0 0 20px 8px;font-weight:800;}
+  aside button{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;color:var(--sub);
+    padding:12px 10px;border-radius:10px;font-size:14px;cursor:pointer;text-align:left;margin-bottom:4px;}
+  aside button.on{background:var(--acc);color:#fff;}
+  main{flex:1 1 auto;overflow-y:auto;padding:24px 28px;}
+  .view{display:none;} .view.on{display:block;}
+  h2.pagetitle{margin:0 0 18px;font-size:22px;}
+  .card{background:var(--card);border-radius:16px;padding:18px;margin-bottom:16px;border:1px solid var(--border);}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+  #map{width:100%;height:calc(100vh - 130px);border-radius:14px;overflow:hidden;}
+  input[type=text],input[type=number],input[type=date],select,textarea{width:100%;background:var(--card2);
+    border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--txt);font-size:13px;
+    margin-bottom:10px;font-family:inherit;}
+  textarea{resize:vertical;min-height:60px;}
+  label.lbl{font-size:12px;color:var(--sub);display:block;margin-bottom:4px;}
+  .btn{border:none;border-radius:10px;padding:11px 16px;font-size:13px;font-weight:700;color:#fff;
+    background:var(--card2);cursor:pointer;}
+  .btn.primary{background:var(--acc);}
+  .btn.ok{background:var(--verde);}
+  .btn.warn{background:var(--amar);color:#1C1C1E;}
+  .btn.sm{padding:7px 12px;font-size:12px;}
+  .chiprow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+  .chip{padding:7px 14px;border-radius:999px;background:var(--card2);color:var(--sub);font-size:12px;
+    font-weight:600;border:1px solid var(--border);cursor:pointer;}
+  .chip.on{background:var(--acc);color:#fff;border-color:var(--acc);}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{text-align:left;color:var(--sub);font-weight:600;padding:8px;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;}
+  td{padding:10px 8px;border-bottom:1px solid var(--border);}
+  tr.rowclick{cursor:pointer;}
+  tr.rowclick:hover{background:var(--card2);}
+  .badge{display:inline-block;font-size:11px;font-weight:800;color:#fff;padding:3px 10px;border-radius:999px;}
+  .checklist{max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:8px;}
+  .checkrow{display:flex;align-items:center;gap:10px;padding:8px;border-radius:8px;}
+  .checkrow:hover{background:var(--card2);}
+  .checkrow input{width:auto;margin:0;}
+  .tag{display:inline-block;padding:6px 10px;border-radius:8px;background:var(--card2);border:1px solid var(--border);
+    font-size:12px;margin:0 6px 6px 0;cursor:pointer;color:var(--sub);}
+  .tag.on{background:var(--acc);color:#fff;border-color:var(--acc);}
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;z-index:2000;}
+  .modal-bg.on{display:flex;}
+  .modal{background:var(--bg);width:560px;max-height:86vh;overflow-y:auto;border-radius:16px;padding:22px;border:1px solid var(--border);}
+  .closebtn{float:right;background:var(--card2);border:none;color:var(--txt);width:28px;height:28px;border-radius:50%;cursor:pointer;}
+  .histitem{border-left:3px solid var(--border);padding:6px 0 6px 12px;margin-bottom:6px;font-size:12px;color:var(--sub);}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--card2);border:1px solid var(--acc);
+    padding:12px 20px;border-radius:10px;font-size:13px;z-index:2000;display:none;}
+  .fileinput{display:none;}
+  h3.sec{font-size:12px;color:var(--sub);text-transform:uppercase;letter-spacing:.5px;margin:16px 0 8px;}
+  .capline{display:flex;gap:8px;align-items:center;margin-bottom:6px;}
+  .capline .l{flex:1;font-size:12px;}
+  .capline select{width:110px;margin:0;}
+  #relatorioResultado table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px;}
+  #relatorioResultado th, #relatorioResultado td{border:1px solid var(--border);padding:6px 8px;text-align:left;}
+  #relatorioResultado th{background:var(--card2);}
+  @media print{
+    aside, .no-print, nav{display:none !important;}
+    main{padding:0 !important;}
+    body, #app{background:#fff !important; color:#000 !important;}
+    .view{display:none !important;}
+    #v-relatorio{display:block !important;}
+    .card{border:none !important; background:#fff !important;}
+    #relatorioResultado th{background:#eee !important;}
+    #relatorioResultado th, #relatorioResultado td{border:1px solid #999 !important; color:#000 !important;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside>
+    <h1>🚨 Eventos Quartel</h1>
+    <button data-v="mapa" class="on">🗺️ Mapa</button>
+    <button data-v="ocorrencias">📋 Ocorrências</button>
+    <button data-v="equipes">👥 Equipes</button>
+    <button data-v="missoes">🎯 Missões</button>
+    <button data-v="exportar">📤 Exportar/Importar</button>
+    <button data-v="relatorio">📄 Relatório</button>
+    <button data-v="rios">🌊 Cotas de rio</button>
+  </aside>
+  <main>
+
+    <!-- MAPA -->
+    <div class="view on" id="v-mapa">
+      <h2 class="pagetitle">Mapa de ocorrências</h2>
+      <div class="card" style="margin-bottom:12px">
+        <div class="chiprow" id="mapaFiltroTipo"></div>
+        <div class="chiprow" id="mapaFiltroRisco"></div>
+        <div class="grid2">
+          <div><label class="lbl">Equipe</label><select id="mapaFiltroEquipe"><option value="todos">Todas</option></select></div>
+          <div><label class="lbl">Rotas no mapa</label><select id="mapaFiltroRotas"><option value="todas">Todas as equipes</option><option value="nenhuma">Nenhuma</option></select></div>
+        </div>
+        <div style="margin-top:10px"><label class="lbl">Pontos de referência (🏢)</label><select id="mapaFiltroPontosRef"><option value="mostrar">Mostrar</option><option value="ocultar">Ocultar</option></select></div>
+        <div style="margin-top:10px"><label class="lbl">Ocorrências resolvidas</label><select id="mapaFiltroResolvidas"><option value="ocultar">Ocultar (padrão)</option><option value="mostrar">Mostrar</option></select></div>
+        <button class="btn sm" id="btnToggleMapasOffline" type="button" style="margin-top:10px">🗂️ Mapas offline</button>
+        <div id="mapasOfflinePanel" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+          <label class="lbl">Nome do município/região</label>
+          <input type="text" id="fRegiaoNome" placeholder="Ex: Florianópolis, SC">
+          <label class="lbl">Tipo de mapa</label>
+          <select id="fFonteBaixar"><option value="rua">🗺️ Mapa (rua)</option><option value="satelite" disabled>🛰️ Satélite (indisponível pra baixar em massa)</option></select>
+          <div style="font-size:11px;color:var(--sub);margin-top:4px">O satélite gratuito não é licenciado pra download em massa — funciona normal só pra visualizar ao vivo no mapa.</div>
+          <button class="btn primary" id="btnBaixarRegiao">⬇️ Buscar e baixar mapa</button>
+          <div id="baixarProgresso" style="font-size:12px;color:var(--sub);margin-top:8px;"></div>
+          <h3 class="sec">Mapas baixados</h3>
+          <div id="regioesList"></div>
+          <h3 class="sec">Importar mapa recebido do outro app</h3>
+          <button class="btn" id="btnImportarMapaBtn">📥 Selecionar arquivo (.mvd)</button>
+          <input type="file" id="fileImportarMapa" class="fileinput" accept=".mvd,.json">
+        </div>
+      </div>
+      <div id="map"></div>
+    </div>
+
+    <!-- MISSÕES -->
+    <div class="view" id="v-missoes">
+      <h2 class="pagetitle">Controle de Missões</h2>
+      <div class="card">
+        <h3 class="sec" style="margin-top:0">🚨 Sem equipe (<span id="semEquipeCount">0</span>)</h3>
+        <div id="semEquipeList"></div>
+      </div>
+      <div id="equipesMissoesBoard"></div>
+    </div>
+
+    <!-- OCORRÊNCIAS -->
+    <div class="view" id="v-ocorrencias">
+      <h2 class="pagetitle">Ocorrências</h2>
+      <div class="card">
+        <div class="grid3">
+          <div><label class="lbl">De</label><input type="date" id="fDataDe"></div>
+          <div><label class="lbl">Até</label><input type="date" id="fDataAte"></div>
+          <div><label class="lbl">Status</label>
+            <select id="fStatus"><option value="todos">Todas</option><option value="abertas">Em aberto (risco>0)</option><option value="resolvidas">Resolvidas</option></select>
+          </div>
+        </div>
+        <div class="chiprow" id="tipoFiltroChips"></div>
+        <button class="btn primary" id="btnNovaOcc">➕ Nova ocorrência</button>
+      </div>
+      <div class="card"><table><thead><tr><th>Tipo</th><th>Risco</th><th>Vítimas</th><th>Via</th><th>Equipe(s)</th><th>Atualizada</th></tr></thead>
+      <tbody id="occTableBody"></tbody></table></div>
+    </div>
+
+    <!-- EQUIPES -->
+    <div class="view" id="v-equipes">
+      <h2 class="pagetitle">Equipes</h2>
+      <div class="grid2">
+        <div class="card">
+          <h3 class="sec" style="margin-top:0">Nova equipe</h3>
+          <label class="lbl">Nome</label><input type="text" id="fEqNome" placeholder="Ex: Resgate 1">
+          <label class="lbl">Membros (um por linha)</label><textarea id="fEqMembros" placeholder="Nome — matrícula"></textarea>
+          <label class="lbl">Viatura</label><input type="text" id="fEqViatura" placeholder="Ex: ABT-05">
+          <h3 class="sec">Capacidade de atuação</h3>
+          <div id="capList"></div>
+          <button class="btn primary" id="btnSalvarEquipe">💾 Salvar equipe</button>
+        </div>
+        <div class="card">
+          <h3 class="sec" style="margin-top:0">Equipes cadastradas</h3>
+          <div id="equipesList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXPORTAR / MISSÕES -->
+    <div class="view" id="v-exportar">
+      <h2 class="pagetitle">Dados — Exportar / Importar</h2>
+      <div class="card">
+        <button class="btn primary" id="btnImportarBtn">📥 Importar arquivo do Campo (.ved)</button>
+        <input type="file" id="fileImportar" class="fileinput" accept=".ved,.json">
+        <div id="importResumo" style="margin-top:12px;font-size:13px;color:var(--sub)"></div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <h3 class="sec" style="margin-top:0">📢 Aviso geral (para todas as equipes)</h3>
+          <div class="checklist" id="checklistGeral"></div>
+          <br><button class="btn primary" id="btnGerarGeral">Gerar pacote geral (.ved)</button>
+        </div>
+        <div class="card">
+          <h3 class="sec" style="margin-top:0">📍 Pontos de referência (abrigo/apoio/comando/etc)</h3>
+          <div class="checklist" id="checklistPontos"></div>
+          <br><button class="btn primary" id="btnGerarPontos">Gerar pacote de pontos (.ved)</button>
+        </div>
+        <div class="card">
+          <h3 class="sec" style="margin-top:0">🎯 Missão para uma equipe</h3>
+          <label class="lbl">Equipe</label>
+          <select id="fMissaoEquipe"></select>
+          <div class="checklist" id="checklistMissao"></div>
+          <br><button class="btn primary" id="btnGerarMissao">Gerar missão (.ved)</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3 class="sec" style="margin-top:0">🧭 Rotas gravadas (trajetórias das equipes)</h3>
+        <div class="checklist" id="checklistRotas"></div>
+        <br><button class="btn primary" id="btnExportarRotas">Exportar rota(s) selecionada(s) (.ved)</button>
+      </div>
+    </div>
+
+    <!-- RELATÓRIO -->
+    <div class="view" id="v-relatorio">
+      <h2 class="pagetitle">Relatório de ocorrências</h2>
+      <div class="card no-print">
+        <div class="grid3">
+          <div><label class="lbl">De</label><input type="date" id="fRelDataDe"></div>
+          <div><label class="lbl">Até</label><input type="date" id="fRelDataAte"></div>
+          <div><label class="lbl">Status</label>
+            <select id="fRelStatus"><option value="todos">Todas</option><option value="abertas">Em aberto (risco>0)</option><option value="resolvidas">Resolvidas</option></select>
+          </div>
+        </div>
+        <div class="chiprow" id="relTipoFiltroChips"></div>
+        <button class="btn primary" id="btnGerarRelatorio">📄 Gerar relatório</button>
+        <button class="btn" id="btnImprimirRelatorio">🖨️ Imprimir / Salvar PDF</button>
+      </div>
+      <div class="card" id="relatorioResultado">
+        <div style="color:var(--sub);font-size:13px">Ajuste os filtros e clique em "Gerar relatório".</div>
+      </div>
+      <div class="card no-print">
+        <h3 class="sec" style="margin-top:0">📊 Resumo quantitativo geral (por tipo)</h3>
+        <div style="font-size:12px;color:var(--sub);margin-bottom:8px">Usa o mesmo período (De/Até) e Status escolhidos acima, mas ignora o filtro de tipo — mostra todos.</div>
+        <button class="btn primary" id="btnGerarResumoQuantitativo">📊 Gerar resumo</button>
+      </div>
+      <div class="card" id="resumoQuantitativoResultado"></div>
+    </div>
+
+    <!-- COTAS DE RIO -->
+    <div class="view" id="v-rios">
+      <h2 class="pagetitle">Cotas de rio — monitoramento</h2>
+      <div class="card">
+        <h3 class="sec" style="margin-top:0">Cadastrar rio / ponto de monitoramento</h3>
+        <label class="lbl">Nome (ex: Rio Itajaí-Açu — Ponte Central)</label>
+        <input type="text" id="fRioNome">
+        <div class="grid3">
+          <div><label class="lbl">Cota de atenção (m)</label><input type="number" step="0.01" id="fRioAtencao"></div>
+          <div><label class="lbl">Cota de alerta (m)</label><input type="number" step="0.01" id="fRioAlerta"></div>
+          <div><label class="lbl">Cota de inundação (m)</label><input type="number" step="0.01" id="fRioInundacao"></div>
+        </div>
+        <div class="grid2">
+          <div><label class="lbl">Latitude</label><input type="number" step="0.00001" id="fRioLat"></div>
+          <div><label class="lbl">Longitude</label><input type="number" step="0.00001" id="fRioLng"></div>
+        </div>
+        <button class="btn" id="btnRioUsarCentroMapa" type="button">🗺️ Usar centro do mapa atual</button>
+        <button class="btn primary" id="btnSalvarRio" style="margin-top:8px">💾 Cadastrar rio</button>
+      </div>
+      <div class="card">
+        <h3 class="sec" style="margin-top:0">Rios monitorados</h3>
+        <div id="riosList"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="modal-bg" id="modalBg"><div class="modal" id="modalBody"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════════
+// CONFIG
+// ════════════════════════════════════════
+var TIPOS_EVENTO = [
+  {tipo:'queda_arvore', ic:'🌳', l:'Queda de árvore'},
+  {tipo:'desmoronamento', ic:'🏚️', l:'Desmoronamento'},
+  {tipo:'acidente_transito', ic:'🚗', l:'Acid. trânsito'},
+  {tipo:'alagamento', ic:'🌊', l:'Alagamento'},
+  {tipo:'incendio', ic:'🔥', l:'Incêndio'},
+  {tipo:'rede_eletrica', ic:'⚡', l:'Rede elétrica'},
+  {tipo:'via_obstruida', ic:'🚧', l:'Via obstruída'},
+  {tipo:'estrutura_risco', ic:'🧱', l:'Estrutura em risco'},
+  {tipo:'ponte', ic:'🌉', l:'Ponte'},
+  {tipo:'aph', ic:'🚑', l:'APH'},
+  {tipo:'animal', ic:'🐍', l:'Animal'},
+  {tipo:'produto_perigoso', ic:'🧯', l:'Produto perigoso'},
+  {tipo:'outro', ic:'❓', l:'Outro'}
+];
+var RECURSOS_PADRAO = ['viatura_resgate','viatura_combate_incendio','ambulancia','maquina_pesada',
+  'equipe_energia_eletrica','equipe_saneamento','apoio_policia','apoio_outro_orgao',
+  'equipamento_corte','equipamento_desobstrucao'];
+var RECURSO_LABEL = {viatura_resgate:'Viatura resgate',viatura_combate_incendio:'Viatura incêndio',
+  ambulancia:'Ambulância',maquina_pesada:'Máquina pesada',equipe_energia_eletrica:'Energia elétrica',
+  equipe_saneamento:'Saneamento',apoio_policia:'Apoio polícia',apoio_outro_orgao:'Apoio outro órgão',
+  equipamento_corte:'Equip. de corte',equipamento_desobstrucao:'Equip. desobstrução'};
+var RISCO_COR = {0:'#6b7280',1:'#34C759',2:'#A3C900',3:'#FF9F0A',4:'#FF6B00',5:'#C0272D'};
+var RISCO_LABEL = {0:'Resolvida',1:'Baixo',2:'Leve',3:'Moderado',4:'Alto',5:'Crítico'};
+function tipoInfo(t){ return TIPOS_EVENTO.find(function(x){return x.tipo===t;}) || TIPOS_EVENTO[TIPOS_EVENTO.length-1]; }
+function distanciaMetros(lat1,lng1,lat2,lng2){
+  var R=6371000, toRad=function(d){return d*Math.PI/180;};
+  var dLat=toRad(lat2-lat1), dLng=toRad(lng2-lng1);
+  var a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)*Math.sin(dLng/2);
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function possiveisDuplicatas(o){
+  if(o.lat==null) return [];
+  return db.ocorrencias.filter(function(x){
+    if(x.id===o.id || x.duplicadaDe) return false;
+    if(x.lat==null) return false;
+    if(x.tipo!==o.tipo) return false;
+    var distM = distanciaMetros(o.lat,o.lng,x.lat,x.lng);
+    if(distM>150) return false;
+    var horasDiff = Math.abs(new Date(o.criadoEm) - new Date(x.criadoEm))/3600000;
+    if(horasDiff>48) return false;
+    return true;
+  });
+}
+
+// ════════════════════════════════════════
+// DB
+// ════════════════════════════════════════
+var DBKEY = 'eventosQuartelDB';
+function loadDB(){
+  try{ var d = JSON.parse(localStorage.getItem(DBKEY)); if(d) return d; }catch(e){}
+  return {ocorrencias:[], equipes:[], trajetorias:[], pontosReferencia:[], contadorExport:{}, riosMonitorados:[]};
+}
+function saveDB(db){ localStorage.setItem(DBKEY, JSON.stringify(db)); }
+var db = loadDB();
+db.riosMonitorados = db.riosMonitorados || [];
+function uid(p){ return p+'_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function nowISO(){ return new Date().toISOString(); }
+function fmtData(iso){ if(!iso) return '—'; var d=new Date(iso); function p(n){return (n<10?'0':'')+n;}
+  return p(d.getDate())+'/'+p(d.getMonth()+1)+' '+p(d.getHours())+':'+p(d.getMinutes()); }
+function toast(msg){ var t=document.getElementById('toast'); t.textContent=msg; t.style.display='block';
+  setTimeout(function(){t.style.display='none';},2600); }
+function fecharModal(){ document.getElementById('modalBg').classList.remove('on'); }
+document.getElementById('modalBg').addEventListener('click', function(e){ if(e.target===this) fecharModal(); });
+
+// ════════════════════════════════════════
+// MAPAS OFFLINE — IndexedDB de tiles
+// ════════════════════════════════════════
+var idbPromise = null;
+function abrirTilesDB(){
+  if(idbPromise) return idbPromise;
+  idbPromise = new Promise(function(resolve,reject){
+    var req = indexedDB.open('mapaOfflineDB', 1);
+    req.onupgradeneeded = function(e){
+      var d = e.target.result;
+      if(!d.objectStoreNames.contains('tiles')) d.createObjectStore('tiles', {keyPath:'chave'});
+      if(!d.objectStoreNames.contains('regioes')) d.createObjectStore('regioes', {keyPath:'id'});
+    };
+    req.onsuccess = function(e){ resolve(e.target.result); };
+    req.onerror = function(e){ reject(e); };
+  });
+  return idbPromise;
+}
+var FONTES = {
+  rua: { label:'Mapa', ic:'🗺️' },
+  satelite: { label:'Satélite', ic:'🛰️' }
+};
+var fonteAtual = 'rua';
+function tileUrl(fonte,z,x,y){
+  if(fonte==='satelite'){
+    return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/'+z+'/'+y+'/'+x;
+  }
+  var sub = ['a','b','c'][(x+y)%3];
+  return 'https://'+sub+'.tile.openstreetmap.org/'+z+'/'+x+'/'+y+'.png';
+}
+function tileChave(fonte,z,x,y){ return fonte+'/'+z+'/'+x+'/'+y; }
+function salvarTile(fonte,z,x,y,blob){
+  return abrirTilesDB().then(function(db){ return new Promise(function(res,rej){
+    var tx = db.transaction('tiles','readwrite');
+    tx.objectStore('tiles').put({chave:tileChave(fonte,z,x,y), fonte:fonte, z:z,x:x,y:y, blob:blob});
+    tx.oncomplete=function(){res();}; tx.onerror=function(e){rej(e);};
+  }); });
+}
+function lerTile(fonte,z,x,y){
+  return abrirTilesDB().then(function(db){ return new Promise(function(res){
+    var tx = db.transaction('tiles','readonly');
+    var req = tx.objectStore('tiles').get(tileChave(fonte,z,x,y));
+    req.onsuccess=function(){ res(req.result ? req.result.blob : null); };
+    req.onerror=function(){ res(null); };
+  }); });
+}
+function salvarRegiao(meta){
+  return abrirTilesDB().then(function(db){ return new Promise(function(res){
+    var tx=db.transaction('regioes','readwrite'); tx.objectStore('regioes').put(meta);
+    tx.oncomplete=function(){res();};
+  }); });
+}
+function listarRegioes(){
+  return abrirTilesDB().then(function(db){ return new Promise(function(res){
+    var tx=db.transaction('regioes','readonly'); var req=tx.objectStore('regioes').getAll();
+    req.onsuccess=function(){res(req.result||[]);};
+  }); });
+}
+function removerRegiao(id){
+  return abrirTilesDB().then(function(db){ return new Promise(function(res){
+    var tx=db.transaction('regioes','readwrite'); tx.objectStore('regioes').delete(id);
+    tx.oncomplete=function(){res();};
+  }); });
+}
+function listarTilesDaRegiao(regiao){
+  return abrirTilesDB().then(function(db){ return new Promise(function(res){
+    var tx=db.transaction('tiles','readonly'); var req=tx.objectStore('tiles').getAll();
+    req.onsuccess=function(){
+      var todos = req.result||[];
+      var fonteRegiao = regiao.fonte||'rua';
+      res(todos.filter(function(t){
+        if((t.fonte||'rua')!==fonteRegiao) return false;
+        if(t.z<regiao.zoomMin||t.z>regiao.zoomMax) return false;
+        var r = bboxParaTiles(regiao.bbox, t.z);
+        return t.x>=r.xMin && t.x<=r.xMax && t.y>=r.yMin && t.y<=r.yMax;
+      }));
+    };
+  }); });
+}
+function long2tile(lon,z){ return Math.floor((lon+180)/360*Math.pow(2,z)); }
+function lat2tile(lat,z){ return Math.floor((1-Math.log(Math.tan(lat*Math.PI/180)+1/Math.cos(lat*Math.PI/180))/Math.PI)/2*Math.pow(2,z)); }
+function bboxParaTiles(bbox,z){
+  return { xMin: long2tile(bbox.west,z), xMax: long2tile(bbox.east,z),
+    yMin: lat2tile(bbox.north,z), yMax: lat2tile(bbox.south,z) };
+}
+function buscarRegiaoGeo(nome){
+  return fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(nome))
+    .then(function(r){return r.json();}).then(function(arr){
+      if(!arr.length) throw new Error('Região não encontrada');
+      var it = arr[0];
+      return { nome: it.display_name, bbox: { south:parseFloat(it.boundingbox[0]), north:parseFloat(it.boundingbox[1]),
+        west:parseFloat(it.boundingbox[2]), east:parseFloat(it.boundingbox[3]) } };
+    });
+}
+var ZOOM_MIN_PADRAO = 11, ZOOM_MAX_PADRAO = 15;
+function baixarRegiao(nomeConsulta, fonte, onProgress){
+  return buscarRegiaoGeo(nomeConsulta).then(function(info){
+    var tiles = [];
+    for(var z=ZOOM_MIN_PADRAO; z<=ZOOM_MAX_PADRAO; z++){
+      var r = bboxParaTiles(info.bbox, z);
+      for(var x=r.xMin; x<=r.xMax; x++) for(var y=r.yMin; y<=r.yMax; y++) tiles.push({z:z,x:x,y:y});
+    }
+    if(tiles.length > 8000) throw new Error('Área grande demais ('+tiles.length+' tiles) — tente uma região mais específica');
+    var total = tiles.length, feitos=0, idx=0, CONC=6;
+    return new Promise(function(resolve){
+      function proxima(){
+        if(idx>=tiles.length) return;
+        var t = tiles[idx++];
+        var url = tileUrl(fonte, t.z,t.x,t.y);
+        fetch(url).then(function(r){return r.blob();}).then(function(blob){ return salvarTile(fonte,t.z,t.x,t.y,blob); })
+          .catch(function(){}).then(function(){
+            feitos++; if(onProgress) onProgress(feitos,total);
+            if(feitos>=total){
+              var meta = {id:uid('reg'), nome:info.nome, bbox:info.bbox, zoomMin:ZOOM_MIN_PADRAO, zoomMax:ZOOM_MAX_PADRAO, tileCount:total, fonte:fonte, criadoEm:nowISO()};
+              salvarRegiao(meta).then(function(){resolve(meta);});
+            } else proxima();
+          });
+      }
+      for(var c=0;c<CONC;c++) proxima();
+    });
+  });
+}
+function blobToDataURL(blob){
+  return new Promise(function(res){
+    var reader = new FileReader();
+    reader.onloadend = function(){ res(reader.result); };
+    reader.readAsDataURL(blob);
+  });
+}
+function gerarExportRegiao(regiaoId){
+  return listarRegioes().then(function(regs){
+    var reg = regs.find(function(r){return r.id===regiaoId;});
+    return listarTilesDaRegiao(reg).then(function(tiles){
+      return Promise.all(tiles.map(function(t){
+        return blobToDataURL(t.blob).then(function(d){ return {z:t.z,x:t.x,y:t.y,fonte:t.fonte||'rua',d:d}; });
+      })).then(function(tilesD){
+        var pacote = {tipo:'mapa-offline', regiao:reg, tiles:tilesD};
+        var blob = new Blob([JSON.stringify(pacote)], {type:'application/json'});
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'MAPA_'+reg.nome.split(',')[0].replace(/\s+/g,'')+'.mvd';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      });
+    });
+  });
+}
+function importarRegiaoArquivo(file){
+  return file.text().then(function(txt){
+    var pacote = JSON.parse(txt);
+    return Promise.all(pacote.tiles.map(function(t){
+      return fetch(t.d).then(function(r){return r.blob();}).then(function(blob){ return salvarTile(t.fonte||'rua',t.z,t.x,t.y,blob); });
+    })).then(function(){
+      var meta = pacote.regiao; meta.id = uid('reg'); if(!meta.fonte) meta.fonte='rua';
+      return salvarRegiao(meta);
+    });
+  });
+}
+var OfflineTileLayer = L.TileLayer.extend({
+  createTile: function(coords, done){
+    var tile = document.createElement('img');
+    tile.setAttribute('role','presentation');
+    var z=coords.z, x=coords.x, y=coords.y, fonte=fonteAtual;
+    tile.onload = function(){ done(null, tile); };
+    tile.onerror = function(e){ done(e, tile); };
+    lerTile(fonte,z,x,y).then(function(blob){
+      if(blob){
+        try{ tile.src = URL.createObjectURL(blob); }
+        catch(e){ tile.src = tileUrl(fonte,z,x,y); }
+      } else {
+        var url = tileUrl(fonte,z,x,y);
+        tile.src = url;
+        fetch(url).then(function(r){return r.blob();}).then(function(b){ salvarTile(fonte,z,x,y,b); }).catch(function(){});
+      }
+    }).catch(function(){
+      tile.src = tileUrl(fonte,z,x,y);
+    });
+    return tile;
+  }
+});
+function renderRegioesList(){
+  listarRegioes().then(function(regs){
+    var el = document.getElementById('regioesList');
+    if(!regs.length){ el.innerHTML = '<div style="color:var(--sub);font-size:12px">Nenhum mapa baixado ainda</div>'; return; }
+    el.innerHTML = regs.map(function(r){
+      return '<div class="card" style="margin-bottom:8px;padding:12px">'+
+        '<b>'+r.nome.split(',').slice(0,2).join(',')+'</b>'+
+        '<div style="font-size:11px;color:var(--sub);margin-top:4px">'+(FONTES[r.fonte||'rua'].ic)+' '+(FONTES[r.fonte||'rua'].label)+' · '+r.tileCount+' tiles · zoom '+r.zoomMin+'-'+r.zoomMax+' · '+fmtData(r.criadoEm)+'</div>'+
+        '<div class="btnrow" style="margin-top:8px;display:flex;gap:8px"><button class="btn sm" onclick="exportarRegiao(\''+r.id+'\')">📤 Exportar</button>'+
+        '<button class="btn sm warn" onclick="removerRegiaoUI(\''+r.id+'\')">🗑️ Remover</button></div></div>';
+    }).join('');
+  });
+}
+window.exportarRegiao = function(id){ toast('Gerando arquivo do mapa...'); gerarExportRegiao(id).then(function(){ toast('Mapa exportado ✅'); }); };
+window.removerRegiaoUI = function(id){ removerRegiao(id).then(function(){ renderRegioesList(); toast('Mapa removido'); }); };
+
+document.getElementById('btnBaixarRegiao').addEventListener('click', function(){
+  var nome = document.getElementById('fRegiaoNome').value.trim();
+  var fonte = document.getElementById('fFonteBaixar').value;
+  if(fonte==='satelite'){ toast('Satélite não pode ser baixado em massa (não licenciado)'); return; }
+  if(!nome){ toast('Digite o nome do município/região'); return; }
+  document.getElementById('baixarProgresso').textContent = 'Buscando região...';
+  baixarRegiao(nome, fonte, function(feitos,total){
+    document.getElementById('baixarProgresso').textContent = 'Baixando: '+feitos+'/'+total+' tiles';
+  }).then(function(meta){
+    document.getElementById('baixarProgresso').textContent = 'Concluído: '+meta.tileCount+' tiles salvos ✅';
+    renderRegioesList(); renderMapa();
+  }).catch(function(err){
+    document.getElementById('baixarProgresso').textContent = 'Erro: '+err.message;
+  });
+});
+document.getElementById('btnImportarMapaBtn').addEventListener('click', function(){ document.getElementById('fileImportarMapa').click(); });
+document.getElementById('fileImportarMapa').addEventListener('change', function(e){
+  var file = e.target.files && e.target.files[0]; if(!file) return;
+  importarRegiaoArquivo(file).then(function(){ renderRegioesList(); renderMapa(); toast('Mapa importado ✅'); })
+    .catch(function(){ toast('Erro ao importar mapa'); });
+});
+
+// ════════════════════════════════════════
+// NAV
+// ════════════════════════════════════════
+document.querySelectorAll('aside button').forEach(function(b){
+  b.addEventListener('click', function(){
+    document.querySelectorAll('aside button').forEach(function(x){x.classList.remove('on');});
+    document.querySelectorAll('.view').forEach(function(x){x.classList.remove('on');});
+    b.classList.add('on'); document.getElementById('v-'+b.dataset.v).classList.add('on');
+    if(b.dataset.v==='mapa'){ setTimeout(function(){map.invalidateSize(); renderMapa(); renderRegioesList();},50); }
+    if(b.dataset.v==='ocorrencias') renderTabelaOcorrencias();
+    if(b.dataset.v==='equipes') renderEquipesList();
+    if(b.dataset.v==='missoes') renderMissoesBoard();
+    if(b.dataset.v==='exportar') { renderMissaoEquipeSelect(); renderChecklists(); renderChecklistRotas(); }
+    if(b.dataset.v==='relatorio') buildRelTipoFiltroChips();
+    if(b.dataset.v==='rios') renderRiosList();
+  });
+});
+
+// ════════════════════════════════════════
+// MAPA
+// ════════════════════════════════════════
+var map = L.map('map').setView([-27.5954,-48.5480], 12);
+var offlineLayer = new OfflineTileLayer('',{maxZoom:19}).addTo(map);
+var mapLayer = L.layerGroup().addTo(map);
+
+var meuMarcadorLive = null;
+function atualizarMarcadorLive(ll){
+  if(!meuMarcadorLive){
+    var ic = L.divIcon({html:'<div style="width:16px;height:16px;background:#3B82F6;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(59,130,246,.35)"></div>',className:'',iconSize:[16,16]});
+    meuMarcadorLive = L.marker(ll,{icon:ic, zIndexOffset:1000}).addTo(map);
+  } else { meuMarcadorLive.setLatLng(ll); }
+}
+var BotaoLocalizar = L.Control.extend({
+  options:{position:'topleft'},
+  onAdd: function(){
+    var btn = L.DomUtil.create('button');
+    btn.innerHTML='📍'; btn.title='Minha localização';
+    btn.style.cssText='width:34px;height:34px;background:#fff;border:none;border-radius:6px;font-size:16px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.4)';
+    L.DomEvent.disableClickPropagation(btn);
+    btn.onclick = function(){
+      if(!navigator.geolocation){ toast('GPS não disponível'); return; }
+      navigator.geolocation.getCurrentPosition(function(pos){
+        var ll=[pos.coords.latitude,pos.coords.longitude];
+        map.flyTo(ll,16); atualizarMarcadorLive(ll);
+      }, function(){ toast('Não foi possível obter localização'); }, {enableHighAccuracy:true,timeout:15000});
+    };
+    return btn;
+  }
+});
+map.addControl(new BotaoLocalizar());
+
+var BotaoFonte = L.Control.extend({
+  options:{position:'topleft'},
+  onAdd: function(){
+    var btn = L.DomUtil.create('button');
+    btn.innerHTML = FONTES[fonteAtual].ic;
+    btn.title = 'Alternar mapa/satélite';
+    btn.style.cssText='width:34px;height:34px;background:#fff;border:none;border-radius:6px;font-size:16px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.4);margin-top:6px;';
+    L.DomEvent.disableClickPropagation(btn);
+    btn.onclick = function(){
+      fonteAtual = fonteAtual==='rua' ? 'satelite' : 'rua';
+      btn.innerHTML = FONTES[fonteAtual].ic;
+      offlineLayer.redraw();
+      toast('Mapa: '+FONTES[fonteAtual].label);
+    };
+    return btn;
+  }
+});
+map.addControl(new BotaoFonte());
+var mapaFiltro = {tipo:'todos', risco:'todos', equipe:'todos', rotas:'todas', pontosRef:'mostrar', resolvidas:'ocultar'};
+function buildMapaFiltroTipo(){
+  var chips=[{k:'todos',l:'Todos'}].concat(TIPOS_EVENTO.map(function(t){return{k:t.tipo,l:t.ic};}));
+  document.getElementById('mapaFiltroTipo').innerHTML = chips.map(function(c){
+    return '<div class="chip'+(c.k===mapaFiltro.tipo?' on':'')+'" data-k="'+c.k+'">'+c.l+'</div>';
+  }).join('');
+  document.querySelectorAll('#mapaFiltroTipo .chip').forEach(function(ch){
+    ch.addEventListener('click', function(){ mapaFiltro.tipo=ch.dataset.k; buildMapaFiltroTipo(); renderMapa(); });
+  });
+}
+function buildMapaFiltroRisco(){
+  var chips=[{k:'todos',l:'Todos'}].concat([0,1,2,3,4,5].map(function(r){return{k:String(r),l:String(r)};}));
+  document.getElementById('mapaFiltroRisco').innerHTML = chips.map(function(c){
+    return '<div class="chip'+(c.k===mapaFiltro.risco?' on':'')+'" data-k="'+c.k+'" style="'+(c.k!=='todos'&&c.k===mapaFiltro.risco?'background:'+RISCO_COR[c.k]+';border-color:'+RISCO_COR[c.k]+';color:#fff':'')+'">'+c.l+'</div>';
+  }).join('');
+  document.querySelectorAll('#mapaFiltroRisco .chip').forEach(function(ch){
+    ch.addEventListener('click', function(){ mapaFiltro.risco=ch.dataset.k; buildMapaFiltroRisco(); renderMapa(); });
+  });
+}
+function buildMapaFiltroEquipeSelects(){
+  var optsEq = '<option value="todos">Todas</option>'+db.equipes.map(function(e){return '<option value="'+e.nome+'">'+e.nome+'</option>';}).join('');
+  document.getElementById('mapaFiltroEquipe').innerHTML = optsEq;
+  document.getElementById('mapaFiltroEquipe').value = mapaFiltro.equipe;
+  document.getElementById('mapaFiltroRotas').innerHTML = '<option value="todas">Todas as equipes</option><option value="nenhuma">Nenhuma</option>'+
+    db.equipes.map(function(e){return '<option value="'+e.nome+'">'+e.nome+'</option>';}).join('');
+  document.getElementById('mapaFiltroRotas').value = mapaFiltro.rotas;
+  document.getElementById('mapaFiltroResolvidas').value = mapaFiltro.resolvidas;
+}
+document.getElementById('mapaFiltroEquipe').addEventListener('change', function(){ mapaFiltro.equipe=this.value; renderMapa(); });
+document.getElementById('mapaFiltroRotas').addEventListener('change', function(){ mapaFiltro.rotas=this.value; renderMapa(); });
+document.getElementById('mapaFiltroPontosRef').addEventListener('change', function(){ mapaFiltro.pontosRef=this.value; renderMapa(); });
+document.getElementById('mapaFiltroResolvidas').addEventListener('change', function(){ mapaFiltro.resolvidas=this.value; renderMapa(); });
+document.getElementById('btnToggleMapasOffline').addEventListener('click', function(){
+  var painel = document.getElementById('mapasOfflinePanel');
+  var abrindo = painel.style.display==='none';
+  painel.style.display = abrindo ? 'block' : 'none';
+  if(abrindo) renderRegioesList();
+});
+buildMapaFiltroTipo(); buildMapaFiltroRisco(); buildMapaFiltroEquipeSelects();
+
+function renderMapa(){
+  mapLayer.clearLayers();
+  db.ocorrencias.forEach(function(o){
+    if(o.lat==null) return;
+    if(o.duplicadaDe) return;
+    if(mapaFiltro.resolvidas==='ocultar' && o.risco===0 && mapaFiltro.risco==='todos') return;
+    if(mapaFiltro.tipo!=='todos' && o.tipo!==mapaFiltro.tipo) return;
+    if(mapaFiltro.risco!=='todos' && String(o.risco)!==mapaFiltro.risco) return;
+    var equipesAtivas = (o.empenhos||[]).filter(function(e){return e.status!=='encerrado';}).map(function(e){return e.equipeNome;});
+    if(mapaFiltro.equipe!=='todos' && equipesAtivas.indexOf(mapaFiltro.equipe)<0) return;
+    var temMissao = equipesAtivas.length>0;
+    var html = '<div style="position:relative;width:30px;height:30px">'+
+      '<div style="font-size:22px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6));'+
+        (temMissao?'background:#fff;border-radius:50%;outline:3px solid #3B82F6;width:26px;height:26px;display:flex;align-items:center;justify-content:center;':'')+'">'+tipoInfo(o.tipo).ic+'</div>'+
+      '<div style="position:absolute;top:-4px;right:-4px;background:'+RISCO_COR[o.risco]+';color:#fff;font-size:10px;font-weight:800;'+
+        'border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;border:2px solid #fff;">'+o.risco+'</div>'+
+      '</div>';
+    var ic = L.divIcon({html:html, className:'', iconSize:[30,30]});
+    var m = L.marker([o.lat,o.lng],{icon:ic}).addTo(mapLayer);
+    m.bindPopup('<b>'+tipoInfo(o.tipo).l+'</b><br>Risco: '+o.risco+' — '+RISCO_LABEL[o.risco]+
+      (o.observacao?'<br>'+o.observacao:'')+
+      (temMissao?'<br>👥 '+equipesAtivas.join(', '):'<br><i>Sem equipe</i>')+
+      '<br><a href="#" onclick="abrirOccModal(\''+o.id+'\');return false;">Abrir</a>'+
+      ' · <a href="#" onclick="abrirAtribuirEquipe(\''+o.id+'\');return false;">👥 Escalar equipe</a>');
+  });
+  (db.trajetorias||[]).forEach(function(tr){
+    if(mapaFiltro.rotas==='nenhuma') return;
+    if(mapaFiltro.rotas!=='todas' && tr.equipeNome!==mapaFiltro.rotas) return;
+    if(tr.pontos && tr.pontos.length>1){
+      L.polyline(tr.pontos.map(function(p){return [p.lat,p.lng];}), {color:'#FF8A3D', weight:3, opacity:.8})
+        .addTo(mapLayer).bindTooltip(tr.equipeNome||'equipe');
+    }
+  });
+  db.equipes.forEach(function(eq){
+    if(eq.ultimaPosicao && eq.ultimaPosicao.lat!=null){
+      var ic = L.divIcon({html:'<div style="font-size:20px">🚒</div>',className:'',iconSize:[24,24]});
+      L.marker([eq.ultimaPosicao.lat, eq.ultimaPosicao.lng],{icon:ic}).addTo(mapLayer)
+        .bindTooltip(eq.nome+' — últ. atualização '+fmtData(eq.ultimaPosicao.dataHora));
+    }
+  });
+  if(mapaFiltro.pontosRef!=='ocultar'){
+    (db.pontosReferencia||[]).forEach(function(p){
+      if(p.lat==null) return;
+      var ic = L.divIcon({html:'<div style="font-size:18px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))">'+iconePontoRef(p.tipo)+'</div>',className:'',iconSize:[22,22]});
+      var contatoTxt = p.contato && (p.contato.nome||p.contato.telefone) ?
+        '<br>Contato: '+(p.contato.nome||'—')+(p.contato.telefone?' — '+p.contato.telefone:'') : '';
+      L.marker([p.lat,p.lng],{icon:ic}).addTo(mapLayer).bindPopup(
+        '<b>'+(p.nome||'Ponto de referência')+'</b>'+(p.re?'<br>RE: '+p.re:'')+contatoTxt+
+        (p.endereco?'<br>'+p.endereco:'')
+      );
+    });
+  }
+}
+function iconePontoRef(tipo){
+  var map = {abrigo:'🏠', apoio:'🧰', comando:'📡', ponte:'🌉', hidrante:'🚰', manancial:'💧'};
+  return map[tipo] || '🏢';
+}
+renderMapa();
+var modoMarcarPonto = false;
+var BotaoMarcarPonto = L.Control.extend({
+  options:{position:'topleft'},
+  onAdd: function(){
+    var btn = L.DomUtil.create('button');
+    btn.innerHTML='📍'; btn.title='Marcar ponto (abrigo/apoio/comando)';
+    btn.style.cssText='width:34px;height:34px;background:#fff;border:none;border-radius:6px;font-size:16px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.4);margin-top:6px;';
+    L.DomEvent.disableClickPropagation(btn);
+    btn.onclick = function(){
+      modoMarcarPonto = !modoMarcarPonto;
+      btn.style.background = modoMarcarPonto ? '#FF6B00' : '#fff';
+      toast(modoMarcarPonto ? 'Toque no mapa pra marcar o ponto' : 'Modo marcar ponto desativado');
+    };
+    return btn;
+  }
+});
+map.addControl(new BotaoMarcarPonto());
+var PONTO_TIPOS_MANUAIS = [{tipo:'abrigo',ic:'🏠',l:'Abrigo'},{tipo:'apoio',ic:'🧰',l:'Ponto de apoio'},{tipo:'comando',ic:'📡',l:'Posto de comando'}];
+function abrirNovoPontoModal(lat,lng){
+  var body = document.getElementById('modalBody');
+  body.innerHTML =
+    '<button class="closebtn" id="mClose">✕</button>'+
+    '<h2 style="margin:0 0 14px">Marcar ponto</h2>'+
+    '<label class="lbl">Tipo</label><div class="chiprow" id="pontoTipoChips">'+
+      PONTO_TIPOS_MANUAIS.map(function(t){return '<div class="chip" data-t="'+t.tipo+'">'+t.ic+' '+t.l+'</div>';}).join('')+
+    '</div>'+
+    '<label class="lbl">Nome (opcional)</label><input type="text" id="pontoNome" placeholder="Ex: Ginásio Municipal">'+
+    '<button class="btn primary" id="btnSalvarPonto" style="margin-top:12px">💾 Salvar ponto</button>';
+  var tipoEscolhido = null;
+  document.getElementById('mClose').addEventListener('click', fecharModal);
+  document.querySelectorAll('#pontoTipoChips .chip').forEach(function(ch){
+    ch.addEventListener('click', function(){
+      document.querySelectorAll('#pontoTipoChips .chip').forEach(function(x){x.classList.remove('on');});
+      ch.classList.add('on'); tipoEscolhido = ch.dataset.t;
+    });
+  });
+  document.getElementById('btnSalvarPonto').addEventListener('click', function(){
+    if(!tipoEscolhido){ toast('Escolha o tipo do ponto'); return; }
+    db.pontosReferencia = db.pontosReferencia||[];
+    db.pontosReferencia.push({ id: uid('pref'), tipo:tipoEscolhido, nome: document.getElementById('pontoNome').value.trim(),
+      lat:lat, lng:lng, criadoEm: nowISO(), origem:'quartel' });
+    saveDB(db); fecharModal(); renderMapa();
+    toast('Ponto marcado ✅');
+  });
+  document.getElementById('modalBg').classList.add('on');
+}
+map.on('click', function(e){
+  if(modoMarcarPonto){ modoMarcarPonto = false; abrirNovoPontoModal(e.latlng.lat, e.latlng.lng); return; }
+  novaOcorrenciaNoMapa(e.latlng.lat, e.latlng.lng);
+});
+
+// ════════════════════════════════════════
+// OCORRÊNCIAS — CRIAR / LISTAR / EDITAR
+// ════════════════════════════════════════
+var tipoFiltroAtivo = 'todos';
+function buildTipoFiltroChips(){
+  var chips = [{k:'todos',l:'Todos'}].concat(TIPOS_EVENTO.map(function(t){return{k:t.tipo,l:t.ic+' '+t.l};}));
+  document.getElementById('tipoFiltroChips').innerHTML = chips.map(function(c){
+    return '<div class="chip'+(c.k===tipoFiltroAtivo?' on':'')+'" data-k="'+c.k+'">'+c.l+'</div>';
+  }).join('');
+  document.querySelectorAll('#tipoFiltroChips .chip').forEach(function(ch){
+    ch.addEventListener('click', function(){ tipoFiltroAtivo = ch.dataset.k; buildTipoFiltroChips(); renderTabelaOcorrencias(); });
+  });
+}
+buildTipoFiltroChips();
+['fDataDe','fDataAte','fStatus'].forEach(function(id){
+  document.getElementById(id).addEventListener('change', renderTabelaOcorrencias);
+});
+
+function ocorrenciasFiltradas(){
+  var de = document.getElementById('fDataDe').value;
+  var ate = document.getElementById('fDataAte').value;
+  var status = document.getElementById('fStatus').value;
+  return db.ocorrencias.filter(function(o){
+    if(o.duplicadaDe) return false;
+    if(tipoFiltroAtivo!=='todos' && o.tipo!==tipoFiltroAtivo) return false;
+    if(status==='abertas' && o.risco===0) return false;
+    if(status==='resolvidas' && o.risco!==0) return false;
+    var dataOcc = (o.criadoEm||'').slice(0,10);
+    if(de && dataOcc < de) return false;
+    if(ate && dataOcc > ate) return false;
+    return true;
+  }).sort(function(a,b){ return (b.atualizadoEm||b.criadoEm||'').localeCompare(a.atualizadoEm||a.criadoEm||''); });
+}
+function renderTabelaOcorrencias(){
+  var lista = ocorrenciasFiltradas();
+  document.getElementById('occTableBody').innerHTML = lista.map(function(o){
+    var equipesNomes = (o.empenhos||[]).map(function(e){return e.equipeNome;}).join(', ') || '—';
+    return '<tr class="rowclick" data-id="'+o.id+'">'+
+      '<td>'+tipoInfo(o.tipo).ic+' '+tipoInfo(o.tipo).l+'</td>'+
+      '<td><span class="badge" style="background:'+RISCO_COR[o.risco]+'">'+o.risco+' — '+RISCO_LABEL[o.risco]+'</span></td>'+
+      '<td>'+(o.vitimas&&o.vitimas.quantidade?o.vitimas.quantidade:'—')+'</td>'+
+      '<td>'+(o.viaObstruida&&o.viaObstruida.obstruida?'🚧':'—')+'</td>'+
+      '<td>'+equipesNomes+'</td>'+
+      '<td>'+fmtData(o.atualizadoEm||o.criadoEm)+'</td></tr>';
+  }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--sub);padding:30px">Nenhuma ocorrência</td></tr>';
+  document.querySelectorAll('#occTableBody tr[data-id]').forEach(function(r){
+    r.addEventListener('click', function(){ abrirOccModal(r.dataset.id); });
+  });
+}
+
+function novaOcorrenciaNoMapa(lat,lng){
+  var agora = nowISO();
+  var o = { id: uid('oco'), tipo:'outro', lat:lat, lng:lng, risco:3, observacao:'',
+    vitimas:{quantidade:0,observacao:''}, viaObstruida:{obstruida:false,observacao:''},
+    recursosNecessarios:[], historico:[{dataHora:agora,risco:3,observacao:'Criada pelo Quartel',autor:'quartel',origem:'quartel'}],
+    empenhos:[], criadoEm:agora, criadoPor:'quartel', origem:'quartel', atualizadoEm:agora, resolvidaEm:null };
+  db.ocorrencias.push(o); saveDB(db); renderMapa();
+  abrirOccModal(o.id);
+}
+document.getElementById('btnNovaOcc').addEventListener('click', function(){
+  toast('Clique no mapa para posicionar a nova ocorrência');
+  document.querySelector('aside button[data-v="mapa"]').click();
+});
+
+function marcarDuplicata(idDuplicata, idOriginal){
+  var dup = db.ocorrencias.find(function(x){return x.id===idDuplicata;});
+  var orig = db.ocorrencias.find(function(x){return x.id===idOriginal;});
+  if(!dup || !orig || dup.id===orig.id) return false;
+  orig.empenhos = (orig.empenhos||[]).concat(dup.empenhos||[]);
+  orig.historico = (orig.historico||[]).concat(dup.historico||[])
+    .sort(function(a,b){ return (a.dataHora||'').localeCompare(b.dataHora||''); });
+  if(dup.vitimas && dup.vitimas.quantidade>(orig.vitimas.quantidade||0)) orig.vitimas.quantidade = dup.vitimas.quantidade;
+  if(dup.risco>orig.risco && dup.risco>0) orig.risco = dup.risco;
+  orig.historico.push({dataHora:nowISO(), risco:orig.risco, observacao:'🔁 Mesclada com ocorrência duplicada ('+tipoInfo(dup.tipo).l+', criada '+fmtData(dup.criadoEm)+')', autor:'quartel', origem:'quartel'});
+  dup.duplicadaDe = idOriginal;
+  orig.duplicatas = orig.duplicatas||[]; if(orig.duplicatas.indexOf(idDuplicata)<0) orig.duplicatas.push(idDuplicata);
+  saveDB(db);
+  return true;
+}
+
+// ════════════════════════════════════════
+// COTAS DE RIO — monitoramento e ativação automática
+// ════════════════════════════════════════
+function classificarCota(rio, valor){
+  if(valor>=rio.cotas.inundacao) return 5;
+  if(valor>=rio.cotas.alerta) return 4;
+  if(valor>=rio.cotas.atencao) return 2;
+  return 0;
+}
+function nomeCota(rio, valor){
+  if(valor>=rio.cotas.inundacao) return 'cota de inundação atingida';
+  if(valor>=rio.cotas.alerta) return 'cota de alerta atingida';
+  if(valor>=rio.cotas.atencao) return 'cota de atenção atingida';
+  return 'nível normal';
+}
+function statusCotaTexto(rio){
+  var v = rio.nivelAtual;
+  if(v==null) return {texto:'Sem leitura', cor:'#6b7280'};
+  if(v>=rio.cotas.inundacao) return {texto:'🔴 Inundação', cor:'#C0272D'};
+  if(v>=rio.cotas.alerta) return {texto:'🟠 Alerta', cor:'#FF6B00'};
+  if(v>=rio.cotas.atencao) return {texto:'🟡 Atenção', cor:'#FF9F0A'};
+  return {texto:'🟢 Normal', cor:'#34C759'};
+}
+function registrarLeituraRio(rioId, valor, autor){
+  var rio = db.riosMonitorados.find(function(r){return r.id===rioId;});
+  if(!rio) return;
+  var agora = nowISO();
+  rio.nivelAtual = valor;
+  rio.ultimaLeitura = {valor:valor, dataHora:agora, autor:autor||'quartel'};
+  rio.historicoLeituras = rio.historicoLeituras||[];
+  rio.historicoLeituras.push({valor:valor, dataHora:agora, autor:autor||'quartel'});
+
+  var riscoAlvo = classificarCota(rio, valor);
+  var occ = rio.ocorrenciaAtivaId ? db.ocorrencias.find(function(o){return o.id===rio.ocorrenciaAtivaId;}) : null;
+
+  if(riscoAlvo>0){
+    if(!occ){
+      occ = {
+        id: uid('oco'), tipo:'alagamento', lat:rio.lat, lng:rio.lng, risco:riscoAlvo,
+        observacao:'🌊 Nível do rio "'+rio.nome+'": '+valor+'m — '+nomeCota(rio,valor),
+        vitimas:{quantidade:0,observacao:''}, viaObstruida:{obstruida:false,observacao:''},
+        recursosNecessarios:[],
+        historico:[{dataHora:agora, risco:riscoAlvo, observacao:'Criada automaticamente por leitura de cota: '+valor+'m ('+nomeCota(rio,valor)+')', autor:autor||'sistema', origem:'auto-cota'}],
+        empenhos:[], criadoEm:agora, criadoPor:'auto-cota', origem:'auto-cota', atualizadoEm:agora, resolvidaEm:null,
+        vinculadas:[], duplicatas:[], duplicadaDe:null, reativacoes:[]
+      };
+      db.ocorrencias.push(occ);
+      rio.ocorrenciaAtivaId = occ.id;
+    } else {
+      var eraResolvida = occ.risco===0;
+      var reativada = eraResolvida && riscoAlvo>0;
+      occ.risco = riscoAlvo;
+      occ.observacao = '🌊 Nível do rio "'+rio.nome+'": '+valor+'m — '+nomeCota(rio,valor);
+      occ.atualizadoEm = agora;
+      if(reativada){ occ.resolvidaEm=null; occ.reativacoes=occ.reativacoes||[]; occ.reativacoes.push({dataHora:agora,autor:autor||'sistema',origem:'auto-cota'}); }
+      occ.historico.push({dataHora:agora, risco:riscoAlvo, observacao:(reativada?'🔁 Reativada — ':'')+'Leitura automática: '+valor+'m ('+nomeCota(rio,valor)+')', autor:autor||'sistema', origem:'auto-cota', reativacao:reativada});
+    }
+  } else if(occ && occ.risco!==0){
+    occ.risco = 0; occ.resolvidaEm = agora; occ.atualizadoEm = agora;
+    occ.historico.push({dataHora:agora, risco:0, observacao:'Nível normalizado ('+valor+'m) — resolvida automaticamente', autor:autor||'sistema', origem:'auto-cota'});
+  }
+  saveDB(db);
+}
+function renderRiosList(){
+  var el = document.getElementById('riosList');
+  if(!db.riosMonitorados.length){ el.innerHTML = '<div style="color:var(--sub);font-size:13px">Nenhum rio cadastrado ainda.</div>'; return; }
+  el.innerHTML = db.riosMonitorados.map(function(rio){
+    var st = statusCotaTexto(rio);
+    return '<div class="card" style="border-left:4px solid '+st.cor+'">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center">'+
+        '<b>'+rio.nome+'</b><span class="badge" style="background:'+st.cor+'">'+st.texto+'</span>'+
+      '</div>'+
+      '<div style="font-size:12px;color:var(--sub);margin:4px 0">Atenção ≥'+rio.cotas.atencao+'m · Alerta ≥'+rio.cotas.alerta+'m · Inundação ≥'+rio.cotas.inundacao+'m'+
+        (rio.ultimaLeitura?' · Última leitura: '+rio.ultimaLeitura.valor+'m em '+fmtData(rio.ultimaLeitura.dataHora):' · Sem leitura ainda')+'</div>'+
+      '<div style="display:flex;gap:6px;align-items:center">'+
+        '<input type="number" step="0.01" placeholder="Nível atual (m)" class="rioLeituraInput" data-rio="'+rio.id+'" style="flex:1;margin:0">'+
+        '<button type="button" class="btn sm rioBtnRegistrar" data-rio="'+rio.id+'">Registrar leitura</button>'+
+        '<button type="button" class="btn sm" data-rio-excluir="'+rio.id+'" style="background:var(--verm)">🗑️</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+  document.querySelectorAll('.rioBtnRegistrar').forEach(function(b){
+    b.addEventListener('click', function(){
+      var input = document.querySelector('.rioLeituraInput[data-rio="'+b.dataset.rio+'"]');
+      var valor = parseFloat(input.value);
+      if(isNaN(valor)){ toast('Digite um nível válido'); return; }
+      registrarLeituraRio(b.dataset.rio, valor, 'quartel');
+      renderRiosList(); renderMapa(); renderTabelaOcorrencias();
+      toast('Leitura registrada ✅');
+    });
+  });
+  document.querySelectorAll('[data-rio-excluir]').forEach(function(b){
+    b.addEventListener('click', function(){
+      if(!confirm('Excluir este rio monitorado? (não afeta ocorrências já criadas)')) return;
+      db.riosMonitorados = db.riosMonitorados.filter(function(r){return r.id!==b.dataset.rioExcluir;});
+      saveDB(db); renderRiosList();
+    });
+  });
+}
+document.getElementById('btnRioUsarCentroMapa').addEventListener('click', function(){
+  var c = qmap.getCenter();
+  document.getElementById('fRioLat').value = c.lat.toFixed(5);
+  document.getElementById('fRioLng').value = c.lng.toFixed(5);
+});
+document.getElementById('btnSalvarRio').addEventListener('click', function(){
+  var nome = document.getElementById('fRioNome').value.trim();
+  var atencao = parseFloat(document.getElementById('fRioAtencao').value);
+  var alerta = parseFloat(document.getElementById('fRioAlerta').value);
+  var inundacao = parseFloat(document.getElementById('fRioInundacao').value);
+  var lat = parseFloat(document.getElementById('fRioLat').value);
+  var lng = parseFloat(document.getElementById('fRioLng').value);
+  if(!nome){ toast('Informe o nome do rio/ponto'); return; }
+  if(isNaN(atencao)||isNaN(alerta)||isNaN(inundacao)){ toast('Preencha as três cotas'); return; }
+  if(!(atencao<alerta && alerta<inundacao)){ toast('As cotas devem ser crescentes: atenção < alerta < inundação'); return; }
+  if(isNaN(lat)||isNaN(lng)){ toast('Informe a localização (lat/lng ou use o centro do mapa)'); return; }
+  db.riosMonitorados.push({ id: uid('rio'), nome:nome, lat:lat, lng:lng,
+    cotas:{atencao:atencao, alerta:alerta, inundacao:inundacao}, nivelAtual:null, ultimaLeitura:null, historicoLeituras:[], ocorrenciaAtivaId:null });
+  saveDB(db);
+  document.getElementById('fRioNome').value=''; document.getElementById('fRioAtencao').value='';
+  document.getElementById('fRioAlerta').value=''; document.getElementById('fRioInundacao').value='';
+  document.getElementById('fRioLat').value=''; document.getElementById('fRioLng').value='';
+  renderRiosList();
+  toast('Rio cadastrado ✅');
+});
+
+function abrirOccModal(id){
+  var o = db.ocorrencias.find(function(x){return x.id===id;});
+  var body = document.getElementById('modalBody');
+  var tipoChipsHtml = TIPOS_EVENTO.map(function(t){
+    return '<div class="chip mtipochip" data-t="'+t.tipo+'" style="'+(t.tipo===o.tipo?'background:var(--acc);color:#fff;border-color:var(--acc)':'')+'">'+t.ic+' '+t.l+'</div>';
+  }).join('');
+  var recTags = RECURSOS_PADRAO.map(function(r){
+    return '<span class="tag'+(o.recursosNecessarios.indexOf(r)>=0?' on':'')+'" data-r="'+r+'">'+RECURSO_LABEL[r]+'</span>';
+  }).join('');
+  var histHtml = o.historico.slice().reverse().map(function(h){
+    return '<div class="histitem" style="border-color:'+RISCO_COR[h.risco]+'">'+fmtData(h.dataHora)+' — risco '+h.risco+' ('+h.origem+', '+(h.autor||'—')+')<br>'+(h.observacao||'')+'</div>';
+  }).join('');
+  var empHtml = (o.empenhos||[]).map(function(e){
+    return '<div class="histitem">👥 '+e.equipeNome+' — status: '+e.status+
+      (e.horaAcionamento?'<br>Acionada: '+fmtData(e.horaAcionamento):'')+
+      (e.horaChegada?' · Chegada: '+fmtData(e.horaChegada):'')+
+      (e.horaEncerramento?' · Encerrada: '+fmtData(e.horaEncerramento):'')+'</div>';
+  }).join('') || '<div style="color:var(--sub);font-size:12px">Nenhuma equipe empenhada</div>';
+  var possiveisDup = possiveisDuplicatas(o);
+  var duplicatasIds = o.duplicatas||[];
+  var duplicatasHtml = duplicatasIds.map(function(did){
+    var d = db.ocorrencias.find(function(x){return x.id===did;});
+    if(!d) return '';
+    return '<div class="histitem">'+tipoInfo(d.tipo).ic+' '+tipoInfo(d.tipo).l+' — criada '+fmtData(d.criadoEm)+' (mesclada aqui)</div>';
+  }).join('');
+  var vinculadasIds = o.vinculadas||[];
+  var vinculadasHtml = vinculadasIds.map(function(vid){
+    var v = db.ocorrencias.find(function(x){return x.id===vid;});
+    if(!v) return '';
+    return '<div class="histitem" style="display:flex;justify-content:space-between;align-items:center">'+
+      '<span style="cursor:pointer" data-abrir="'+v.id+'">'+tipoInfo(v.tipo).ic+' '+tipoInfo(v.tipo).l+' — '+fmtData(v.criadoEm)+' — '+(v.observacao||'sem observação')+'</span>'+
+      '<button type="button" class="btn sm" data-desvincular="'+v.id+'" style="padding:2px 8px">✕</button></div>';
+  }).join('') || '<div style="color:var(--sub);font-size:12px">Nenhuma vinculada</div>';
+  var candidatasVinculo = db.ocorrencias.filter(function(x){return x.id!==o.id && vinculadasIds.indexOf(x.id)<0;});
+  var vincularOptsHtml = candidatasVinculo.map(function(x){
+    return '<option value="'+x.id+'">'+tipoInfo(x.tipo).ic+' '+tipoInfo(x.tipo).l+' — '+fmtData(x.criadoEm)+' — '+localTexto(x)+'</option>';
+  }).join('');
+  var avisoDupHtml = '';
+  if(possiveisDup.length){
+    avisoDupHtml = '<div class="card" style="background:#3A2A00;border:1px solid var(--amar);margin-bottom:12px">'+
+      '<b style="color:var(--amar)">⚠️ Possível(is) duplicata(s) por perto</b>'+
+      '<div style="font-size:12px;color:var(--sub);margin:4px 0 8px">Mesmo tipo, a menos de 150m e criada(s) em até 48h de diferença — pode ser o mesmo evento registrado por outra equipe.</div>'+
+      possiveisDup.map(function(d){
+        return '<div class="histitem" style="display:flex;justify-content:space-between;align-items:center">'+
+          '<span style="cursor:pointer" data-abrir="'+d.id+'">'+tipoInfo(d.tipo).ic+' '+tipoInfo(d.tipo).l+' — '+fmtData(d.criadoEm)+' — '+(d.observacao||'sem observação')+'</span>'+
+          '<button type="button" class="btn sm" data-marcar-dup="'+d.id+'" style="padding:2px 8px;background:var(--amar);color:#1C1C1E">Marcar como duplicata</button></div>';
+      }).join('')+
+    '</div>';
+  }
+
+  body.innerHTML =
+    '<button class="closebtn" id="mClose">✕</button>'+
+    '<h2 style="margin:0 0 14px">Ocorrência</h2>'+
+    avisoDupHtml+
+    '<label class="lbl">Tipo</label><div class="chiprow" id="mTipoChips" style="flex-wrap:wrap">'+tipoChipsHtml+'</div>'+
+    '<label class="lbl">Risco (0-5)</label>'+
+    '<div class="chiprow" id="mRiscoChips">'+[0,1,2,3,4,5].map(function(r){
+      return '<div class="chip mrc" data-r="'+r+'" style="'+(r===o.risco?'background:'+RISCO_COR[r]+';border-color:'+RISCO_COR[r]+';color:#fff':'')+'">'+r+'</div>';
+    }).join('')+'</div>'+
+    '<label class="lbl">Observação</label><textarea id="mObs">'+(o.observacao||'')+'</textarea>'+
+    '<div class="grid2">'+
+      '<div><label class="lbl">Vítimas — quantidade</label><input type="number" id="mVitQtd" value="'+(o.vitimas.quantidade||0)+'"></div>'+
+      '<div><label class="lbl">Via obstruída</label><div class="btnrow" style="margin-bottom:0"><button type="button" class="btn sm mviabtn" data-v="nao" style="flex:1;'+(!o.viaObstruida.obstruida?'background:var(--acc)':'')+'">Não</button>'+
+      '<button type="button" class="btn sm mviabtn" data-v="sim" style="flex:1;'+(o.viaObstruida.obstruida?'background:var(--amar);color:#1C1C1E':'')+'">🚧 Sim</button></div></div>'+
+    '</div>'+
+    '<label class="lbl">Obs. vítimas / via</label><textarea id="mVitObs">'+((o.vitimas.observacao||'')+(o.viaObstruida.observacao?(' | '+o.viaObstruida.observacao):''))+'</textarea>'+
+    '<label class="lbl">Recursos necessários</label><div id="mRecTags">'+recTags+'</div>'+
+    '<button class="btn primary" id="btnSalvarOcc" style="margin-top:10px">💾 Salvar / Reativar</button>'+
+    '<h3 class="sec">🔗 Ocorrências vinculadas</h3>'+vinculadasHtml+
+    '<div style="display:flex;gap:6px;margin-top:8px">'+
+      '<select id="mVincularSel" style="flex:1"><option value="">Selecione uma ocorrência…</option>'+vincularOptsHtml+'</select>'+
+      '<button type="button" class="btn sm" id="btnVincular">Vincular</button>'+
+    '</div>'+
+    (duplicatasIds.length ? '<h3 class="sec">🔁 Duplicatas mescladas aqui</h3>'+duplicatasHtml : '')+
+    '<h3 class="sec">Empenhos</h3>'+
+    '<button type="button" class="btn sm" id="btnAtribuirEquipeOcc" style="margin-bottom:8px">👥 Atribuir equipe</button>'+
+    empHtml+
+    '<h3 class="sec">Histórico</h3>'+histHtml;
+
+  var novoRisco = o.risco; var recSel = o.recursosNecessarios.slice();
+  var novoTipo = o.tipo; var novaVia = o.viaObstruida.obstruida;
+  document.querySelectorAll('.mtipochip').forEach(function(c){
+    c.addEventListener('click', function(){
+      novoTipo = c.dataset.t;
+      document.querySelectorAll('.mtipochip').forEach(function(x){x.style.background='var(--card2)';x.style.color='var(--sub)';x.style.borderColor='var(--border)';});
+      c.style.background='var(--acc)'; c.style.color='#fff'; c.style.borderColor='var(--acc)';
+    });
+  });
+  document.querySelectorAll('.mviabtn').forEach(function(b){
+    b.addEventListener('click', function(){
+      novaVia = b.dataset.v==='sim';
+      document.querySelectorAll('.mviabtn').forEach(function(x){x.style.background='var(--card2)';x.style.color='#fff';});
+      if(novaVia){ b.style.background='var(--amar)'; b.style.color='#1C1C1E'; }
+      else { b.style.background='var(--acc)'; b.style.color='#fff'; }
+    });
+  });
+  document.querySelectorAll('.mrc').forEach(function(c){
+    c.addEventListener('click', function(){
+      novoRisco = parseInt(c.dataset.r);
+      document.querySelectorAll('.mrc').forEach(function(x){x.style.background='var(--card2)';x.style.borderColor='var(--border)';x.style.color='var(--sub)';});
+      c.style.background=RISCO_COR[novoRisco]; c.style.borderColor=RISCO_COR[novoRisco]; c.style.color='#fff';
+    });
+  });
+  document.querySelectorAll('#mRecTags .tag').forEach(function(t){
+    t.addEventListener('click', function(){
+      t.classList.toggle('on'); var r=t.dataset.r; var i=recSel.indexOf(r);
+      if(i>=0) recSel.splice(i,1); else recSel.push(r);
+    });
+  });
+  document.getElementById('mClose').addEventListener('click', fecharModal);
+  document.querySelectorAll('[data-desvincular]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var vid = b.dataset.desvincular;
+      o.vinculadas = (o.vinculadas||[]).filter(function(x){return x!==vid;});
+      var v = db.ocorrencias.find(function(x){return x.id===vid;});
+      if(v) v.vinculadas = (v.vinculadas||[]).filter(function(x){return x!==o.id;});
+      saveDB(db); abrirOccModal(id);
+    });
+  });
+  document.querySelectorAll('[data-abrir]').forEach(function(s){
+    s.addEventListener('click', function(){ abrirOccModal(s.dataset.abrir); });
+  });
+  document.querySelectorAll('[data-marcar-dup]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var outraId = b.dataset.marcarDup;
+      if(!confirm('Marcar esta ocorrência como duplicata da outra? As equipes empenhadas e o histórico serão movidos pra ocorrência original, e esta some do mapa.')) return;
+      marcarDuplicata(id, outraId);
+      toast('Marcada como duplicata ✅'); abrirOccModal(outraId); renderMapa(); renderTabelaOcorrencias();
+    });
+  });
+  var btnVincular = document.getElementById('btnVincular');
+  if(btnVincular) btnVincular.addEventListener('click', function(){
+    var alvoId = document.getElementById('mVincularSel').value;
+    if(!alvoId){ toast('Selecione uma ocorrência'); return; }
+    var alvo = db.ocorrencias.find(function(x){return x.id===alvoId;});
+    if(!alvo) return;
+    o.vinculadas = o.vinculadas||[]; if(o.vinculadas.indexOf(alvoId)<0) o.vinculadas.push(alvoId);
+    alvo.vinculadas = alvo.vinculadas||[]; if(alvo.vinculadas.indexOf(o.id)<0) alvo.vinculadas.push(o.id);
+    saveDB(db); toast('Vinculada ✅'); abrirOccModal(id);
+  });
+  document.getElementById('btnAtribuirEquipeOcc').addEventListener('click', function(){
+    abrirEquipeModal(o.id, 'atribuir', null);
+  });
+  document.getElementById('btnSalvarOcc').addEventListener('click', function(){
+    var agora = nowISO();
+    var eraResolvida = o.risco===0;
+    o.tipo = novoTipo;
+    o.risco = novoRisco;
+    o.observacao = document.getElementById('mObs').value;
+    o.vitimas.quantidade = parseInt(document.getElementById('mVitQtd').value)||0;
+    o.vitimas.observacao = document.getElementById('mVitObs').value;
+    o.viaObstruida.obstruida = novaVia;
+    o.recursosNecessarios = recSel;
+    o.atualizadoEm = agora;
+    var reativada = eraResolvida && novoRisco>0;
+    if(reativada){ o.resolvidaEm = null; o.reativacoes = o.reativacoes||[]; o.reativacoes.push({dataHora:agora, autor:'quartel', origem:'quartel'}); }
+    if(novoRisco===0){ o.resolvidaEm = agora; }
+    o.historico.push({dataHora:agora, risco:novoRisco, observacao:(reativada?'🔁 Reativada — ':'')+o.observacao, autor:'quartel', origem:'quartel', reativacao:reativada});
+    saveDB(db); fecharModal(); renderTabelaOcorrencias(); renderMapa();
+    toast('Ocorrência atualizada ✅');
+  });
+  document.getElementById('modalBg').classList.add('on');
+}
+window.abrirOccModal = abrirOccModal;
+
+// ════════════════════════════════════════
+// MISSÕES — quadro de controle, trocar/apoiar equipe
+// ════════════════════════════════════════
+function ocorrenciasAbertasSemEquipe(){
+  return db.ocorrencias.filter(function(o){
+    if(o.risco===0) return false;
+    var ativos = (o.empenhos||[]).filter(function(e){return e.status!=='encerrado';});
+    return ativos.length===0;
+  });
+}
+function ocorrenciasDaEquipe(equipeNome){
+  return db.ocorrencias.filter(function(o){
+    return (o.empenhos||[]).some(function(e){return e.equipeNome===equipeNome && e.status!=='encerrado';});
+  });
+}
+function renderMissoesBoard(){
+  var semEq = ocorrenciasAbertasSemEquipe();
+  document.getElementById('semEquipeCount').textContent = semEq.length;
+  document.getElementById('semEquipeList').innerHTML = semEq.length ? semEq.map(function(o){
+    return '<div class="histitem" style="border-color:'+RISCO_COR[o.risco]+'">'+
+      tipoInfo(o.tipo).ic+' '+tipoInfo(o.tipo).l+' — risco '+o.risco+' — '+(o.observacao||'sem obs.')+
+      '<br><button class="btn sm" style="margin-top:6px" onclick="abrirAtribuirEquipe(\''+o.id+'\')">Atribuir equipe</button></div>';
+  }).join('') : '<div style="color:var(--sub);font-size:12px">Nenhuma ocorrência em aberto sem equipe 🎉</div>';
+
+  var board = document.getElementById('equipesMissoesBoard');
+  if(!db.equipes.length){ board.innerHTML = '<div class="card"><div style="color:var(--sub);font-size:13px">Nenhuma equipe cadastrada</div></div>'; return; }
+  board.innerHTML = db.equipes.map(function(eq){
+    var ocs = ocorrenciasDaEquipe(eq.nome);
+    return '<div class="card"><h3 class="sec" style="margin-top:0">👥 '+eq.nome+' ('+ocs.length+')</h3>'+
+      (ocs.length ? ocs.map(function(o){
+        var emp = (o.empenhos||[]).find(function(e){return e.equipeNome===eq.nome && e.status!=='encerrado';});
+        var outrasEquipes = (o.empenhos||[]).filter(function(e){return e.equipeNome!==eq.nome && e.status!=='encerrado';}).map(function(e){return e.equipeNome;});
+        return '<div class="histitem" style="border-color:'+RISCO_COR[o.risco]+'">'+
+          tipoInfo(o.tipo).ic+' '+tipoInfo(o.tipo).l+' — risco '+o.risco+' — status: '+(emp?emp.status:'—')+
+          (outrasEquipes.length? '<br>Em apoio: '+outrasEquipes.join(', ') : '')+
+          '<div style="margin-top:6px;display:flex;gap:6px">'+
+          '<button class="btn sm" onclick="abrirTrocarEquipe(\''+o.id+'\',\''+eq.nome+'\')">Trocar equipe</button>'+
+          '<button class="btn sm" onclick="abrirAdicionarApoio(\''+o.id+'\')">+ Apoio</button>'+
+          '</div></div>';
+      }).join('') : '<div style="color:var(--sub);font-size:12px">Nenhuma missão ativa</div>')+
+      '</div>';
+  }).join('');
+}
+function abrirEquipeModal(ocId, modo, equipeAntigaNome){
+  var o = db.ocorrencias.find(function(x){return x.id===ocId;});
+  if(!db.equipes.length){ toast('Cadastre uma equipe primeiro'); return; }
+  var body = document.getElementById('modalBody');
+  var grupo1=[], grupo2=[], grupo3=[];
+  db.equipes.forEach(function(e){
+    var cap = (e.capacidades||[]).find(function(c){return c.tipo===o.tipo;});
+    if(cap && cap.riscoMaximo>=o.risco) grupo1.push(e);
+    else if(cap) grupo2.push(e);
+    else grupo3.push(e);
+  });
+  function chipsDoGrupo(lista){
+    return lista.map(function(e){
+      return '<div class="chip mequipechip" data-id="'+e.id+'">'+e.nome+'</div>';
+    }).join('');
+  }
+  var chipsHtml =
+    (grupo1.length ? '<div style="font-size:11px;color:var(--sub);margin:8px 0 4px">✅ Atuam neste tipo, no nível necessário</div><div class="chiprow" style="flex-wrap:wrap">'+chipsDoGrupo(grupo1)+'</div>' : '')+
+    (grupo2.length ? '<div style="font-size:11px;color:var(--sub);margin:8px 0 4px">⚠️ Atuam neste tipo, mas em nível inferior ao necessário</div><div class="chiprow" style="flex-wrap:wrap">'+chipsDoGrupo(grupo2)+'</div>' : '')+
+    (grupo3.length ? '<div style="font-size:11px;color:var(--sub);margin:8px 0 4px">— Não atuam neste tipo de ocorrência</div><div class="chiprow" style="flex-wrap:wrap">'+chipsDoGrupo(grupo3)+'</div>' : '');
+  var titulo = modo==='atribuir' ? 'Atribuir equipe' : modo==='trocar' ? 'Trocar equipe' : 'Adicionar equipe de apoio';
+  body.innerHTML = '<button class="closebtn" id="mClose">✕</button><h2 style="margin:0 0 14px">'+titulo+'</h2>'+
+    '<div style="font-size:13px;color:var(--sub);margin-bottom:10px">'+tipoInfo(o.tipo).ic+' '+tipoInfo(o.tipo).l+' — risco '+o.risco+'</div>'+
+    '<label class="lbl">Equipe</label><div id="mEquipeChips">'+chipsHtml+'</div>'+
+    '<button class="btn primary" id="btnConfirmarEquipe" style="margin-top:10px">Confirmar</button>';
+  var primeiraLista = grupo1.length?grupo1:(grupo2.length?grupo2:grupo3);
+  var eqIdSelecionada = primeiraLista.length ? primeiraLista[0].id : db.equipes[0].id;
+  document.querySelectorAll('.mequipechip').forEach(function(c){
+    if(c.dataset.id===eqIdSelecionada){ c.style.background='var(--acc)'; c.style.color='#fff'; c.style.borderColor='var(--acc)'; }
+    c.addEventListener('click', function(){
+      eqIdSelecionada = c.dataset.id;
+      document.querySelectorAll('.mequipechip').forEach(function(x){x.style.background='var(--card2)';x.style.color='var(--sub)';x.style.borderColor='var(--border)';});
+      c.style.background='var(--acc)'; c.style.color='#fff'; c.style.borderColor='var(--acc)';
+    });
+  });
+  document.getElementById('mClose').addEventListener('click', fecharModal);
+  document.getElementById('btnConfirmarEquipe').addEventListener('click', function(){
+    var eq = db.equipes.find(function(x){return x.id===eqIdSelecionada;});
+    if(!eq) return;
+    var agora = nowISO();
+    o.empenhos = o.empenhos||[];
+    if(modo==='trocar'){
+      var antigo = o.empenhos.find(function(e){return e.equipeNome===equipeAntigaNome && e.status!=='encerrado';});
+      if(antigo){ antigo.status='encerrado'; antigo.horaEncerramento=agora; antigo.observacao=(antigo.observacao||'')+' [transferida para '+eq.nome+']'; }
+    }
+    var jaTem = o.empenhos.some(function(e){return e.equipeNome===eq.nome && e.status!=='encerrado';});
+    if(!jaTem){
+      o.empenhos.push({id:uid('emp'), ocorrenciaId:o.id, equipeNome:eq.nome, equipeId:eq.id,
+        rotaDestino:{lat:o.lat,lng:o.lng}, horaAcionamento:agora, horaDeslocamento:null, horaChegada:null, horaEncerramento:null,
+        observacao: modo==='apoio'?'Equipe de apoio':'', status:'acionado'});
+    }
+    o.atualizadoEm = agora;
+    var descricao = modo==='trocar' ? ('Trocada para '+eq.nome+(equipeAntigaNome?' (era '+equipeAntigaNome+')':'')) :
+                     modo==='apoio' ? ('Equipe de apoio adicionada: '+eq.nome) : ('Atribuída a '+eq.nome);
+    o.historico.push({dataHora:agora, risco:o.risco, observacao:descricao, autor:'quartel', origem:'quartel'});
+    saveDB(db); fecharModal(); renderMissoesBoard(); renderMapa(); renderTabelaOcorrencias();
+    toast('Atualizado ✅');
+  });
+  document.getElementById('modalBg').classList.add('on');
+}
+window.abrirAtribuirEquipe = function(id){ abrirEquipeModal(id,'atribuir',null); };
+window.abrirTrocarEquipe = function(id, equipeAntiga){ abrirEquipeModal(id,'trocar',equipeAntiga); };
+window.abrirAdicionarApoio = function(id){ abrirEquipeModal(id,'apoio',null); };
+
+// ════════════════════════════════════════
+// ATUALIZAÇÃO AUTOMÁTICA (entre abas/janelas no mesmo computador)
+// ════════════════════════════════════════
+function refrescarViewAtual(){
+  var ativo = document.querySelector('aside button.on');
+  if(!ativo) return;
+  var v = ativo.dataset.v;
+  if(v==='mapa'){ renderMapa(); renderRegioesList(); }
+  else if(v==='ocorrencias') renderTabelaOcorrencias();
+  else if(v==='equipes') renderEquipesList();
+  else if(v==='missoes') renderMissoesBoard();
+  else if(v==='exportar'){ renderMissaoEquipeSelect(); renderChecklists(); renderChecklistRotas(); }
+}
+window.addEventListener('storage', function(e){
+  if(e.key===DBKEY){ db = loadDB(); refrescarViewAtual(); buildMapaFiltroEquipeSelects(); }
+});
+
+// ════════════════════════════════════════
+// EQUIPES
+// ════════════════════════════════════════
+function buildCapList(caps){
+  caps = caps||[];
+  document.getElementById('capList').innerHTML = TIPOS_EVENTO.map(function(t){
+    var cap = caps.find(function(c){return c.tipo===t.tipo;});
+    var opts = ['-1','0','1','2','3','4','5'].map(function(v){
+      var sel = cap ? (String(cap.riscoMaximo)===v) : (v==='-1');
+      return '<option value="'+v+'"'+(sel?' selected':'')+'>'+(v==='-1'?'Não atua':'até '+v)+'</option>';
+    }).join('');
+    return '<div class="capline"><span class="l">'+t.ic+' '+t.l+'</span><select data-tipo="'+t.tipo+'" class="capsel">'+opts+'</select></div>';
+  }).join('');
+}
+buildCapList([]);
+document.getElementById('btnSalvarEquipe').addEventListener('click', function(){
+  var nome = document.getElementById('fEqNome').value.trim();
+  if(!nome){ toast('Informe o nome da equipe'); return; }
+  var caps = [];
+  document.querySelectorAll('.capsel').forEach(function(s){
+    if(s.value!=='-1') caps.push({tipo:s.dataset.tipo, riscoMaximo:parseInt(s.value)});
+  });
+  var existente = db.equipes.find(function(e){return e.nome===nome;});
+  var membros = document.getElementById('fEqMembros').value.split('\n').filter(Boolean).map(function(l){return {nome:l.trim()};});
+  if(existente){
+    existente.membros = membros; existente.viatura = document.getElementById('fEqViatura').value; existente.capacidades = caps;
+  } else {
+    db.equipes.push({ id:uid('eq'), nome:nome, membros:membros, viatura:document.getElementById('fEqViatura').value,
+      capacidades:caps, status:'disponivel', ultimaPosicao:{lat:null,lng:null,dataHora:null}, ocorrenciaAtualId:null });
+  }
+  saveDB(db);
+  document.getElementById('fEqNome').value=''; document.getElementById('fEqMembros').value=''; document.getElementById('fEqViatura').value='';
+  buildCapList([]);
+  renderEquipesList(); buildMapaFiltroEquipeSelects(); toast('Equipe salva ✅');
+});
+function renderEquipesList(){
+  var el = document.getElementById('equipesList');
+  if(!db.equipes.length){ el.innerHTML = '<div style="color:var(--sub);font-size:13px">Nenhuma equipe cadastrada</div>'; return; }
+  el.innerHTML = db.equipes.map(function(e){
+    var capTxt = (e.capacidades||[]).map(function(c){return tipoInfo(c.tipo).ic+' até '+c.riscoMaximo;}).join(' · ') || 'sem capacidades definidas';
+    return '<div class="card" style="margin-bottom:10px;padding:12px">'+
+      '<b>'+e.nome+'</b> <span class="badge" style="background:'+(e.status==='disponivel'?'#34C759':'#3A3A3C')+'">'+e.status+'</span>'+
+      '<div style="font-size:12px;color:var(--sub);margin-top:4px">Viatura: '+(e.viatura||'—')+'</div>'+
+      '<div style="font-size:12px;color:var(--sub);margin-top:4px">'+capTxt+'</div>'+
+      '<div style="font-size:11px;color:var(--sub);margin-top:4px">Últ. posição: '+(e.ultimaPosicao&&e.ultimaPosicao.dataHora?fmtData(e.ultimaPosicao.dataHora):'—')+'</div>'+
+      '<div style="margin-top:8px;display:flex;gap:6px">'+
+      '<button class="btn sm" onclick="editarEquipe(\''+e.id+'\')">Editar</button>'+
+      '<button class="btn sm warn" onclick="excluirEquipeUI(\''+e.id+'\')">🗑️ Excluir</button>'+
+      '</div></div>';
+  }).join('');
+}
+window.excluirEquipeUI = function(id){
+  var eq = db.equipes.find(function(e){return e.id===id;});
+  if(!eq) return;
+  var ativos = 0;
+  db.ocorrencias.forEach(function(o){
+    ativos += (o.empenhos||[]).filter(function(e){return e.equipeNome===eq.nome && e.status!=='encerrado';}).length;
+  });
+  var msg = 'Excluir a equipe "'+eq.nome+'"?';
+  if(ativos>0) msg += '\n\nEla tem '+ativos+' missão(ões) ativa(s) — serão encerradas automaticamente antes da exclusão.';
+  if(!confirm(msg)) return;
+  if(ativos>0){
+    var agora = nowISO();
+    db.ocorrencias.forEach(function(o){
+      (o.empenhos||[]).forEach(function(e){
+        if(e.equipeNome===eq.nome && e.status!=='encerrado'){
+          e.status='encerrado'; e.horaEncerramento=agora; e.observacao=(e.observacao||'')+' [equipe excluída]';
+          o.atualizadoEm=agora;
+          o.historico.push({dataHora:agora, risco:o.risco, observacao:'Missão encerrada — equipe "'+eq.nome+'" excluída', autor:'quartel', origem:'quartel'});
+        }
+      });
+    });
+  }
+  db.equipes = db.equipes.filter(function(e){return e.id!==id;});
+  saveDB(db);
+  renderEquipesList(); buildMapaFiltroEquipeSelects(); renderMissoesBoard(); renderMapa(); renderTabelaOcorrencias();
+  toast('Equipe excluída');
+};
+window.editarEquipe = function(id){
+  var e = db.equipes.find(function(x){return x.id===id;});
+  document.getElementById('fEqNome').value = e.nome;
+  document.getElementById('fEqMembros').value = (e.membros||[]).map(function(m){return m.nome;}).join('\n');
+  document.getElementById('fEqViatura').value = e.viatura||'';
+  buildCapList(e.capacidades);
+  window.scrollTo(0,0);
+};
+
+// ════════════════════════════════════════
+// EXPORTAR — AVISO GERAL E MISSÕES
+// ════════════════════════════════════════
+function renderChecklists(){
+  var lista = ocorrenciasFiltradas().length ? ocorrenciasFiltradas() : db.ocorrencias;
+  var html = lista.map(function(o){
+    return '<label class="checkrow"><input type="checkbox" class="ckGeral" value="'+o.id+'">'+
+      tipoInfo(o.tipo).ic+' '+tipoInfo(o.tipo).l+' — risco '+o.risco+' — '+(o.observacao||'sem obs.')+'</label>';
+  }).join('') || '<div style="color:var(--sub);font-size:12px;padding:8px">Nenhuma ocorrência</div>';
+  document.getElementById('checklistGeral').innerHTML = html;
+  document.getElementById('checklistMissao').innerHTML = html.replace(/ckGeral/g,'ckMissao');
+  var htmlPontos = (db.pontosReferencia||[]).map(function(p){
+    return '<label class="checkrow"><input type="checkbox" class="ckPonto" value="'+p.id+'">'+
+      iconePontoRef(p.tipo)+' '+(p.nome||p.tipo)+'</label>';
+  }).join('') || '<div style="color:var(--sub);font-size:12px;padding:8px">Nenhum ponto cadastrado</div>';
+  document.getElementById('checklistPontos').innerHTML = htmlPontos;
+}
+function renderMissaoEquipeSelect(){
+  var sel = document.getElementById('fMissaoEquipe');
+  sel.innerHTML = db.equipes.map(function(e){return '<option value="'+e.id+'">'+e.nome+'</option>';}).join('') || '<option value="">Nenhuma equipe cadastrada</option>';
+}
+function renderChecklistRotas(){
+  var el = document.getElementById('checklistRotas');
+  var lista = (db.trajetorias||[]).slice().sort(function(a,b){ return (b.inicioEm||'').localeCompare(a.inicioEm||''); });
+  el.innerHTML = lista.map(function(tr){
+    var qtdPontos = tr.pontos ? tr.pontos.length : 0;
+    return '<label class="checkrow"><input type="checkbox" class="ckRota" value="'+tr.id+'">'+
+      '🧭 '+(tr.equipeNome||'sem equipe')+' — '+fmtData(tr.inicioEm)+' — '+qtdPontos+' pontos</label>';
+  }).join('') || '<div style="color:var(--sub);font-size:12px;padding:8px">Nenhuma rota gravada ainda</div>';
+}
+
+function nomeArquivo(equipeNome){
+  var d = new Date(); function p(n){return (n<10?'0':'')+n;}
+  var dataStr = d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+  var chave = (equipeNome||'GERAL')+'_'+dataStr;
+  db.contadorExport = db.contadorExport || {};
+  db.contadorExport[chave] = (db.contadorExport[chave]||0) + 1;
+  saveDB(db);
+  var n = db.contadorExport[chave];
+  return (equipeNome||'GERAL').replace(/\s+/g,'')+'_'+dataStr+'_'+p(n)+'.ved';
+}
+function baixarPacote(pacote, equipeNome){
+  var blob = new Blob([JSON.stringify(pacote)], {type:'application/json'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = nomeArquivo(equipeNome);
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+document.getElementById('btnExportarRotas').addEventListener('click', function(){
+  var ids = Array.from(document.querySelectorAll('.ckRota:checked')).map(function(c){return c.value;});
+  if(!ids.length){ toast('Marque ao menos uma rota'); return; }
+  var trajs = (db.trajetorias||[]).filter(function(t){return ids.indexOf(t.id)>=0;});
+  var equipesEnvolvidas = Array.from(new Set(trajs.map(function(t){return t.equipeNome||'';})));
+  var nomeParaArquivo = equipesEnvolvidas.length===1 ? equipesEnvolvidas[0] : 'ROTAS';
+  var pacote = { versao:1, geradoEm: nowISO(), direcao:'quartel→outro', tipo:'rota', trajetorias: trajs, ocorrencias: [], equipes: [] };
+  baixarPacote(pacote, nomeParaArquivo);
+  toast('Rota(s) exportada(s) ✅');
+});
+
+// ════════════════════════════════════════
+// RELATÓRIO
+// ════════════════════════════════════════
+var relTipoFiltro = 'todos';
+function buildRelTipoFiltroChips(){
+  var chips=[{k:'todos',l:'Todos'}].concat(TIPOS_EVENTO.map(function(t){return{k:t.tipo,l:t.ic+' '+t.l};}));
+  document.getElementById('relTipoFiltroChips').innerHTML = chips.map(function(c){
+    return '<div class="chip'+(c.k===relTipoFiltro?' on':'')+'" data-k="'+c.k+'">'+c.l+'</div>';
+  }).join('');
+  document.querySelectorAll('#relTipoFiltroChips .chip').forEach(function(ch){
+    ch.addEventListener('click', function(){ relTipoFiltro = ch.dataset.k; buildRelTipoFiltroChips(); });
+  });
+}
+function localTexto(o){
+  if(o.endereco) return o.endereco + (o.bairro?', '+o.bairro:'') + (o.municipio?' — '+o.municipio:'');
+  if(o.lat!=null) return o.lat.toFixed(5)+', '+o.lng.toFixed(5);
+  return '—';
+}
+function ciclosDaOcorrencia(o){
+  // reconstrói cada "abertura" (criação + cada reativação) e seu fechamento (quando risco volta a 0)
+  var eventos = [{dataHora:o.criadoEm, tipo:'abertura'}];
+  (o.historico||[]).forEach(function(h){
+    if(h.reativacao) eventos.push({dataHora:h.dataHora, tipo:'abertura'});
+    else if(h.risco===0) eventos.push({dataHora:h.dataHora, tipo:'fechamento'});
+  });
+  eventos.sort(function(a,b){ return (a.dataHora||'').localeCompare(b.dataHora||''); });
+  var ciclos = [], aberturaAtual = null;
+  eventos.forEach(function(e){
+    if(e.tipo==='abertura'){ if(!aberturaAtual) aberturaAtual = e.dataHora; }
+    else if(aberturaAtual){ ciclos.push({inicio:aberturaAtual, fim:e.dataHora}); aberturaAtual = null; }
+  });
+  if(aberturaAtual) ciclos.push({inicio:aberturaAtual, fim:null});
+  return ciclos;
+}
+function linhasParaRelatorio(ignorarFiltroTipo){
+  var de = document.getElementById('fRelDataDe').value;
+  var ate = document.getElementById('fRelDataAte').value;
+  var status = document.getElementById('fRelStatus').value;
+  var linhas = [];
+  db.ocorrencias.forEach(function(o){
+    if(o.duplicadaDe) return;
+    if(!ignorarFiltroTipo && relTipoFiltro!=='todos' && o.tipo!==relTipoFiltro) return;
+    var ciclos = ciclosDaOcorrencia(o);
+    ciclos.forEach(function(c, idx){
+      var dataLinha = (c.inicio||'').slice(0,10);
+      if(de && dataLinha < de) return;
+      if(ate && dataLinha > ate) return;
+      var estaAberta = c.fim===null;
+      if(status==='abertas' && !estaAberta) return;
+      if(status==='resolvidas' && estaAberta) return;
+      linhas.push({ocorrencia:o, inicio:c.inicio, fim:c.fim, reaberta: idx>0, aberta: estaAberta});
+    });
+  });
+  linhas.sort(function(a,b){ return (a.inicio||'').localeCompare(b.inicio||''); });
+  return linhas;
+}
+function montarResumoQuantitativo(linhas){
+  var porTipo = {};
+  linhas.forEach(function(l){
+    var o = l.ocorrencia;
+    if(!porTipo[o.tipo]) porTipo[o.tipo] = { eventos:0, vitimas:0, equipes:{}, niveis:{1:0,2:0,3:0,4:0,5:0} };
+    var g = porTipo[o.tipo];
+    g.eventos++;
+    g.vitimas += (o.vitimas&&o.vitimas.quantidade)||0;
+    (o.empenhos||[]).forEach(function(e){ g.equipes[e.equipeNome]=true; });
+    var nivelAtual = l.aberta ? o.risco : 0;
+    if(nivelAtual>=1 && nivelAtual<=5) g.niveis[nivelAtual]++;
+  });
+  return porTipo;
+}
+document.getElementById('btnGerarResumoQuantitativo').addEventListener('click', function(){
+  var linhas = linhasParaRelatorio(true);
+  var resumo = montarResumoQuantitativo(linhas);
+  var tipos = Object.keys(resumo);
+  var el = document.getElementById('resumoQuantitativoResultado');
+  if(!tipos.length){ el.innerHTML = '<div style="color:var(--sub);font-size:13px">Nenhum evento no período/filtro escolhido.</div>'; return; }
+  var totalEventos=0, totalVitimas=0, todasEquipes={};
+  var linhasHtml = tipos.map(function(t){
+    var g = resumo[t];
+    totalEventos += g.eventos; totalVitimas += g.vitimas;
+    Object.keys(g.equipes).forEach(function(eq){ todasEquipes[eq]=true; });
+    var niveisTxt = [1,2,3,4,5].map(function(n){ return g.niveis[n] ? 'N'+n+':'+g.niveis[n] : null; }).filter(Boolean).join(' · ') || '—';
+    return '<tr><td>'+tipoInfo(t).ic+' '+tipoInfo(t).l+'</td><td style="text-align:center">'+g.eventos+'</td>'+
+      '<td style="text-align:center">'+Object.keys(g.equipes).length+'</td>'+
+      '<td style="text-align:center">'+g.vitimas+'</td>'+
+      '<td>'+niveisTxt+'</td></tr>';
+  }).join('');
+  el.innerHTML = '<h3 style="margin-top:0">Resumo por tipo</h3>'+
+    '<div style="font-size:13px;color:var(--sub);margin-bottom:8px">Total: '+totalEventos+' evento(s) · '+Object.keys(todasEquipes).length+' equipe(s) distinta(s) envolvida(s) · '+totalVitimas+' vítima(s)</div>'+
+    '<table><thead><tr><th>Tipo</th><th>Qtd. eventos</th><th>Qtd. equipes</th><th>Vítimas</th><th>Por nível</th></tr></thead>'+
+    '<tbody>'+linhasHtml+'</tbody></table>';
+});
+document.getElementById('btnGerarRelatorio').addEventListener('click', function(){
+  var linhasDados = linhasParaRelatorio();
+  var totalVitimas = linhasDados.reduce(function(acc,l){ return acc + (l.ocorrencia.vitimas&&l.ocorrencia.vitimas.quantidade?l.ocorrencia.vitimas.quantidade:0); },0);
+  var reaberturasCount = linhasDados.filter(function(l){return l.reaberta;}).length;
+  var de = document.getElementById('fRelDataDe').value || '(sem início)';
+  var ate = document.getElementById('fRelDataAte').value || '(sem fim)';
+  var linhasHtml = linhasDados.map(function(l){
+    var o = l.ocorrencia;
+    var equipesNomes = (o.empenhos||[]).map(function(e){return e.equipeNome;}).join(', ') || '—';
+    var statusTxt = l.aberta ? (o.risco+' — '+RISCO_LABEL[o.risco]) : '0 — Resolvida';
+    return '<tr><td>'+fmtData(l.inicio)+(l.reaberta?' <span class="badge" style="background:var(--amar);color:#1C1C1E">🔁 reaberta</span>':'')+'</td>'+
+      '<td>'+tipoInfo(o.tipo).ic+' '+tipoInfo(o.tipo).l+'</td>'+
+      '<td>'+localTexto(o)+'</td>'+
+      '<td>'+statusTxt+'</td>'+
+      '<td style="text-align:center">'+(o.vitimas&&o.vitimas.quantidade?o.vitimas.quantidade:0)+'</td>'+
+      '<td>'+equipesNomes+'</td>'+
+      '<td>'+(o.observacao||'')+'</td></tr>';
+  }).join('');
+  document.getElementById('relatorioResultado').innerHTML =
+    '<h3 style="margin-top:0">Período: '+de+' até '+ate+'</h3>'+
+    '<div style="font-size:13px;color:var(--sub);margin-bottom:8px">'+linhasDados.length+' evento(s) no relatório'+
+    (reaberturasCount?' (incluindo '+reaberturasCount+' reativação(ões) contadas como novo evento)':'')+
+    ' — total de '+totalVitimas+' vítima(s)</div>'+
+    '<table><thead><tr><th>Data</th><th>Tipo</th><th>Local</th><th>Status/Risco</th><th>Vítimas</th><th>Equipe(s)</th><th>Observação</th></tr></thead>'+
+    '<tbody>'+(linhasHtml || '<tr><td colspan="7" style="text-align:center;color:var(--sub)">Nenhuma ocorrência no filtro</td></tr>')+'</tbody></table>';
+});
+document.getElementById('btnImprimirRelatorio').addEventListener('click', function(){
+  if(document.getElementById('relatorioResultado').querySelector('table')===null){
+    toast('Gere o relatório antes de imprimir');
+    return;
+  }
+  window.print();
+});
+
+var TIPOS_RELACIONAM_PONTOS = ['alagamento','via_obstruida','ponte'];
+document.getElementById('btnGerarGeral').addEventListener('click', function(){
+  var ids = Array.from(document.querySelectorAll('.ckGeral:checked')).map(function(c){return c.value;});
+  if(!ids.length){ toast('Marque ao menos uma ocorrência'); return; }
+  var ocs = db.ocorrencias.filter(function(o){return ids.indexOf(o.id)>=0;}).map(function(o){
+    var copia = JSON.parse(JSON.stringify(o)); copia.origem = 'geral'; copia.geral = true; return copia;
+  });
+  var pontosIncluidos = {}, pontosRelacionados = [];
+  ocs.forEach(function(o){
+    if(TIPOS_RELACIONAM_PONTOS.indexOf(o.tipo)<0 || o.lat==null) return;
+    (db.pontosReferencia||[]).forEach(function(p){
+      if(pontosIncluidos[p.id] || p.lat==null) return;
+      if(distanciaMetros(o.lat,o.lng,p.lat,p.lng)<=300){ pontosIncluidos[p.id]=true; pontosRelacionados.push(p); }
+    });
+  });
+  var pacote = { versao:1, geradoEm: nowISO(), direcao:'quartel→campo', tipo:'geral', ocorrencias: ocs, equipes: [], pontosReferencia: pontosRelacionados };
+  baixarPacote(pacote, null);
+  toast('Pacote geral gerado ✅'+(pontosRelacionados.length?' (+'+pontosRelacionados.length+' pontos de referência próximos)':''));
+});
+
+document.getElementById('btnGerarPontos').addEventListener('click', function(){
+  var ids = Array.from(document.querySelectorAll('.ckPonto:checked')).map(function(c){return c.value;});
+  if(!ids.length){ toast('Marque ao menos um ponto'); return; }
+  var pontos = (db.pontosReferencia||[]).filter(function(p){return ids.indexOf(p.id)>=0;});
+  var pacote = { versao:1, geradoEm: nowISO(), direcao:'quartel→campo', tipo:'pontos-referencia', ocorrencias: [], equipes: [], pontosReferencia: pontos };
+  baixarPacote(pacote, 'PONTOS');
+  toast('Pacote de pontos gerado ✅');
+});
+
+document.getElementById('btnGerarMissao').addEventListener('click', function(){
+  var eqId = document.getElementById('fMissaoEquipe').value;
+  var eq = db.equipes.find(function(e){return e.id===eqId;});
+  if(!eq){ toast('Cadastre uma equipe primeiro'); return; }
+  var ids = Array.from(document.querySelectorAll('.ckMissao:checked')).map(function(c){return c.value;});
+  if(!ids.length){ toast('Marque ao menos uma ocorrência'); return; }
+  var agora = nowISO();
+  var ocs = [];
+  ids.forEach(function(id){
+    var o = db.ocorrencias.find(function(x){return x.id===id;});
+    if(!o) return;
+    o.empenhos = o.empenhos||[];
+    if(!o.empenhos.some(function(e){return e.equipeNome===eq.nome;})){
+      o.empenhos.push({ id:uid('emp'), ocorrenciaId:o.id, equipeNome:eq.nome, equipeId:eq.id,
+        rotaDestino:{lat:o.lat,lng:o.lng}, horaAcionamento:agora, horaDeslocamento:null,
+        horaChegada:null, horaEncerramento:null, observacao:'', status:'acionado' });
+    }
+    o.atualizadoEm = agora;
+    ocs.push(o);
+  });
+  eq.status = 'deslocando'; eq.ocorrenciaAtualId = ids[0];
+  saveDB(db);
+  var pacote = { versao:1, geradoEm: agora, direcao:'quartel→campo', tipo:'missao', equipeNome: eq.nome,
+    ocorrencias: ocs, equipes: [eq] };
+  baixarPacote(pacote, eq.nome);
+  renderTabelaOcorrencias(); renderMapa();
+  toast('Missão gerada para '+eq.nome+' ✅');
+});
+
+// ════════════════════════════════════════
+// IMPORTAR
+// ════════════════════════════════════════
+function mergeArray(local, importados, contador){
+  local = local||[];
+  importados.forEach(function(item){
+    var idx = local.findIndex(function(x){return x.id===item.id;});
+    if(idx>=0){
+      var loc = local[idx];
+      if(loc.atualizadoEm && item.atualizadoEm && loc.atualizadoEm > item.atualizadoEm){ contador.conflitos++; }
+      else { local[idx]=item; contador.atualizados++; }
+    } else { local.push(item); contador.novos++; }
+  });
+  return local;
+}
+function chaveHist(h){ return [h.dataHora,h.risco,h.observacao,h.origem,h.autor,!!h.reativacao].join('|'); }
+function unionHistorico(h1,h2){
+  var vistos = {}, out = [];
+  (h1||[]).concat(h2||[]).forEach(function(h){
+    var k = chaveHist(h);
+    if(!vistos[k]){ vistos[k]=true; out.push(h); }
+  });
+  out.sort(function(a,b){ return (a.dataHora||'').localeCompare(b.dataHora||''); });
+  return out;
+}
+function uniaoIds(a,b){
+  var out = (a||[]).slice();
+  (b||[]).forEach(function(id){ if(out.indexOf(id)<0) out.push(id); });
+  return out;
+}
+var ORDEM_STATUS_EMP = {acionado:1, deslocamento:1.5, no_local:2, encerrado:3};
+function statusMaisAvancado(s1,s2){
+  var v1 = ORDEM_STATUS_EMP[s1]||0, v2 = ORDEM_STATUS_EMP[s2]||0;
+  return v1>=v2 ? s1 : s2;
+}
+function mesclarEmpenhos(e1,e2){
+  var porId = {}, ordem = [];
+  (e1||[]).concat(e2||[]).forEach(function(e){
+    if(!porId[e.id]){ porId[e.id]=Object.assign({},e); ordem.push(e.id); }
+    else{
+      var ex = porId[e.id];
+      porId[e.id] = {
+        id:e.id,
+        ocorrenciaId: ex.ocorrenciaId||e.ocorrenciaId,
+        equipeNome: ex.equipeNome||e.equipeNome,
+        equipeId: ex.equipeId||e.equipeId,
+        rotaDestino: ex.rotaDestino||e.rotaDestino,
+        horaAcionamento: ex.horaAcionamento||e.horaAcionamento,
+        horaDeslocamento: ex.horaDeslocamento||e.horaDeslocamento,
+        horaChegada: ex.horaChegada||e.horaChegada,
+        horaEncerramento: ex.horaEncerramento||e.horaEncerramento,
+        observacao: (ex.observacao&&ex.observacao.length>=(e.observacao||'').length) ? ex.observacao : e.observacao,
+        status: statusMaisAvancado(ex.status,e.status)
+      };
+    }
+  });
+  return ordem.map(function(id){return porId[id];});
+}
+function mesclarOcorrencia(a,b){
+  var m = {};
+  m.id = a.id;
+  m.criadoEm = a.criadoEm || b.criadoEm;
+  m.criadoPor = a.criadoPor || b.criadoPor;
+  m.origem = a.origem || b.origem;
+  m.lat = a.lat!=null ? a.lat : b.lat;
+  m.lng = a.lng!=null ? a.lng : b.lng;
+  m.endereco = a.endereco || b.endereco;
+  m.bairro = a.bairro || b.bairro;
+  m.municipio = a.municipio || b.municipio;
+  m.historico = unionHistorico(a.historico, b.historico);
+  var ultimo = m.historico[m.historico.length-1];
+  var maisRecente = (a.atualizadoEm||'') >= (b.atualizadoEm||'') ? a : b;
+  m.risco = ultimo ? ultimo.risco : Math.max(a.risco||0,b.risco||0);
+  m.tipo = maisRecente.tipo || a.tipo || b.tipo;
+  m.observacao = ultimo ? (ultimo.observacao||'').replace(/^🔁 Reativada — /,'') : (maisRecente.observacao||'');
+  m.vitimas = {
+    quantidade: Math.max((a.vitimas&&a.vitimas.quantidade)||0, (b.vitimas&&b.vitimas.quantidade)||0),
+    observacao: (maisRecente.vitimas&&maisRecente.vitimas.observacao) || (a.vitimas&&a.vitimas.observacao) || (b.vitimas&&b.vitimas.observacao) || ''
+  };
+  m.viaObstruida = {
+    obstruida: !!((a.viaObstruida&&a.viaObstruida.obstruida) || (b.viaObstruida&&b.viaObstruida.obstruida)),
+    observacao: (maisRecente.viaObstruida&&maisRecente.viaObstruida.observacao) || (a.viaObstruida&&a.viaObstruida.observacao) || (b.viaObstruida&&b.viaObstruida.observacao) || ''
+  };
+  m.recursosNecessarios = uniaoIds(a.recursosNecessarios, b.recursosNecessarios);
+  m.empenhos = mesclarEmpenhos(a.empenhos, b.empenhos);
+  m.vinculadas = uniaoIds(a.vinculadas, b.vinculadas);
+  m.duplicatas = uniaoIds(a.duplicatas, b.duplicatas);
+  m.duplicadaDe = a.duplicadaDe || b.duplicadaDe || null;
+  m.reativacoes = (function(){
+    var vistos={}, out=[];
+    (a.reativacoes||[]).concat(b.reativacoes||[]).forEach(function(r){
+      var k = r.dataHora+'|'+r.origem; if(!vistos[k]){vistos[k]=true; out.push(r);}
+    });
+    return out;
+  })();
+  m.atualizadoEm = maisRecente.atualizadoEm;
+  m.resolvidaEm = m.risco===0 ? (ultimo ? ultimo.dataHora : (a.resolvidaEm||b.resolvidaEm)) : null;
+  return m;
+}
+function mesclarOcorrencias(local, importadas, contador){
+  local = local||[];
+  importadas.forEach(function(item){
+    var idx = local.findIndex(function(x){return x.id===item.id;});
+    if(idx>=0){ local[idx] = mesclarOcorrencia(local[idx], item); contador.atualizados++; }
+    else { local.push(item); contador.novos++; }
+  });
+  return local;
+}
+document.getElementById('btnImportarBtn').addEventListener('click', function(){ document.getElementById('fileImportar').click(); });
+document.getElementById('fileImportar').addEventListener('change', function(e){
+  var file = e.target.files && e.target.files[0]; if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    try{
+      var pacote = JSON.parse(ev.target.result);
+
+      if(pacote.tipo==='pontos-referencia'){
+        db.pontosReferencia = db.pontosReferencia||[];
+        var novos=0, atualizados=0;
+        (pacote.pontos||[]).forEach(function(p){
+          var idx = db.pontosReferencia.findIndex(function(x){return x.id===p.id;});
+          if(idx>=0){ db.pontosReferencia[idx]=p; atualizados++; } else { db.pontosReferencia.push(p); novos++; }
+        });
+        saveDB(db);
+        document.getElementById('importResumo').innerHTML =
+          'Pontos de referência importados: '+novos+' novos, '+atualizados+' atualizados (origem: '+(pacote.origem||'—')+')';
+        renderMapa();
+        toast('Pontos de referência importados ✅');
+        return;
+      }
+
+      var contador = {novos:0, atualizados:0, conflitos:0};
+      db.ocorrencias = mesclarOcorrencias(db.ocorrencias, pacote.ocorrencias||[], contador);
+      db.trajetorias = (db.trajetorias||[]).concat((pacote.trajetorias||[]).filter(function(tr){
+        return !db.trajetorias.some(function(t){return t.id===tr.id;});
+      }));
+      // atualiza última posição da equipe com base na trajetória mais recente importada
+      (pacote.trajetorias||[]).forEach(function(tr){
+        if(!tr.pontos || !tr.pontos.length) return;
+        var eq = db.equipes.find(function(e){return e.nome===tr.equipeNome;});
+        var ultimo = tr.pontos[tr.pontos.length-1];
+        if(eq){ eq.ultimaPosicao = {lat:ultimo.lat, lng:ultimo.lng, dataHora:ultimo.dataHora}; }
+      });
+      saveDB(db);
+      document.getElementById('importResumo').innerHTML =
+        'Importado: '+contador.novos+' novas, '+contador.atualizados+' mescladas (campo a campo, nada foi perdido)';
+      renderMapa(); renderTabelaOcorrencias(); renderEquipesList();
+      toast('Importação concluída ✅');
+    }catch(err){ toast('Erro ao importar arquivo'); }
+  };
+  reader.readAsText(file);
+});
+
+// ════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════
+renderTabelaOcorrencias();
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw-eventos-quartel.js').catch(function(){});
+}
+</script>
+</body>
+</html>
