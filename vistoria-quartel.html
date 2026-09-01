@@ -165,7 +165,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v53</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v55</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -306,6 +306,8 @@
     <div class="view" id="v-mapa">
       <h2>Mapa</h2><div class="lead">Edificações por risco e rotas planejadas.</div>
       <div class="toolbar">
+        <input type="text" id="qmBuscaRe" placeholder="🔎 Buscar edificação por RE..." style="width:auto;min-width:200px" onkeydown="if(event.key==='Enter') buscarEdifNoMapa()">
+        <button class="btn" onclick="buscarEdifNoMapa()">Buscar</button>
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--sub)">
           <input type="checkbox" id="qmLyEdif" checked onchange="atualizarCamadasQMapa()"> Edificações
         </label>
@@ -985,7 +987,13 @@ var PREV_GRUPOS = {
 // ════════════════════════════════════════
 // NAVEGAÇÃO
 // ════════════════════════════════════════
+var scrollPositions = {};
+var viewAtual = null;
 function navTo(v){
+  if(viewAtual){
+    var mainAntes = document.querySelector('main');
+    if(mainAntes) scrollPositions[viewAtual] = mainAntes.scrollTop;
+  }
   document.querySelectorAll('.view').forEach(function(el){el.classList.remove('on');});
   document.getElementById('v-'+v).classList.add('on');
   document.querySelectorAll('aside button').forEach(function(b){b.classList.toggle('on', b.dataset.v===v);});
@@ -999,6 +1007,11 @@ function navTo(v){
     initQMapa();
     setTimeout(function(){ if(qmap){ qmap.invalidateSize(); renderQMapaConteudo(); } }, 50);
   }
+  viewAtual = v;
+  requestAnimationFrame(function(){
+    var mainAgora = document.querySelector('main');
+    if(mainAgora) mainAgora.scrollTop = scrollPositions[v]||0;
+  });
 }
 
 // ════════════════════════════════════════
@@ -1251,13 +1264,13 @@ function renderProjetos(){
       '</div>';
     }
     return '<div class="rowlist-item" style="flex-direction:column;align-items:stretch;gap:4px">'+
-      '<div style="display:flex;gap:8px">'+
-        '<select onchange="atualizarProjeto(\''+p.id+'\',\'tipo\',this.value)" style="flex:0 0 140px">'+
-          '<option value="projeto" '+(p.tipo==='projeto'?'selected':'')+'>Projeto</option>'+
-          '<option value="habite-se" '+(p.tipo==='habite-se'?'selected':'')+'>Habite-se</option>'+
-          '<option value="funcionamento" '+(p.tipo==='funcionamento'?'selected':'')+'>Funcionamento</option>'+
-        '</select>'+
-        '<input type="text" placeholder="Nº do protocolo" value="'+(p.num||'').replace(/"/g,'&quot;')+'" onchange="atualizarProjeto(\''+p.id+'\',\'num\',this.value)">'+
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
+        '<div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">'+
+          '<button type="button" class="btn" style="width:auto;padding:8px 10px;font-size:12px;border-radius:0;'+(p.tipo==='projeto'?'background:var(--red2);color:#fff':'background:var(--card2)')+'" onclick="atualizarProjeto(\''+p.id+'\',\'tipo\',\'projeto\')">Projeto</button>'+
+          '<button type="button" class="btn" style="width:auto;padding:8px 10px;font-size:12px;border-radius:0;'+(p.tipo==='habite-se'?'background:var(--red2);color:#fff':'background:var(--card2)')+'" onclick="atualizarProjeto(\''+p.id+'\',\'tipo\',\'habite-se\')">Habite-se</button>'+
+          '<button type="button" class="btn" style="width:auto;padding:8px 10px;font-size:12px;border-radius:0;'+(p.tipo==='funcionamento'?'background:var(--red2);color:#fff':'background:var(--card2)')+'" onclick="atualizarProjeto(\''+p.id+'\',\'tipo\',\'funcionamento\')">Funcionamento</button>'+
+        '</div>'+
+        '<input type="text" placeholder="Nº do protocolo" style="flex:1;min-width:120px" value="'+(p.num||'').replace(/"/g,'&quot;')+'" onchange="atualizarProjeto(\''+p.id+'\',\'num\',this.value)">'+
         '<button class="rowlist-del" onclick="removerProjeto(\''+p.id+'\')">✕</button>'+
       '</div>'+
       extra+
@@ -3473,6 +3486,23 @@ function excluirRota(id){
 // ════════════════════════════════════════
 var qmap = null, qmapInited = false;
 var qlyEdif=null, qlyRotas=null, qlyPontos=null, qlyForaComp=null;
+var qmMarcadoresEdif = {}; // id da edificação -> marcador no mapa, pra busca funcionar
+
+function buscarEdifNoMapa(){
+  var termo = (document.getElementById('qmBuscaRe').value||'').trim().toLowerCase();
+  if(!termo){ return; }
+  var db = loadDB();
+  var e = (db.edificacoes||[]).find(function(x){ return (x.re||'').toLowerCase()===termo; })
+    || (db.edificacoes||[]).find(function(x){ return (x.re||'').toLowerCase().indexOf(termo)>=0; });
+  if(!e){ alert('Nenhuma edificação encontrada com esse RE.'); return; }
+  if(!e.lat || !e.lng){ alert('"'+(e.re||'Sem RE')+' — '+(e.nome||'')+'" não tem localização (lat/lng) cadastrada no mapa.'); return; }
+  document.getElementById('qmLyEdif').checked = true;
+  document.getElementById('qmLyForaComp').checked = true;
+  atualizarCamadasQMapa();
+  qmap.setView([e.lat, e.lng], 17);
+  var mk = qmMarcadoresEdif[e.id];
+  if(mk) setTimeout(function(){ mk.openPopup(); }, 300);
+}
 
 // ════════════════════════════════════════
 // MAPAS OFFLINE — IndexedDB compartilhado "mapaOfflineDB", compatível com o app Eventos e com Vistoria Campo (arquivo .mvd)
@@ -3832,6 +3862,7 @@ function renderQMapaConteudo(){
   if(!qmap) return;
   var db = loadDB();
   qlyEdif.clearLayers(); qlyRotas.clearLayers(); qlyPontos.clearLayers(); qlyForaComp.clearLayers();
+  qmMarcadoresEdif = {};
 
   (db.edificacoes||[]).forEach(function(e){
     if(!e.lat || !e.lng) return;
@@ -3842,7 +3873,10 @@ function renderQMapaConteudo(){
       });
       var mkFora = L.marker([e.lat,e.lng], {icon:iconFora}).addTo(qlyForaComp);
       mkFora.bindTooltip((e.re||'Sem RE')+' — '+(e.nome||'')+' (fora de competência)', {direction:'top'});
+      mkFora.bindPopup('<div style="text-align:center"><b>'+(e.re||'Sem RE')+' — '+(e.nome||'')+'</b><br>Fora de competência<br>'+
+        '<button class="btn primary" style="margin-top:8px;width:100%" onclick="abrirFormEdif(\''+e.id+'\')">Ver detalhes</button></div>');
       mkFora.on('click', function(){ abrirFormEdif(e.id); });
+      qmMarcadoresEdif[e.id] = mkFora;
       return;
     }
     var riscoM = riscoEfetivo(e);
@@ -3866,8 +3900,11 @@ function renderQMapaConteudo(){
         (multa.motivo?'<br><span style="font-size:11px">'+multa.motivo+'</span>':'')+
         '<br><button class="btn primary" style="margin-top:8px;width:100%" onclick="resolverMulta(\''+e.id+'\',\''+multa.id+'\')">✓ Multa resolvida</button></div>');
     } else {
+      mk.bindPopup('<div style="text-align:center;min-width:160px"><b>'+(e.re||'Sem RE')+' — '+e.nome+'</b><br>Risco '+(riscoM||'—')+'<br>'+
+        '<button class="btn primary" style="margin-top:8px;width:100%" onclick="abrirFormEdif(\''+e.id+'\')">Ver detalhes</button></div>');
       mk.on('click', function(){ abrirFormEdif(e.id); });
     }
+    qmMarcadoresEdif[e.id] = mk;
   });
 
   (db.rotas||[]).forEach(function(r){
@@ -4202,7 +4239,11 @@ function mergeArray(local, importados, contador){
         // versão local é mais recente que a do arquivo — não sobrescreve, sinaliza conflito
         contador.conflitos++;
       } else {
-        local[idx]=item; contador.atualizados++;
+        // MESCLA campo a campo em vez de substituir o objeto inteiro — o Campo não conhece
+        // campos exclusivos do Quartel (multas, avisos enviados, laudo, ordem dos preventivos
+        // etc.), então uma substituição completa apagaria esses dados silenciosamente.
+        local[idx] = Object.assign({}, loc, item);
+        contador.atualizados++;
       }
     }
     else { local.push(item); contador.novos++; }
