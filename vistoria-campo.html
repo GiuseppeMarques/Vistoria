@@ -210,7 +210,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v42</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v43</div>
   </header>
 
   <main>
@@ -830,7 +830,12 @@ function renderVistoriasCampo(){
     return;
   }
 
-  el.innerHTML = lista.map(function(v){
+  var htmlBotaoRotaToda = '';
+  if(vistFiltroRota && vistFiltroRota!=='sem'){
+    htmlBotaoRotaToda = '<button class="btn primary" style="width:100%;margin-bottom:10px" onclick="navegarRotaInteira(\''+vistFiltroRota+'\')">🧭 Navegar por toda a rota ('+lista.filter(function(v){return !v.concluida;}).length+' paradas)</button>';
+  }
+
+  el.innerHTML = htmlBotaoRotaToda + lista.map(function(v){
     var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
     var cl = getCL(v.tipo);
     var todos = Object.values(cl).reduce(function(a,b){return a.concat(b);},[]);
@@ -844,6 +849,7 @@ function renderVistoriasCampo(){
 
     var rota = v.rotaId ? db.rotas.find(function(r){return r.id===v.rotaId;}) : null;
     var rotaTag = rota ? ' · 🧭 '+rota.nome : '';
+    var temLocal = e && e.lat && e.lng;
 
     return '<div class="vist-card" onclick="abrirExecucao(\''+v.edificacaoId+'\')">'+
       '<div class="vtop">'+
@@ -852,9 +858,27 @@ function renderVistoriasCampo(){
         '<span class="vist-status '+statusCls+'">'+statusTxt+'</span>'+
       '</div>'+
       '<div class="vsub">'+(v.concluida ? 'Concluída em '+new Date(v.concluidaEm).toLocaleString('pt-BR') : 'Toque pra continuar')+'</div>'+
+      (temLocal ? '<button class="btn" style="width:100%;margin-top:8px" onclick="event.stopPropagation();window.open(\'https://www.google.com/maps/dir/?api=1&destination='+e.lat+','+e.lng+'\', \'_blank\')">🧭 Navegar até aqui</button>' : '')+
       '<button class="btn stop" style="width:100%;margin-top:8px" onclick="event.stopPropagation();excluirVistoriaCampo(\''+v.id+'\')">Excluir</button>'+
     '</div>';
   }).join('');
+}
+function navegarRotaInteira(rotaId){
+  var db = loadDB();
+  var r = (db.rotas||[]).find(function(x){return x.id===rotaId;});
+  if(!r) return;
+  var paradas = (r.vistorias||[]).map(function(vid){
+    var v = db.vistorias.find(function(x){return x.id===vid;});
+    if(!v || v.concluida) return null; // só as ainda não feitas, na ordem da rota
+    var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
+    return (e && e.lat && e.lng) ? e.lat+','+e.lng : null;
+  }).filter(Boolean);
+  if(!paradas.length){ alert('Nenhuma parada com localização cadastrada nessa rota.'); return; }
+  var destino = paradas[paradas.length-1];
+  var waypoints = paradas.slice(0,-1);
+  var url = 'https://www.google.com/maps/dir/?api=1&destination='+destino;
+  if(waypoints.length) url += '&waypoints='+waypoints.join('|');
+  window.open(url, '_blank');
 }
 
 function abrirExecucao(edificacaoId){
