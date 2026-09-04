@@ -165,7 +165,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v61</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v62</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -736,6 +736,25 @@
 
     <div class="modal-actions">
       <button class="btn" onclick="document.getElementById('modalAdicionarRota').style.display='none'">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div id="modalConfirmarVisita" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h3>Confirmar data e período</h3>
+    <div class="sub" id="cvEdifNome" style="margin-bottom:16px;font-weight:700"></div>
+    <label class="lbl">Data da vistoria</label>
+    <input type="text" id="cvData" placeholder="DD/MM/AAAA" style="margin-bottom:12px">
+    <label class="lbl">Período</label>
+    <select id="cvPeriodo" style="margin-bottom:20px">
+      <option value="pela manhã">Pela manhã</option>
+      <option value="à tarde">À tarde</option>
+      <option value="em horário a combinar">Horário a combinar</option>
+    </select>
+    <div class="modal-actions">
+      <button class="btn" onclick="document.getElementById('modalConfirmarVisita').style.display='none'">Cancelar</button>
+      <button class="btn primary" onclick="confirmarEnviarVisitaWhatsapp()">📱 Abrir WhatsApp</button>
     </div>
   </div>
 </div>
@@ -2172,9 +2191,40 @@ function conversarVistoriaWhatsapp(vistId){
   if(!e) return;
   var telWa = telefoneParaWhatsapp(e.responsavel && e.responsavel.tel);
   if(!telWa){ alert('Esta edificação não tem telefone cadastrado.'); return; }
+
+  if(v.rotaId){
+    // já está numa rota (agendada) — pede só data+período e manda mensagem de confirmação
+    cvVistId = vistId;
+    document.getElementById('cvEdifNome').textContent = (e.re||'Sem RE')+' — '+(e.nome||'');
+    var rota = (db.rotas||[]).find(function(r){return r.id===v.rotaId;});
+    document.getElementById('cvData').value = (rota && rota.data) ? rota.data : '';
+    document.getElementById('cvPeriodo').value = 'pela manhã';
+    document.getElementById('modalConfirmarVisita').style.display='flex';
+    return;
+  }
+
   var texto = 'Olá! Aqui é do Corpo de Bombeiros. Gostaria de combinar um horário para a vistoria de '+
     (v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+' da edificação '+(e.nome||'')+' (RE '+(e.re||'')+'). Qual seria o melhor dia e horário para o(a) senhor(a)?';
   window.open('https://wa.me/'+telWa+'?text='+encodeURIComponent(texto), '_blank');
+}
+
+var cvVistId = null;
+function confirmarEnviarVisitaWhatsapp(){
+  var data = document.getElementById('cvData').value.trim();
+  var periodo = document.getElementById('cvPeriodo').value;
+  if(!data){ alert('Informe a data da vistoria.'); return; }
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===cvVistId;});
+  if(!v) return;
+  var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
+  if(!e) return;
+  var telWa = telefoneParaWhatsapp(e.responsavel && e.responsavel.tel);
+  if(!telWa){ alert('Esta edificação não tem telefone cadastrado.'); return; }
+  var texto = 'Olá! Aqui é do Corpo de Bombeiros. Informamos que a vistoria de '+
+    (v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+' da edificação '+(e.nome||'')+' (RE '+(e.re||'')+
+    ') será realizada no dia '+data+', '+periodo+'. Por favor, providencie a presença de um responsável no local.';
+  window.open('https://wa.me/'+telWa+'?text='+encodeURIComponent(texto), '_blank');
+  document.getElementById('modalConfirmarVisita').style.display='none';
 }
 
 var pvEdifSelecionadasIds = [];
