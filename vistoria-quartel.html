@@ -165,7 +165,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v57</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v61</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -218,6 +218,7 @@
         <div class="vfilter" id="vistFiltros">
           <button class="on" data-f="todas" onclick="setFiltroVist('todas')">Todas</button>
           <button data-f="pendentes" onclick="setFiltroVist('pendentes')">Pendentes</button>
+          <button data-f="emrota" onclick="setFiltroVist('emrota')">Em rota</button>
           <button data-f="concluidas" onclick="setFiltroVist('concluidas')">Concluídas</button>
         </div>
         <button class="btn primary" onclick="abrirPlanejarVist()">+ Planejar vistoria</button>
@@ -675,8 +676,9 @@
   <div class="modal">
     <h3>Planejar vistoria</h3>
     <div class="sub">Fica pendente até ser executada no Vistoria Campo.</div>
-    <label class="lbl">Edificação</label>
+    <label class="lbl">Edificação(ões)</label>
     <input type="text" id="pv-edif-busca" placeholder="Buscar por RE, nome, endereço, bairro ou município..." style="margin-bottom:8px" oninput="renderPvEdifLista()">
+    <div id="pv-selecionadas-info" class="sub" style="margin-bottom:6px"></div>
     <div id="pv-edif-lista" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;margin-bottom:12px"></div>
     <div class="frow">
       <div class="fcol"><label class="lbl">Tipo</label>
@@ -686,7 +688,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="document.getElementById('modalPlanVist').style.display='none'">Cancelar</button>
-      <button class="btn primary" onclick="salvarPlanejamentoVist()">Planejar</button>
+      <button class="btn primary" id="pv-btn-planejar" onclick="salvarPlanejamentoVist()">Planejar</button>
     </div>
   </div>
 </div>
@@ -2049,8 +2051,11 @@ function vincularVistoriaA(edificacaoId){
 
 function renderVistorias(){
   var db = loadDB();
+
+  if(filtroVist==='emrota'){ renderVistoriasPorRota(db); return; }
+
   var lista = (db.vistorias||[]).filter(function(v){
-    if(filtroVist==='pendentes') return !v.concluida;
+    if(filtroVist==='pendentes') return !v.concluida && !v.rotaId;
     if(filtroVist==='concluidas') return v.concluida;
     return true;
   }).sort(function(a,b){ return new Date(b.criadoEm||0)-new Date(a.criadoEm||0); });
@@ -2060,69 +2065,121 @@ function renderVistorias(){
     el.innerHTML = '<div class="empty"><div class="ico">✅</div>Nenhuma vistoria aqui ainda.</div>';
     return;
   }
-  el.innerHTML = lista.map(function(v){
-    var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
-    var cl = getCL(v.tipo);
-    var todos = Object.values(cl).reduce(function(a,b){return a.concat(b);},[]);
-    var nc = todos.filter(function(it){return v.checklist[it.id] && v.checklist[it.id].status==='nao';}).length;
-    var qtvIndef = false, qtvInfr = false;
-    if(v.qtv){
-      var qsist = ['ext','ilu','sal'].filter(function(sid){return v.qtv[sid] && v.qtv[sid].val!=null && v.qtv[sid].val!=='';});
-      var abaixo50 = qsist.some(function(sid){
-        var esperado = (e&&e.preventivos&&e.preventivos[sid]) ? e.preventivos[sid].qty : 0;
-        return esperado>0 && parseInt(v.qtv[sid].val,10) < esperado*0.5;
-      });
-      if(abaixo50 || (qsist.length && v.qtv.ano==='depois2013')) qtvIndef = true;
-      else if(qsist.length && v.qtv.ano==='antes2013') qtvInfr = true;
-    }
-    var pendBloco = 0;
-    if(e && e.blocos && e.blocos.length){
-      e.blocos.forEach(function(bloco, bi){
-        (bloco.pavimentos||[]).forEach(function(pav, pi){
-          Object.keys(pav.sist||{}).forEach(function(sid){
-            if(!pav.sist[sid].ativo) return;
-            var chave = bi+'_'+pi+'_'+sid;
-            var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
-            var esperado = pav.sist[sid].qty||0;
-            var aprovados = qd.aprovados!=null ? qd.aprovados : (qd.val!=null ? qd.val : null);
-            var reprovados = (qd.motivos||[]).reduce(function(s,m){return s+(m.qtd||0);}, 0);
-            if(aprovados==null && reprovados===0){ pendBloco++; return; }
-            if(((aprovados||0)+reprovados) < esperado){ pendBloco++; return; }
-            if(reprovados>0) pendBloco++;
-          });
-        });
-      });
-    }
-    if(pendBloco>0) qtvIndef = true;
-    var statusTxt = v.concluida
-      ? (qtvIndef || nc>0 ? '<span style="color:var(--red2);font-weight:700">⚠️ '+(nc>0?nc+' não conf.':(pendBloco>0?pendBloco+' preventivo(s) c/ pendência':'Indeferido (quantitativo)'))+'</span>'
-        : qtvInfr ? '<span style="color:var(--amar);font-weight:700">⚠️ Aprovado c/ Auto de Infração</span>'
-        : '<span style="color:var(--verde);font-weight:700">✅ Deferido</span>')
-      : '<span style="color:var(--amar);font-weight:700">⏳ Pendente</span>';
-    var orfa = !e;
-    return '<div class="vist-item" style="'+(orfa?'border:1px solid var(--red2)':'')+'">'+
-      '<div class="elist-row">'+
+  el.innerHTML = lista.map(function(v){ return renderVistoriaCard(v, db); }).join('');
+}
+
+// Filtro "Em rota": mostra as ROTAS (pendentes, com pelo menos 1 vistoria não concluída) como
+// cabeçalhos — clicar numa rota expande e mostra as vistorias dela, reaproveitando o mesmo card.
+var rotasExpandidas = {};
+function renderVistoriasPorRota(db){
+  var el = document.getElementById('vistList');
+  var rotasComPendente = (db.rotas||[]).filter(function(r){
+    return (r.vistorias||[]).some(function(vid){
+      var v = db.vistorias.find(function(x){return x.id===vid;});
+      return v && !v.concluida;
+    });
+  });
+  if(!rotasComPendente.length){
+    el.innerHTML = '<div class="empty"><div class="ico">✅</div>Nenhuma edificação em rota aguardando execução no momento.</div>';
+    return;
+  }
+  el.innerHTML = rotasComPendente.map(function(r){
+    var vistsDaRota = (r.vistorias||[]).map(function(vid){ return db.vistorias.find(function(x){return x.id===vid;}); }).filter(Boolean);
+    var pendentesDaRota = vistsDaRota.filter(function(v){ return !v.concluida; });
+    var aberta = !!rotasExpandidas[r.id];
+    var corpo = aberta ? pendentesDaRota.map(function(v){ return renderVistoriaCard(v, db); }).join('') : '';
+    return '<div class="vist-item" style="margin-bottom:10px">'+
+      '<div class="elist-row" style="cursor:pointer" onclick="toggleRotaExpandida(\''+r.id+'\')">'+
         '<div style="flex:1;min-width:0">'+
-          '<div class="elist-t">'+(e?e.nome:'⚠️ Edificação sem vínculo')+'</div>'+
-          '<div class="elist-s">'+(e?e.re:'esta vistoria não está ligada a nenhuma edificação')+' · '+(v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+(v.motivo?' · '+v.motivo:'')+'</div>'+
+          '<div class="elist-t">🧭 '+r.nome+'</div>'+
+          '<div class="elist-s">'+(r.data?r.data+' · ':'')+pendentesDaRota.length+' edificação(ões) aguardando vistoria</div>'+
         '</div>'+
-        '<div style="text-align:right">'+statusTxt+'</div>'+
+        '<div style="font-size:18px">'+(aberta?'▲':'▼')+'</div>'+
       '</div>'+
-      '<div class="btnrow" style="margin-top:10px;gap:8px;flex-wrap:wrap">'+
-        (orfa ? '<button class="btn primary" onclick="abrirVincularVistoria(\''+v.id+'\')">🔗 Vincular edificação</button>' :
-          (v.concluida
-            ? '<button class="btn" onclick="abrirRelatorio(\''+v.id+'\')">Ver relatório</button>'
-            : '<button class="btn primary" onclick="abrirExecucaoQuartel(\''+v.id+'\')">Executar vistoria</button>'))+
-        '<button class="btn" style="background:var(--red2)" onclick="excluirVistoria(\''+v.id+'\')">Excluir</button>'+
-      '</div>'+
+      (aberta ? '<div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">'+corpo+'</div>' : '')+
     '</div>';
   }).join('');
 }
+function toggleRotaExpandida(rotaId){
+  rotasExpandidas[rotaId] = !rotasExpandidas[rotaId];
+  renderVistorias();
+}
 
-var pvEdifSelecionadaId = null;
+function renderVistoriaCard(v, db){
+  var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
+  var cl = getCL(v.tipo);
+  var todos = Object.values(cl).reduce(function(a,b){return a.concat(b);},[]);
+  var nc = todos.filter(function(it){return v.checklist[it.id] && v.checklist[it.id].status==='nao';}).length;
+  var qtvIndef = false, qtvInfr = false;
+  if(v.qtv){
+    var qsist = ['ext','ilu','sal'].filter(function(sid){return v.qtv[sid] && v.qtv[sid].val!=null && v.qtv[sid].val!=='';});
+    var abaixo50 = qsist.some(function(sid){
+      var esperado = (e&&e.preventivos&&e.preventivos[sid]) ? e.preventivos[sid].qty : 0;
+      return esperado>0 && parseInt(v.qtv[sid].val,10) < esperado*0.5;
+    });
+    if(abaixo50 || (qsist.length && v.qtv.ano==='depois2013')) qtvIndef = true;
+    else if(qsist.length && v.qtv.ano==='antes2013') qtvInfr = true;
+  }
+  var pendBloco = 0;
+  if(e && e.blocos && e.blocos.length){
+    e.blocos.forEach(function(bloco, bi){
+      (bloco.pavimentos||[]).forEach(function(pav, pi){
+        Object.keys(pav.sist||{}).forEach(function(sid){
+          if(!pav.sist[sid].ativo) return;
+          var chave = bi+'_'+pi+'_'+sid;
+          var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
+          var esperado = pav.sist[sid].qty||0;
+          var aprovados = qd.aprovados!=null ? qd.aprovados : (qd.val!=null ? qd.val : null);
+          var reprovados = (qd.motivos||[]).reduce(function(s,m){return s+(m.qtd||0);}, 0);
+          if(aprovados==null && reprovados===0){ pendBloco++; return; }
+          if(((aprovados||0)+reprovados) < esperado){ pendBloco++; return; }
+          if(reprovados>0) pendBloco++;
+        });
+      });
+    });
+  }
+  if(pendBloco>0) qtvIndef = true;
+  var statusTxt = v.concluida
+    ? (qtvIndef || nc>0 ? '<span style="color:var(--red2);font-weight:700">⚠️ '+(nc>0?nc+' não conf.':(pendBloco>0?pendBloco+' preventivo(s) c/ pendência':'Indeferido (quantitativo)'))+'</span>'
+      : qtvInfr ? '<span style="color:var(--amar);font-weight:700">⚠️ Aprovado c/ Auto de Infração</span>'
+      : '<span style="color:var(--verde);font-weight:700">✅ Deferido</span>')
+    : (v.rotaId ? '<span style="color:var(--amar);font-weight:700">🧭 Em rota</span>' : '<span style="color:var(--amar);font-weight:700">⏳ Pendente</span>');
+  var orfa = !e;
+  var telWaVist = !orfa ? telefoneParaWhatsapp(e.responsavel && e.responsavel.tel) : null;
+  return '<div class="vist-item" style="'+(orfa?'border:1px solid var(--red2)':'')+'">'+
+    '<div class="elist-row">'+
+      '<div style="flex:1;min-width:0">'+
+        '<div class="elist-t">'+(e?e.nome:'⚠️ Edificação sem vínculo')+'</div>'+
+        '<div class="elist-s">'+(e?e.re:'esta vistoria não está ligada a nenhuma edificação')+' · '+(v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+(v.motivo?' · '+v.motivo:'')+'</div>'+
+      '</div>'+
+      '<div style="text-align:right">'+statusTxt+'</div>'+
+    '</div>'+
+    '<div class="btnrow" style="margin-top:10px;gap:8px;flex-wrap:wrap">'+
+      (orfa ? '<button class="btn primary" onclick="abrirVincularVistoria(\''+v.id+'\')">🔗 Vincular edificação</button>' :
+        (v.concluida
+          ? '<button class="btn" onclick="abrirRelatorio(\''+v.id+'\')">Ver relatório</button>'
+          : '<button class="btn primary" onclick="abrirExecucaoQuartel(\''+v.id+'\')">Executar vistoria</button>'))+
+      (!v.concluida && telWaVist ? '<button class="btn" style="background:#25D366;color:#fff" onclick="conversarVistoriaWhatsapp(\''+v.id+'\')">💬 Conversar no WhatsApp</button>' : '')+
+      '<button class="btn" style="background:var(--red2)" onclick="excluirVistoria(\''+v.id+'\')">Excluir</button>'+
+    '</div>'+
+  '</div>';
+}
+function conversarVistoriaWhatsapp(vistId){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===vistId;});
+  if(!v) return;
+  var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
+  if(!e) return;
+  var telWa = telefoneParaWhatsapp(e.responsavel && e.responsavel.tel);
+  if(!telWa){ alert('Esta edificação não tem telefone cadastrado.'); return; }
+  var texto = 'Olá! Aqui é do Corpo de Bombeiros. Gostaria de combinar um horário para a vistoria de '+
+    (v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+' da edificação '+(e.nome||'')+' (RE '+(e.re||'')+'). Qual seria o melhor dia e horário para o(a) senhor(a)?';
+  window.open('https://wa.me/'+telWa+'?text='+encodeURIComponent(texto), '_blank');
+}
 
+var pvEdifSelecionadasIds = [];
 function abrirPlanejarVist(edifIdPreSelecionado){
-  pvEdifSelecionadaId = edifIdPreSelecionado || null;
+  pvEdifSelecionadasIds = edifIdPreSelecionado ? [edifIdPreSelecionado] : [];
   document.getElementById('pv-edif-busca').value = '';
   document.getElementById('pv-motivo').value='';
   renderPvEdifLista();
@@ -2139,29 +2196,43 @@ function renderPvEdifLista(){
   }).sort(function(a,b){ return (a.re||'').localeCompare(b.re||'', undefined, {numeric:true}); });
 
   var el = document.getElementById('pv-edif-lista');
-  if(!lista.length){ el.innerHTML = '<div class="sub" style="padding:10px">Nenhuma edificação encontrada.</div>'; return; }
-  el.innerHTML = lista.map(function(e){
-    var sel = e.id===pvEdifSelecionadaId;
-    return '<div onclick="selecionarPvEdif(\''+e.id+'\')" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;'+(sel?'background:rgba(192,39,45,.15)':'')+'">'+
-      '<div style="font-weight:700">'+(sel?'✓ ':'')+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+'</div>'+
-      '<div style="color:var(--sub);font-size:11px">'+(e.municipio||'')+(e.bairro?' · '+e.bairro:'')+'</div>'+
-    '</div>';
-  }).join('');
+  if(!lista.length){ el.innerHTML = '<div class="sub" style="padding:10px">Nenhuma edificação encontrada.</div>'; }
+  else {
+    el.innerHTML = lista.map(function(e){
+      var sel = pvEdifSelecionadasIds.indexOf(e.id)>=0;
+      return '<div onclick="selecionarPvEdif(\''+e.id+'\')" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;'+(sel?'background:rgba(192,39,45,.15)':'')+'">'+
+        '<div style="font-weight:700">'+(sel?'✓ ':'')+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+'</div>'+
+        '<div style="color:var(--sub);font-size:11px">'+(e.municipio||'')+(e.bairro?' · '+e.bairro:'')+'</div>'+
+      '</div>';
+    }).join('');
+  }
+
+  var infoEl = document.getElementById('pv-selecionadas-info');
+  var n = pvEdifSelecionadasIds.length;
+  infoEl.textContent = n ? n+' edificação(ões) selecionada(s) — a busca não desmarca, pode continuar buscando e marcando mais.' : 'Nenhuma selecionada ainda. Marque uma ou mais na lista abaixo.';
+  document.getElementById('pv-btn-planejar').textContent = n>1 ? 'Planejar '+n+' vistorias' : 'Planejar';
 }
-function selecionarPvEdif(id){ pvEdifSelecionadaId = id; renderPvEdifLista(); }
+function selecionarPvEdif(id){
+  var idx = pvEdifSelecionadasIds.indexOf(id);
+  if(idx>=0) pvEdifSelecionadasIds.splice(idx,1);
+  else pvEdifSelecionadasIds.push(id);
+  renderPvEdifLista();
+}
 
 function salvarPlanejamentoVist(){
-  var edifId = pvEdifSelecionadaId;
-  if(!edifId){ alert('Selecione uma edificação na lista.'); return; }
+  if(!pvEdifSelecionadasIds.length){ alert('Selecione ao menos uma edificação na lista.'); return; }
   var db = loadDB();
-  var v = {
-    id: novoId('vis'), edificacaoId: edifId,
-    tipo: document.getElementById('pv-tipo').value,
-    motivo: document.getElementById('pv-motivo').value.trim(),
-    checklist:{}, situacaoHS:'', obs:'', concluida:false, concluidaEm:null,
-    trajetoriaId:null, rotaId:null, criadoEm:new Date().toISOString(), atualizadoEm:new Date().toISOString()
-  };
-  db.vistorias.push(v);
+  var tipo = document.getElementById('pv-tipo').value;
+  var motivo = document.getElementById('pv-motivo').value.trim();
+  var agora = new Date().toISOString();
+  pvEdifSelecionadasIds.forEach(function(edifId){
+    db.vistorias.push({
+      id: novoId('vis'), edificacaoId: edifId,
+      tipo: tipo, motivo: motivo,
+      checklist:{}, situacaoHS:'', obs:'', concluida:false, concluidaEm:null,
+      trajetoriaId:null, rotaId:null, criadoEm:agora, atualizadoEm:agora
+    });
+  });
   saveDB(db);
   document.getElementById('modalPlanVist').style.display='none';
   renderVistorias();
@@ -3950,7 +4021,6 @@ function renderQMapaConteudo(){
       mkFora.bindTooltip((e.re||'Sem RE')+' — '+(e.nome||'')+' (fora de competência)', {direction:'top'});
       mkFora.bindPopup('<div style="text-align:center"><b>'+(e.re||'Sem RE')+' — '+(e.nome||'')+'</b><br>Fora de competência<br>'+
         '<button class="btn primary" style="margin-top:8px;width:100%" onclick="abrirFormEdif(\''+e.id+'\')">Ver detalhes</button></div>');
-      mkFora.on('click', function(){ abrirFormEdif(e.id); });
       qmMarcadoresEdif[e.id] = mkFora;
       return;
     }
@@ -3974,11 +4044,11 @@ function renderQMapaConteudo(){
       mk.bindPopup('<div style="text-align:center;min-width:180px"><b>⚠️ '+(e.re||'Sem RE')+' — '+e.nome+'</b><br>'+
         'Multa nº '+multa.numero+(multa.prazo?'<br>Prazo: '+multa.prazo:'')+
         (multa.motivo?'<br><span style="font-size:11px">'+multa.motivo+'</span>':'')+
-        '<br><button class="btn primary" style="margin-top:8px;width:100%" onclick="resolverMulta(\''+e.id+'\',\''+multa.id+'\')">✓ Multa resolvida</button>'+btnRota+'</div>');
+        '<br><button class="btn primary" style="margin-top:8px;width:100%" onclick="resolverMulta(\''+e.id+'\',\''+multa.id+'\')">✓ Multa resolvida</button>'+
+        '<button class="btn" style="margin-top:6px;width:100%" onclick="abrirFormEdif(\''+e.id+'\')">Ver detalhes</button>'+btnRota+'</div>');
     } else {
       mk.bindPopup('<div style="text-align:center;min-width:160px"><b>'+(e.re||'Sem RE')+' — '+e.nome+'</b><br>Risco '+(riscoM||'—')+'<br>'+
         '<button class="btn primary" style="margin-top:8px;width:100%" onclick="abrirFormEdif(\''+e.id+'\')">Ver detalhes</button>'+btnRota+'</div>');
-      mk.on('click', function(){ abrirFormEdif(e.id); });
     }
     qmMarcadoresEdif[e.id] = mk;
   });
