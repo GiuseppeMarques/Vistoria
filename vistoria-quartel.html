@@ -165,7 +165,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v62</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v63</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -435,6 +435,14 @@
       <div class="sec-title">Modelo de mensagem — Multa registrada</div>
       <div class="sub" style="margin-bottom:8px">Usado no botão "📱 Avisar via WhatsApp" na aba Multas. Use {OBM}, {NOME}, {RE}, {MULTA_NUMERO}, {MULTA_MOTIVO}, {MULTA_PRAZO}.</div>
       <textarea id="avisoModeloMulta" rows="10" style="width:100%;font-family:inherit;font-size:13px;padding:10px;border-radius:10px;background:var(--card2);border:1px solid var(--border);color:var(--txt);margin-bottom:16px" onchange="salvarModeloAvisoMulta()"></textarea>
+
+      <div class="sec-title">Modelo de mensagem — Combinar agendamento</div>
+      <div class="sub" style="margin-bottom:8px">Usado no botão "💬 Conversar no WhatsApp" quando a vistoria ainda não está numa rota. Use {OBM}, {NOME}, {RE}, {TIPO}.</div>
+      <textarea id="avisoModeloConversarAgendar" rows="10" style="width:100%;font-family:inherit;font-size:13px;padding:10px;border-radius:10px;background:var(--card2);border:1px solid var(--border);color:var(--txt);margin-bottom:16px" onchange="salvarModeloConversarAgendar()"></textarea>
+
+      <div class="sec-title">Modelo de mensagem — Confirmar data/período da visita</div>
+      <div class="sub" style="margin-bottom:8px">Usado no mesmo botão quando a vistoria já está numa rota (agendada). Use {OBM}, {NOME}, {RE}, {TIPO}, {DATA}, {PERIODO}.</div>
+      <textarea id="avisoModeloConfirmarVisita" rows="10" style="width:100%;font-family:inherit;font-size:13px;padding:10px;border-radius:10px;background:var(--card2);border:1px solid var(--border);color:var(--txt);margin-bottom:16px" onchange="salvarModeloConfirmarVisita()"></textarea>
 
       <div class="sec-title">Tarefas de hoje (pendentes de envio)</div>
       <div id="avisosLista"></div>
@@ -2203,8 +2211,7 @@ function conversarVistoriaWhatsapp(vistId){
     return;
   }
 
-  var texto = 'Olá! Aqui é do Corpo de Bombeiros. Gostaria de combinar um horário para a vistoria de '+
-    (v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+' da edificação '+(e.nome||'')+' (RE '+(e.re||'')+'). Qual seria o melhor dia e horário para o(a) senhor(a)?';
+  var texto = montarMensagemAgendarVisita(e, v);
   window.open('https://wa.me/'+telWa+'?text='+encodeURIComponent(texto), '_blank');
 }
 
@@ -2220,11 +2227,57 @@ function confirmarEnviarVisitaWhatsapp(){
   if(!e) return;
   var telWa = telefoneParaWhatsapp(e.responsavel && e.responsavel.tel);
   if(!telWa){ alert('Esta edificação não tem telefone cadastrado.'); return; }
-  var texto = 'Olá! Aqui é do Corpo de Bombeiros. Informamos que a vistoria de '+
-    (v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+' da edificação '+(e.nome||'')+' (RE '+(e.re||'')+
-    ') será realizada no dia '+data+', '+periodo+'. Por favor, providencie a presença de um responsável no local.';
+  var texto = montarMensagemConfirmarVisita(e, v, data, periodo);
   window.open('https://wa.me/'+telWa+'?text='+encodeURIComponent(texto), '_blank');
   document.getElementById('modalConfirmarVisita').style.display='none';
+}
+
+// Modelo pra quando ainda não está agendada (pergunta o melhor dia/período)
+var MODELO_CONVERSAR_AGENDAR_PADRAO =
+'*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*\n*{OBM}*\n\n'+
+'Olá, boa tarde.\n'+
+'I. Informamos que é necessário realizar a vistoria de *{TIPO}* na edificação *{NOME} - RE{RE}*.\n\n'+
+'II. Gostaríamos de agendar a vistoria — qual seria o melhor dia e período para o(a) senhor(a)?\n\n'+
+'Att.,\n'+
+'SSCI da {OBM}';
+function carregarModeloConversarAgendar(){
+  return localStorage.getItem('vistoria_modelo_conversar_agendar') || MODELO_CONVERSAR_AGENDAR_PADRAO;
+}
+function salvarModeloConversarAgendar(){
+  localStorage.setItem('vistoria_modelo_conversar_agendar', document.getElementById('avisoModeloConversarAgendar').value);
+}
+function montarMensagemAgendarVisita(e, v){
+  var obm = carregarDadosObm();
+  return carregarModeloConversarAgendar()
+    .replace(/{OBM}/g, obm.nome||'')
+    .replace(/{NOME}/g, e.nome||'')
+    .replace(/{RE}/g, e.re||'')
+    .replace(/{TIPO}/g, v.tipo==='funcionamento'?'Funcionamento':'Habite-se');
+}
+
+// Modelo pra quando já está numa rota (confirma data e período)
+var MODELO_CONFIRMAR_VISITA_PADRAO =
+'*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*\n*{OBM}*\n\n'+
+'Olá, boa tarde.\n'+
+'I. Informamos que a vistoria de *{TIPO}* na edificação *{NOME} - RE{RE}* está agendada para o dia *{DATA}*, *{PERIODO}*.\n\n'+
+'II. Por favor, providencie a presença de um responsável no local.\n\n'+
+'Att.,\n'+
+'SSCI da {OBM}';
+function carregarModeloConfirmarVisita(){
+  return localStorage.getItem('vistoria_modelo_confirmar_visita') || MODELO_CONFIRMAR_VISITA_PADRAO;
+}
+function salvarModeloConfirmarVisita(){
+  localStorage.setItem('vistoria_modelo_confirmar_visita', document.getElementById('avisoModeloConfirmarVisita').value);
+}
+function montarMensagemConfirmarVisita(e, v, data, periodo){
+  var obm = carregarDadosObm();
+  return carregarModeloConfirmarVisita()
+    .replace(/{OBM}/g, obm.nome||'')
+    .replace(/{NOME}/g, e.nome||'')
+    .replace(/{RE}/g, e.re||'')
+    .replace(/{TIPO}/g, v.tipo==='funcionamento'?'Funcionamento':'Habite-se')
+    .replace(/{DATA}/g, data)
+    .replace(/{PERIODO}/g, periodo);
 }
 
 var pvEdifSelecionadasIds = [];
@@ -3305,6 +3358,8 @@ function renderAvisos(){
   document.getElementById('avisoModeloHabiteSe').value = carregarModeloAvisoHabiteSe();
   document.getElementById('avisoModeloFuncNecessidade').value = carregarModeloAvisoFuncNecessidade();
   document.getElementById('avisoModeloMulta').value = carregarModeloAvisoMulta();
+  document.getElementById('avisoModeloConversarAgendar').value = carregarModeloConversarAgendar();
+  document.getElementById('avisoModeloConfirmarVisita').value = carregarModeloConfirmarVisita();
   document.getElementById('diasPosVencimento').value = carregarDiasPosVencimento();
   var janelas = carregarJanelasAviso();
   janelas.forEach(function(j, i){ document.getElementById('janelaAviso'+i).value = j; });
