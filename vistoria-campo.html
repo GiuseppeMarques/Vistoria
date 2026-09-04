@@ -210,7 +210,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v41</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v42</div>
   </header>
 
   <main>
@@ -218,6 +218,10 @@
     <div class="view" id="v-mapa">
       <div id="mapWrap">
         <div id="map"></div>
+        <div style="position:absolute;top:10px;left:10px;right:10px;z-index:500;display:flex;gap:6px">
+          <input type="text" id="mapBuscaRe" placeholder="🔎 Buscar por RE..." style="flex:1;box-shadow:0 2px 8px rgba(0,0,0,.4)" onkeydown="if(event.key==='Enter') buscarEdifNoMapaCampo()">
+          <button class="btn primary" style="width:auto;padding:0 16px" onclick="buscarEdifNoMapaCampo()">Ir</button>
+        </div>
         <button class="map-fab" id="btnLocalizacao" onclick="centralizarNaMinhaLocalizacao()">📍</button>
         <button class="map-fab" style="bottom:74px" onclick="abrirCamadas()">🗂️</button>
         <button class="map-fab" style="bottom:138px" onclick="abrirMapasOffline()">⬇️</button>
@@ -2641,6 +2645,18 @@ function atualizarCamadas(){
 }
 
 function riskClass(r){ return r ? 'risk-'+r : 'risk-none'; }
+
+function buscarEdifNoMapaCampo(){
+  var termo = (document.getElementById('mapBuscaRe').value||'').trim().toLowerCase();
+  if(!termo) return;
+  var db = loadDB();
+  var e = (db.edificacoes||[]).find(function(x){ return (x.re||'').toLowerCase()===termo; })
+    || (db.edificacoes||[]).find(function(x){ return (x.re||'').toLowerCase().indexOf(termo)>=0; });
+  if(!e){ alert('Nenhuma edificação encontrada com esse RE.'); return; }
+  if(!e.lat || !e.lng){ alert('"'+(e.re||'Sem RE')+' — '+(e.nome||'')+'" não tem localização cadastrada no mapa.'); return; }
+  map.setView([e.lat, e.lng], 17);
+  abrirCartaoEdificacao(e);
+}
 
 function renderMapEdificacoes(){
   if(!map) return;

@@ -165,7 +165,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v55</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v57</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -319,6 +319,9 @@
         </label>
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--sub)">
           <input type="checkbox" id="qmLyForaComp" checked onchange="atualizarCamadasQMapa()"> Fora de competência do CBM
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--red2);font-weight:700">
+          <input type="checkbox" id="qmSoVistPendente" onchange="renderQMapaConteudo()"> Só com vistoria pendente
         </label>
         <button class="btn" onclick="trocarFonteMapa()" id="btnFonteMapa">🛰️ Satélite</button>
         <button class="btn" onclick="abrirMapasOffline()">⬇️ Mapas offline</button>
@@ -712,6 +715,25 @@
     <div class="modal-actions">
       <button class="btn" onclick="document.getElementById('modalRota').style.display='none'">Cancelar</button>
       <button class="btn primary" onclick="salvarRota()">Criar e otimizar rota</button>
+    </div>
+  </div>
+</div>
+
+<div id="modalAdicionarRota" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h3>Adicionar a uma rota</h3>
+    <div class="sub" id="arEdifNome" style="margin-bottom:16px;font-weight:700"></div>
+
+    <div class="sec-title" style="margin-top:0">Adicionar a rota existente</div>
+    <select id="arRotaExistente" style="margin-bottom:8px"><option value="">— escolha uma rota —</option></select>
+    <button class="btn primary" style="width:100%;margin-bottom:20px" onclick="confirmarAdicionarRotaExistente()">Adicionar</button>
+
+    <div class="sec-title">Ou criar uma rota nova</div>
+    <input type="text" id="arNomeNova" placeholder="Nome da nova rota (ex: Ronda de hoje)" style="margin-bottom:8px">
+    <button class="btn primary" style="width:100%" onclick="confirmarCriarRotaComEdif()">Criar rota com essa edificação</button>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="document.getElementById('modalAdicionarRota').style.display='none'">Fechar</button>
     </div>
   </div>
 </div>
@@ -2973,8 +2995,7 @@ function enviarAvisoHabiteSe(edifId){
     var ok = confirm('Este aviso já foi enviado em '+new Date(jaEnviado).toLocaleString('pt-BR')+'. Enviar de novo mesmo assim?');
     if(!ok) return;
   }
-  var texto = window.prompt('Revise a mensagem antes de enviar (pode editar):', montarMensagemAvisoHabiteSe(e));
-  if(texto==null) return;
+  var texto = montarMensagemAvisoHabiteSe(e);
   window.open('https://wa.me/'+telWa+'?text='+encodeURIComponent(texto), '_blank');
   e.habiteSe = e.habiteSe || {};
   e.habiteSe.avisoEnviadoEm = new Date().toISOString();
@@ -3017,8 +3038,7 @@ function enviarAvisoFuncionamento(edifId){
     var ok = confirm('Este aviso já foi enviado em '+new Date(jaEnviado).toLocaleString('pt-BR')+'. Enviar de novo mesmo assim?');
     if(!ok) return;
   }
-  var texto = window.prompt('Revise a mensagem antes de enviar (pode editar):', montarMensagemAvisoFuncNecessidade(e));
-  if(texto==null) return;
+  var texto = montarMensagemAvisoFuncNecessidade(e);
   window.open('https://wa.me/'+telWa+'?text='+encodeURIComponent(texto), '_blank');
   e.vigenciaFuncionamento = e.vigenciaFuncionamento || {};
   e.vigenciaFuncionamento.avisoEnviadoEm = new Date().toISOString();
@@ -3047,8 +3067,7 @@ function enviarAvisoMulta(edifId, multaId){
     var ok = confirm('Este aviso já foi enviado em '+new Date(m.avisoEnviadoEm).toLocaleString('pt-BR')+'. Enviar de novo mesmo assim?');
     if(!ok) return;
   }
-  var texto = window.prompt('Revise a mensagem antes de enviar (pode editar):', montarMensagemAvisoMulta(e, m));
-  if(texto==null) return;
+  var texto = montarMensagemAvisoMulta(e, m);
   window.open('https://wa.me/'+telWa+'?text='+encodeURIComponent(texto), '_blank');
   m.avisoEnviadoEm = new Date().toISOString();
   saveDB(db);
@@ -3471,6 +3490,58 @@ function salvarRota(){
   document.getElementById('modalRota').style.display='none';
   renderRotas();
 }
+var rotaAlvoVistId = null;
+function abrirAdicionarRota(edifId){
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===edifId;});
+  if(!e) return;
+  var pendentes = (db.vistorias||[]).filter(function(v){return v.edificacaoId===edifId && !v.concluida;});
+  var vistSemRota = pendentes.find(function(v){return !v.rotaId;});
+  if(!vistSemRota){
+    if(pendentes.length){ alert('A(s) vistoria(s) pendente(s) dessa edificação já estão em alguma rota.'); }
+    else { alert('Essa edificação não tem vistoria pendente cadastrada ainda. Planeje uma vistoria primeiro.'); }
+    return;
+  }
+  rotaAlvoVistId = vistSemRota.id;
+  document.getElementById('arEdifNome').textContent = (e.re||'Sem RE')+' — '+(e.nome||'');
+  var rotas = db.rotas||[];
+  document.getElementById('arRotaExistente').innerHTML = '<option value="">— escolha uma rota —</option>'+
+    rotas.map(function(r){return '<option value="'+r.id+'">'+r.nome+' ('+r.vistorias.length+' vistorias)</option>';}).join('');
+  document.getElementById('arNomeNova').value = '';
+  document.getElementById('modalAdicionarRota').style.display='flex';
+}
+function confirmarAdicionarRotaExistente(){
+  var rotaId = document.getElementById('arRotaExistente').value;
+  if(!rotaId){ alert('Escolha uma rota.'); return; }
+  var db = loadDB();
+  var r = (db.rotas||[]).find(function(x){return x.id===rotaId;});
+  var v = (db.vistorias||[]).find(function(x){return x.id===rotaAlvoVistId;});
+  if(!r || !v) return;
+  r.vistorias.push(v.id);
+  v.rotaId = r.id;
+  saveDB(db);
+  document.getElementById('modalAdicionarRota').style.display='none';
+  renderQMapaConteudo();
+  alert('Adicionada à rota "'+r.nome+'".');
+}
+function confirmarCriarRotaComEdif(){
+  var nome = document.getElementById('arNomeNova').value.trim();
+  if(!nome){ alert('Dê um nome pra rota.'); return; }
+  var db = loadDB();
+  var v = (db.vistorias||[]).find(function(x){return x.id===rotaAlvoVistId;});
+  if(!v) return;
+  var hoje = new Date(); var p=function(n){return (n<10?'0':'')+n;};
+  var dataHoje = p(hoje.getDate())+'/'+p(hoje.getMonth()+1)+'/'+hoje.getFullYear();
+  var novaRota = {id:novoId('rot'), nome:nome, data:dataHoje, vistorias:[v.id], distanciaEstimadaKm:0};
+  db.rotas = db.rotas||[];
+  db.rotas.push(novaRota);
+  v.rotaId = novaRota.id;
+  saveDB(db);
+  document.getElementById('modalAdicionarRota').style.display='none';
+  renderQMapaConteudo();
+  alert('Rota "'+nome+'" criada com essa edificação.');
+}
+
 function excluirRota(id){
   if(!confirm('Excluir esta rota? As vistorias voltam a ficar sem rota.')) return;
   var db = loadDB();
@@ -3864,8 +3935,12 @@ function renderQMapaConteudo(){
   qlyEdif.clearLayers(); qlyRotas.clearLayers(); qlyPontos.clearLayers(); qlyForaComp.clearLayers();
   qmMarcadoresEdif = {};
 
+  var soPendente = document.getElementById('qmSoVistPendente').checked;
+
   (db.edificacoes||[]).forEach(function(e){
     if(!e.lat || !e.lng) return;
+    var temPendente = (db.vistorias||[]).some(function(v){ return v.edificacaoId===e.id && !v.concluida; });
+    if(soPendente && !temPendente) return;
     if(e.competencia==='fora'){
       var iconFora = L.divIcon({
         html:'<div style="width:24px;height:24px;border-radius:50%;background:#6b6b70;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:12px">🚫</div>',
@@ -3894,14 +3969,15 @@ function renderQMapaConteudo(){
         });
     var mk = L.marker([e.lat,e.lng], {icon:icon}).addTo(qlyEdif);
     mk.bindTooltip((e.re||'Sem RE')+' — '+e.nome+(multa?' ⚠️ MULTA Nº '+multa.numero:''), {direction:'top'});
+    var btnRota = temPendente ? '<button class="btn" style="margin-top:6px;width:100%" onclick="abrirAdicionarRota(\''+e.id+'\')">📋 Adicionar a uma rota</button>' : '';
     if(multa){
       mk.bindPopup('<div style="text-align:center;min-width:180px"><b>⚠️ '+(e.re||'Sem RE')+' — '+e.nome+'</b><br>'+
         'Multa nº '+multa.numero+(multa.prazo?'<br>Prazo: '+multa.prazo:'')+
         (multa.motivo?'<br><span style="font-size:11px">'+multa.motivo+'</span>':'')+
-        '<br><button class="btn primary" style="margin-top:8px;width:100%" onclick="resolverMulta(\''+e.id+'\',\''+multa.id+'\')">✓ Multa resolvida</button></div>');
+        '<br><button class="btn primary" style="margin-top:8px;width:100%" onclick="resolverMulta(\''+e.id+'\',\''+multa.id+'\')">✓ Multa resolvida</button>'+btnRota+'</div>');
     } else {
       mk.bindPopup('<div style="text-align:center;min-width:160px"><b>'+(e.re||'Sem RE')+' — '+e.nome+'</b><br>Risco '+(riscoM||'—')+'<br>'+
-        '<button class="btn primary" style="margin-top:8px;width:100%" onclick="abrirFormEdif(\''+e.id+'\')">Ver detalhes</button></div>');
+        '<button class="btn primary" style="margin-top:8px;width:100%" onclick="abrirFormEdif(\''+e.id+'\')">Ver detalhes</button>'+btnRota+'</div>');
       mk.on('click', function(){ abrirFormEdif(e.id); });
     }
     qmMarcadoresEdif[e.id] = mk;
