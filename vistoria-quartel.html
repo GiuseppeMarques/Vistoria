@@ -147,6 +147,11 @@
   .elist-s{font-size:12px;color:var(--sub);margin-top:2px;}
 
   .vist-item{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;}
+  .vist-status{font-size:11px;font-weight:800;padding:4px 10px;border-radius:12px;white-space:nowrap;display:inline-block;}
+  .vist-status.def{background:rgba(52,199,89,.18);color:var(--verde);}
+  .vist-status.indef{background:rgba(192,39,45,.2);color:var(--red2);}
+  .vist-status.pend{background:rgba(255,159,10,.18);color:var(--amar);}
+  .vist-status.rota{background:rgba(255,159,10,.18);color:var(--amar);}
   .vfilter{display:flex;gap:8px;margin-bottom:16px;}
   .vfilter button{background:var(--card2);border:1px solid var(--border);color:var(--sub);
     border-radius:20px;padding:6px 14px;font-size:12px;}
@@ -165,7 +170,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v65</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v67</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -2178,21 +2183,23 @@ function renderVistoriaCard(v, db){
     });
   }
   if(pendBloco>0) qtvIndef = true;
-  var statusTxt = v.concluida
-    ? (qtvIndef || nc>0 ? '<span style="color:var(--red2);font-weight:700">⚠️ '+(nc>0?nc+' não conf.':(pendBloco>0?pendBloco+' preventivo(s) c/ pendência':'Indeferido (quantitativo)'))+'</span>'
-      : qtvInfr ? '<span style="color:var(--amar);font-weight:700">⚠️ Aprovado c/ Auto de Infração</span>'
-      : '<span style="color:var(--verde);font-weight:700">✅ Deferido</span>')
-    : (v.rotaId ? '<span style="color:var(--amar);font-weight:700">🧭 Em rota</span>' : '<span style="color:var(--amar);font-weight:700">⏳ Pendente</span>');
+  var statusCls, statusTxt;
+  if(v.concluida){
+    if(qtvIndef || nc>0){ statusCls='indef'; statusTxt='⚠️ '+(nc>0?nc+' não conf.':(pendBloco>0?pendBloco+' preventivo(s) c/ pendência':'Indeferido (quantitativo)')); }
+    else if(qtvInfr){ statusCls='pend'; statusTxt='⚠️ Aprovado c/ Auto de Infração'; }
+    else { statusCls='def'; statusTxt='✅ Deferido'; }
+  } else if(v.rotaId){ statusCls='rota'; statusTxt='🧭 Em rota'; }
+  else { statusCls='pend'; statusTxt='⏳ Pendente'; }
   var orfa = !e;
   var telWaVist = !orfa ? telefoneParaWhatsapp(e.responsavel && e.responsavel.tel) : null;
   return '<div class="vist-item" style="'+(orfa?'border:1px solid var(--red2)':'')+'">'+
-    '<div class="elist-row">'+
+    '<div class="vtop">'+
       '<div style="flex:1;min-width:0">'+
-        '<div class="elist-t">'+(e?e.nome:'⚠️ Edificação sem vínculo')+'</div>'+
-        '<div class="elist-s">'+(e?e.re:'esta vistoria não está ligada a nenhuma edificação')+' · '+(v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+(v.motivo?' · '+v.motivo:'')+'</div>'+
-        (v.obs ? '<div class="sub" style="margin-top:4px;font-style:italic">📝 '+v.obs+'</div>' : '')+
+        '<div class="vnome">'+(e?e.nome:'⚠️ Edificação sem vínculo')+'</div>'+
+        '<div class="vsub">'+(e?e.re:'esta vistoria não está ligada a nenhuma edificação')+' · '+(v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+(v.motivo?' · '+v.motivo:'')+'</div>'+
+        (v.obs ? '<div class="vsub" style="margin-top:4px;font-style:italic">📝 '+v.obs+'</div>' : '')+
       '</div>'+
-      '<div style="text-align:right">'+statusTxt+'</div>'+
+      '<span class="vist-status '+statusCls+'">'+statusTxt+'</span>'+
     '</div>'+
     '<div class="btnrow" style="margin-top:10px;gap:8px;flex-wrap:wrap">'+
       (orfa ? '<button class="btn primary" onclick="abrirVincularVistoria(\''+v.id+'\')">🔗 Vincular edificação</button>' :
@@ -2437,13 +2444,18 @@ function abrirRelatorio(vistId){
 
   // Pendências de preventivos quantificados, organizadas por Bloco > Pavimento —
   // aqui o que não foi contado continua marcado como falta (regra diferente da não-quantificada).
+  // Também coleta os itens TOTALMENTE aprovados (sem nenhuma pendência), pra mostrar no relatório
+  // que aquele sistema foi checado e está OK — não só o silêncio de "sem pendência".
   var porBloco = []; // [{nomeBloco, pavimentos:[{label, itens:[...]}]}]
+  var aprovadosPorBloco = []; // mesmo formato, só com os sistemas 100% aprovados
   var totalPendBloco = 0;
   if(e && e.blocos && e.blocos.length){
     e.blocos.forEach(function(bloco, bi){
       var pavsComPend = [];
+      var pavsComAprovado = [];
       (bloco.pavimentos||[]).forEach(function(pav, pi){
         var itensPav = [];
+        var itensAprovados = [];
         Object.keys(pav.sist||{}).sort(function(a,b){return ordemSist(e,a)-ordemSist(e,b);}).forEach(function(sid){
           if(!pav.sist[sid].ativo) return;
           var esperado = pav.sist[sid].qty||0;
@@ -2463,18 +2475,22 @@ function abrirRelatorio(vistId){
             itensPav.push({ texto:(s?s.l:sid), motivo:'Falta contar (esperado '+esperado+' un., nenhuma verificada)', obs: qd.obs });
           } else if(totalContado < esperado){
             itensPav.push({ texto:(s?s.l:sid), motivo:'Falta '+(esperado-totalContado)+' un. (esperado '+esperado+', encontrado '+totalContado+')', obs: qd.obs });
+          } else if(reprovadosTotal===0 && (aprovados||0)>0){
+            itensAprovados.push({ texto:(s?s.l:sid), qtd: aprovados });
           }
         });
         if(itensPav.length){ pavsComPend.push({label: pav.label, itens: itensPav}); totalPendBloco += itensPav.length; }
+        if(itensAprovados.length){ pavsComAprovado.push({label: pav.label, itens: itensAprovados}); }
       });
       if(pavsComPend.length){ porBloco.push({nomeBloco: bloco.nome, pavimentos: pavsComPend}); }
+      if(pavsComAprovado.length){ aprovadosPorBloco.push({nomeBloco: bloco.nome, pavimentos: pavsComAprovado}); }
     });
   }
 
   var totalItens = grupos.reduce(function(n,g){return n+cl[g].length;}, 0);
   var totalPendencias = pendGerais.length + totalPendBloco;
 
-  var textoRelatorio = gerarRelatorioTexto(e, v, pendGerais, porBloco, totalItens, reprovadosChecklist, totalPendencias);
+  var textoRelatorio = gerarRelatorioTexto(e, v, pendGerais, porBloco, aprovadosPorBloco, totalItens, reprovadosChecklist, totalPendencias);
   window._relatorioTextoAtual = textoRelatorio;
 
   var html = '<pre style="white-space:pre-wrap;font-family:inherit;font-size:14px;line-height:1.6;margin:0">'+
@@ -2485,13 +2501,12 @@ function abrirRelatorio(vistId){
   document.getElementById('modalRelatorio').style.display='flex';
 }
 
-function gerarRelatorioTexto(e, v, pendGerais, porBloco, totalItens, reprovadosChecklist, totalPendencias){
+function gerarRelatorioTexto(e, v, pendGerais, porBloco, aprovadosPorBloco, totalItens, reprovadosChecklist, totalPendencias){
   var linhas = [];
   linhas.push((e?e.nome:'—')+' — RE '+(e?e.re:''));
   linhas.push((v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+' · concluída em '+(v.concluidaEm?new Date(v.concluidaEm).toLocaleString('pt-BR'):'—'));
   linhas.push('');
   linhas.push('RESUMO: '+(totalItens-reprovadosChecklist)+' de '+totalItens+' itens do checklist aprovados · '+totalPendencias+' pendência(s) no total');
-  linhas.push('(Item de checklist não marcado é considerado aprovado. Item quantificado não contado é considerado falta.)');
   linhas.push('');
   if(totalPendencias===0){
     linhas.push('Nenhuma pendência — todos os itens aprovados.');
@@ -2516,6 +2531,20 @@ function gerarRelatorioTexto(e, v, pendGerais, porBloco, totalItens, reprovadosC
         linhas.push('- '+r.texto+': '+r.motivo+(r.obs?' (Obs: '+r.obs+')':''));
       });
     }
+  }
+  if(aprovadosPorBloco.length){
+    linhas.push('');
+    linhas.push('=== ITENS VERIFICADOS E APROVADOS ===');
+    aprovadosPorBloco.forEach(function(b){
+      linhas.push('');
+      linhas.push(b.nomeBloco+':');
+      b.pavimentos.forEach(function(p){
+        linhas.push('  '+p.label+':');
+        p.itens.forEach(function(it){
+          linhas.push('    - '+it.texto+': '+it.qtd+' aprovado(s)');
+        });
+      });
+    });
   }
   return linhas.join('\n');
 }
