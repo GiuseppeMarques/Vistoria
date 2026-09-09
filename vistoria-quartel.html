@@ -170,7 +170,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v67</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v69</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -641,6 +641,7 @@
     </div>
     <div class="frow">
       <div class="fcol"><label class="lbl">Área (m²)</label><input type="text" id="ef-area"></div>
+      <div class="fcol"><label class="lbl">Altura (m)</label><input type="text" id="ef-altura"></div>
     </div>
     <div class="frow">
       <div class="fcol"><label class="lbl">Latitude</label><input type="text" id="ef-lat"></div>
@@ -1734,6 +1735,7 @@ function abrirFormEdif(id){
   document.getElementById('ef-bairro').value = e ? (e.bairro||'') : '';
   document.getElementById('ef-municipio').value = e ? (e.municipio||'') : '';
   document.getElementById('ef-area').value = e ? (e.area||'') : '';
+  document.getElementById('ef-altura').value = e ? (e.altura||'') : '';
   document.getElementById('ef-lat').value = e ? (e.lat||'') : '';
   document.getElementById('ef-lng').value = e ? (e.lng||'') : '';
   document.getElementById('ef-resp-nome').value = e ? ((e.responsavel&&e.responsavel.nome)||'') : '';
@@ -1810,6 +1812,7 @@ function salvarFormEdif(){
     nome: nome,
     endereco: document.getElementById('ef-endereco').value.trim(),
     area: document.getElementById('ef-area').value.trim(),
+    altura: document.getElementById('ef-altura').value.trim(),
     lat: parseFloat(document.getElementById('ef-lat').value)||null,
     lng: parseFloat(document.getElementById('ef-lng').value)||null,
     responsavel: {
@@ -2181,6 +2184,19 @@ function renderVistoriaCard(v, db){
         });
       });
     });
+  } else if(e){
+    SIST.forEach(function(s){
+      var pv = e.preventivos && e.preventivos[s.id];
+      if(!pv || !pv.ativo) return;
+      var chave = '_'+s.id;
+      var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
+      var esperado = pv.qty||0;
+      var aprovados = qd.aprovados!=null ? qd.aprovados : (qd.val!=null ? qd.val : null);
+      var reprovados = (qd.motivos||[]).reduce(function(s2,m){return s2+(m.qtd||0);}, 0);
+      if(aprovados==null && reprovados===0){ pendBloco++; return; }
+      if(((aprovados||0)+reprovados) < esperado){ pendBloco++; return; }
+      if(reprovados>0) pendBloco++;
+    });
   }
   if(pendBloco>0) qtvIndef = true;
   var statusCls, statusTxt;
@@ -2485,6 +2501,36 @@ function abrirRelatorio(vistId){
       if(pavsComPend.length){ porBloco.push({nomeBloco: bloco.nome, pavimentos: pavsComPend}); }
       if(pavsComAprovado.length){ aprovadosPorBloco.push({nomeBloco: bloco.nome, pavimentos: pavsComAprovado}); }
     });
+  } else if(e){
+    // edificação sem blocos — mesma lógica, sistemas ficam no nível geral
+    var itensPavFlat = [];
+    var itensAprovadosFlat = [];
+    SIST.filter(function(s){return e.preventivos && e.preventivos[s.id] && e.preventivos[s.id].ativo;})
+      .sort(function(a,b){return ordemSist(e,a.id)-ordemSist(e,b.id);})
+      .forEach(function(s){
+        var sid = s.id;
+        var esperado = e.preventivos[sid].qty||0;
+        var chave = '_'+sid;
+        var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
+        var aprovados = qd.aprovados!=null ? qd.aprovados : (qd.val!=null ? qd.val : null);
+        var motivos = qd.motivos || [];
+        var reprovadosTotal = motivos.reduce(function(s2,m){return s2+(m.qtd||0);}, 0);
+        var totalContado = (aprovados||0) + reprovadosTotal;
+
+        motivos.forEach(function(m){
+          if(!m.qtd) return;
+          itensPavFlat.push({ texto:s.l, motivo: m.qtd+' un. reprovada(s): '+(m.motivo||'motivo não especificado'), obs: qd.obs });
+        });
+        if(aprovados==null && motivos.length===0){
+          itensPavFlat.push({ texto:s.l, motivo:'Falta contar (esperado '+esperado+' un., nenhuma verificada)', obs: qd.obs });
+        } else if(totalContado < esperado){
+          itensPavFlat.push({ texto:s.l, motivo:'Falta '+(esperado-totalContado)+' un. (esperado '+esperado+', encontrado '+totalContado+')', obs: qd.obs });
+        } else if(reprovadosTotal===0 && (aprovados||0)>0){
+          itensAprovadosFlat.push({ texto:s.l, qtd: aprovados });
+        }
+      });
+    if(itensPavFlat.length){ porBloco.push({nomeBloco:'Sistemas preventivos', pavimentos:[{label:'Geral', itens:itensPavFlat}]}); totalPendBloco += itensPavFlat.length; }
+    if(itensAprovadosFlat.length){ aprovadosPorBloco.push({nomeBloco:'Sistemas preventivos', pavimentos:[{label:'Geral', itens:itensAprovadosFlat}]}); }
   }
 
   var totalItens = grupos.reduce(function(n,g){return n+cl[g].length;}, 0);
@@ -2894,6 +2940,19 @@ function renderExecucaoQuartel(){
         html += '</div>';
       });
     });
+  } else {
+    // edificação sem blocos cadastrados — os sistemas quantificados (extintor, hidrante etc.)
+    // ficam no nível geral da edificação; sem isso o card de aprovados/reprovados nunca aparecia
+    var ativosFlat = SIST.filter(function(s){ return e.preventivos && e.preventivos[s.id] && e.preventivos[s.id].ativo; });
+    if(ativosFlat.length){
+      html += '<div class="sec-title" style="margin-top:0">Sistemas preventivos</div>';
+      ativosFlat.sort(function(a,b){ return ordemSist(e,a.id)-ordemSist(e,b.id); }).forEach(function(s){
+        var chave = '_'+s.id;
+        var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
+        var anteriorInfo = quCalcAnteriorInfo(vAnterior, chave);
+        html += quRenderCardPrev(s.l, (e.preventivos[s.id]&&e.preventivos[s.id].qty)||0, chave, qd, anteriorInfo, s.id, e.preventivos[s.id]);
+      });
+    }
   }
 
   var cl = getCL(v.tipo);

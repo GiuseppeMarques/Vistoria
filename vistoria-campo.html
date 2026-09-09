@@ -172,6 +172,9 @@
     display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;}
   .prev-item .name{font-size:12px;}
   .prev-item.on{border-color:var(--red);background:rgba(192,39,45,.12);}
+  .rowlist-item{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .rowlist-item input{flex:1;}
+  .rowlist-del{background:var(--card2);border:none;color:var(--red2);width:32px;height:32px;border-radius:8px;flex-shrink:0;}
   input[type=text].prev-qty{width:56px;background:var(--bg);border:1px solid var(--border);border-radius:6px;
     padding:4px 6px;color:var(--txt);font-size:12px;text-align:center;}
   .pav-card{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px;}
@@ -210,7 +213,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v43</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v45</div>
   </header>
 
   <main>
@@ -218,9 +221,14 @@
     <div class="view" id="v-mapa">
       <div id="mapWrap">
         <div id="map"></div>
-        <div style="position:absolute;top:10px;left:10px;right:10px;z-index:500;display:flex;gap:6px">
-          <input type="text" id="mapBuscaRe" placeholder="🔎 Buscar por RE..." style="flex:1;box-shadow:0 2px 8px rgba(0,0,0,.4)" onkeydown="if(event.key==='Enter') buscarEdifNoMapaCampo()">
-          <button class="btn primary" style="width:auto;padding:0 16px" onclick="buscarEdifNoMapaCampo()">Ir</button>
+        <div style="position:absolute;top:10px;left:10px;right:10px;z-index:500;display:flex;gap:6px;flex-direction:column">
+          <div style="display:flex;gap:6px">
+            <input type="text" id="mapBuscaRe" placeholder="🔎 Buscar por RE..." style="flex:1;box-shadow:0 2px 8px rgba(0,0,0,.4)" onkeydown="if(event.key==='Enter') buscarEdifNoMapaCampo()">
+            <button class="btn primary" style="width:auto;padding:0 16px" onclick="buscarEdifNoMapaCampo()">Ir</button>
+          </div>
+          <select id="mapFiltroRota" style="box-shadow:0 2px 8px rgba(0,0,0,.4)" onchange="setMapFiltroRota(this.value)">
+            <option value="">Todas as edificações</option>
+          </select>
         </div>
         <button class="map-fab" id="btnLocalizacao" onclick="centralizarNaMinhaLocalizacao()">📍</button>
         <button class="map-fab" style="bottom:74px" onclick="abrirCamadas()">🗂️</button>
@@ -395,10 +403,16 @@
         </div>
         <div class="frow">
           <div class="fcol"><label class="lbl">Área (m²)</label><input type="text" id="ee-area"></div>
-          <div class="fcol"><label class="lbl">Situação funcionamento</label>
-            <select id="ee-func-situacao"><option value="">—</option><option value="valido">Válido</option><option value="vencido">Vencido</option><option value="nao_possui">Não possui</option></select>
-          </div>
+          <div class="fcol"><label class="lbl">Altura (m)</label><input type="text" id="ee-altura"></div>
         </div>
+
+        <div class="sec-title">Protocolos</div>
+        <div class="sub" style="margin:-4px 0 8px">Cadastre aqui cada protocolo (Projeto, Habite-se ou Funcionamento).</div>
+        <div id="ee-projetos"></div>
+        <button class="btn" style="margin-bottom:12px" onclick="ceAddProjetoRow()">+ Adicionar protocolo</button>
+
+        <div class="sec-title">Sistemas preventivos</div>
+        <div class="prev-chips" id="ee-preventivos"></div>
 
         <div class="btnrow" style="gap:10px;margin-top:10px">
           <button class="btn" style="flex:1" onclick="document.getElementById('modalEdifEditarCampo').style.display='none'">Cancelar</button>
@@ -854,7 +868,7 @@ function renderVistoriasCampo(){
     return '<div class="vist-card" onclick="abrirExecucao(\''+v.edificacaoId+'\')">'+
       '<div class="vtop">'+
         '<div><div class="vnome">'+(e?e.nome:'Edificação removida')+'</div>'+
-        '<div class="vsub">'+(e?e.re:'')+' · '+(v.tipo==='funcionamento'?'Funcionamento':v.tipo==='habite-se'?'Habite-se':'Sem tipo escolhido')+(v.motivo?' · '+v.motivo:'')+rotaTag+(e&&e.endereco?'<br>'+e.endereco:'')+'</div></div>'+
+        '<div class="vsub">'+(e?e.re:'')+' · '+(v.tipo==='funcionamento'?'Funcionamento':v.tipo==='habite-se'?'Habite-se':'Sem tipo escolhido')+(v.motivo?' · '+v.motivo:'')+rotaTag+(e&&e.endereco?'<br>'+e.endereco+(e.bairro?' — '+e.bairro:''):'')+'</div></div>'+
         '<span class="vist-status '+statusCls+'">'+statusTxt+'</span>'+
       '</div>'+
       '<div class="vsub">'+(v.concluida ? 'Concluída em '+new Date(v.concluidaEm).toLocaleString('pt-BR') : 'Toque pra continuar')+'</div>'+
@@ -1715,7 +1729,28 @@ function abrirEdifEditCampo(id){
   document.getElementById('ee-responsavel').value = (e.responsavel&&e.responsavel.nome)||'';
   document.getElementById('ee-telefone').value = (e.responsavel&&e.responsavel.tel)||'';
   document.getElementById('ee-area').value = e.area||'';
-  document.getElementById('ee-func-situacao').value = (e.vigenciaFuncionamento&&e.vigenciaFuncionamento.situacao)||'';
+  document.getElementById('ee-altura').value = e.altura||'';
+
+  ceProjetos = e.projetos ? JSON.parse(JSON.stringify(e.projetos)).map(function(p){p.id=p.id||('proj_'+Math.random().toString(36).slice(2,8));return p;}) : [];
+  // migração de dados antigos (mesma lógica do Quartel): cria a linha de protocolo se ainda não existir
+  if(e.habiteSe && (e.habiteSe.situacao==='possui' || e.habiteSe.situacao==='andamento' || e.habiteSe.protocolo)){
+    var linhaHS = ceProjetos.find(function(p){ return p.tipo==='habite-se'; });
+    if(!linhaHS){ linhaHS = {id:'proj_'+Math.random().toString(36).slice(2,8), tipo:'habite-se'}; ceProjetos.push(linhaHS); }
+    if(!linhaHS.num && e.habiteSe.protocolo) linhaHS.num = e.habiteSe.protocolo;
+    if(linhaHS.projetoVinculadoId==null && e.habiteSe.projetoId) linhaHS.projetoVinculadoId = e.habiteSe.projetoId;
+  }
+  if(e.vigenciaFuncionamento && (e.vigenciaFuncionamento.situacao==='possui' || e.vigenciaFuncionamento.protocolo || e.vigenciaFuncionamento.vencimento)){
+    var linhaFunc = ceProjetos.find(function(p){ return p.tipo==='funcionamento'; });
+    if(!linhaFunc){ linhaFunc = {id:'proj_'+Math.random().toString(36).slice(2,8), tipo:'funcionamento'}; ceProjetos.push(linhaFunc); }
+    if(!linhaFunc.num && e.vigenciaFuncionamento.protocolo) linhaFunc.num = e.vigenciaFuncionamento.protocolo;
+    if(!linhaFunc.dataEmissao && e.vigenciaFuncionamento.dataEmissao) linhaFunc.dataEmissao = e.vigenciaFuncionamento.dataEmissao;
+    if(!linhaFunc.validadeAnos && e.vigenciaFuncionamento.validadeAnos) linhaFunc.validadeAnos = e.vigenciaFuncionamento.validadeAnos;
+    if(!linhaFunc.vencimento && e.vigenciaFuncionamento.vencimento) linhaFunc.vencimento = e.vigenciaFuncionamento.vencimento;
+  }
+  ceRenderProjetos();
+
+  cePreventivos = e.preventivos ? JSON.parse(JSON.stringify(e.preventivos)) : {};
+  ceRenderPreventivos();
 
   var gpsStatus = document.getElementById('gpsEdifStatus');
   delete gpsStatus.dataset.lat; delete gpsStatus.dataset.lng;
@@ -1725,6 +1760,137 @@ function abrirEdifEditCampo(id){
 
   document.getElementById('modalEdifEditarCampo').style.display='flex';
 }
+
+var VALIDADE_FUNC_ANOS_PADRAO = 1;
+function carregarValidadeFuncAnos(){
+  var v = parseInt(localStorage.getItem('vistoria_validade_func_anos'), 10);
+  return (!isNaN(v) && v>0) ? v : VALIDADE_FUNC_ANOS_PADRAO;
+}
+
+var ceProjetos = [];
+function ceAddProjetoRow(item){
+  var id = 'proj_'+Math.random().toString(36).slice(2,8);
+  ceProjetos.push({id:id, tipo:(item&&item.tipo)||'projeto', num:(item&&item.num)||''});
+  ceRenderProjetos();
+}
+function ceRenderProjetos(){
+  document.getElementById('ee-projetos').innerHTML = ceProjetos.map(function(p){
+    var extra = '';
+    if(p.tipo==='habite-se'){
+      var opcoesProjeto = ceProjetos.filter(function(x){ return x.tipo==='projeto'; });
+      extra = '<div class="frow" style="margin-top:6px">'+
+        '<div class="fcol"><label class="lbl">Projeto vinculado</label>'+
+          '<select onchange="ceAtualizarProjeto(\''+p.id+'\',\'projetoVinculadoId\',this.value)">'+
+            '<option value="">— nenhum —</option>'+
+            opcoesProjeto.map(function(op){ return '<option value="'+op.id+'" '+(p.projetoVinculadoId===op.id?'selected':'')+'>'+(op.num||'(sem número)')+'</option>'; }).join('')+
+          '</select>'+
+        '</div>'+
+      '</div>';
+    } else if(p.tipo==='funcionamento'){
+      extra = '<div class="frow" style="margin-top:6px">'+
+        '<div class="fcol"><label class="lbl">Emissão/renovação</label><input type="text" placeholder="DD/MM/AAAA" value="'+(p.dataEmissao||'').replace(/"/g,'&quot;')+'" onchange="ceAtualizarProjeto(\''+p.id+'\',\'dataEmissao\',this.value);ceRecalcularVencimentoProtocolo(\''+p.id+'\')"></div>'+
+        '<div class="fcol"><label class="lbl">Validade (anos)</label><input type="number" min="1" style="width:70px" value="'+(p.validadeAnos||carregarValidadeFuncAnos())+'" onchange="ceAtualizarProjeto(\''+p.id+'\',\'validadeAnos\',this.value);ceRecalcularVencimentoProtocolo(\''+p.id+'\')"></div>'+
+        '<div class="fcol"><label class="lbl">Validade <span style="font-weight:400;color:var(--sub)">(calculada — pode ajustar)</span></label><input type="text" placeholder="DD/MM/AAAA" value="'+(p.vencimento||'').replace(/"/g,'&quot;')+'" onchange="ceAtualizarProjeto(\''+p.id+'\',\'vencimento\',this.value)"></div>'+
+      '</div>';
+    }
+    return '<div class="rowlist-item" style="flex-direction:column;align-items:stretch;gap:4px">'+
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
+        '<div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">'+
+          '<button type="button" class="btn" style="width:auto;padding:8px 10px;font-size:12px;border-radius:0;'+(p.tipo==='projeto'?'background:var(--red2);color:#fff':'background:var(--card2)')+'" onclick="ceAtualizarProjeto(\''+p.id+'\',\'tipo\',\'projeto\')">Projeto</button>'+
+          '<button type="button" class="btn" style="width:auto;padding:8px 10px;font-size:12px;border-radius:0;'+(p.tipo==='habite-se'?'background:var(--red2);color:#fff':'background:var(--card2)')+'" onclick="ceAtualizarProjeto(\''+p.id+'\',\'tipo\',\'habite-se\')">Habite-se</button>'+
+          '<button type="button" class="btn" style="width:auto;padding:8px 10px;font-size:12px;border-radius:0;'+(p.tipo==='funcionamento'?'background:var(--red2);color:#fff':'background:var(--card2)')+'" onclick="ceAtualizarProjeto(\''+p.id+'\',\'tipo\',\'funcionamento\')">Funcionamento</button>'+
+        '</div>'+
+        '<input type="text" placeholder="Nº do protocolo" style="flex:1;min-width:120px" value="'+(p.num||'').replace(/"/g,'&quot;')+'" onchange="ceAtualizarProjeto(\''+p.id+'\',\'num\',this.value)">'+
+        '<button class="rowlist-del" onclick="ceRemoverProjeto(\''+p.id+'\')">✕</button>'+
+      '</div>'+
+      extra+
+    '</div>';
+  }).join('') || '<div class="sub" style="margin-bottom:8px">Nenhum protocolo cadastrado.</div>';
+}
+function ceAtualizarProjeto(id,campo,val){ var p=ceProjetos.find(function(x){return x.id===id;}); if(p) p[campo]=val; if(campo==='tipo') ceRenderProjetos(); }
+function ceRemoverProjeto(id){ ceProjetos = ceProjetos.filter(function(x){return x.id!==id;}); ceRenderProjetos(); }
+function ceRecalcularVencimentoProtocolo(id){
+  var p = ceProjetos.find(function(x){return x.id===id;});
+  if(!p) return;
+  var anos = parseInt(p.validadeAnos, 10) || carregarValidadeFuncAnos();
+  localStorage.setItem('vistoria_validade_func_anos', anos);
+  var emissao = parseDataBR(p.dataEmissao);
+  if(!emissao) { ceRenderProjetos(); return; }
+  var venc = new Date(emissao);
+  venc.setFullYear(venc.getFullYear() + anos);
+  var f = function(n){return (n<10?'0':'')+n;};
+  p.vencimento = f(venc.getDate())+'/'+f(venc.getMonth()+1)+'/'+venc.getFullYear();
+  ceRenderProjetos();
+}
+
+var cePreventivos = {};
+function ceRenderPreventivos(){
+  document.getElementById('ee-preventivos').innerHTML = SIST.map(function(s){
+    var p = cePreventivos[s.id] || {ativo:false, qty:1, info:''};
+    if(!p.ativo){
+      return '<div class="prev-item">'+
+        '<span class="name" style="cursor:pointer" onclick="ceTogglePrev(\''+s.id+'\')">'+s.l+' <span class="sub">('+s.n+')</span></span>'+
+      '</div>';
+    }
+    var laudoHtml = '';
+    if(SIDS_COM_LAUDO.indexOf(s.id)>=0){
+      var anos = s.id==='ala' ? (parseInt(p.laudoPeriodicidade,10)||1) : PERIODICIDADE_LAUDO_PADRAO.shp;
+      var status = statusLaudo(p.laudoData, anos);
+      laudoHtml = '<div style="border-top:1px solid var(--border);margin-top:4px;padding-top:8px">'+
+        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+          '<div><label class="lbl" style="margin:0">Data do último laudo apresentado</label>'+
+            '<input type="text" placeholder="DD/MM/AAAA" style="width:120px" value="'+(p.laudoData||'').replace(/"/g,'&quot;')+'" onchange="ceSetPrevLaudoData(\''+s.id+'\',this.value)"></div>'+
+          (s.id==='ala' ? (
+            '<div><label class="lbl" style="margin:0">Periodicidade</label>'+
+              '<select onchange="ceSetPrevLaudoPeriodicidade(\''+s.id+'\',this.value)">'+
+                '<option value="1" '+((p.laudoPeriodicidade||1)==1?'selected':'')+'>Anual (com detectores automáticos)</option>'+
+                '<option value="3" '+(p.laudoPeriodicidade==3?'selected':'')+'>A cada 3 anos (sem detectores automáticos)</option>'+
+              '</select></div>'
+          ) : '')+
+        '</div>'+
+        (status ? '<div style="margin-top:6px;font-size:12px;font-weight:700;color:'+(status.vencido?'var(--red2)':'var(--verde)')+'">'+
+          (status.vencido ? '⚠️ Laudo vencido em '+status.vencTxt : '✅ Laudo válido até '+status.vencTxt)+
+        '</div>' : '<div class="sub" style="margin-top:6px">Informe a data pra calcular a validade.</div>')+
+      '</div>';
+    }
+    return '<div class="prev-item on" style="grid-column:1/-1;flex-direction:column;align-items:stretch;gap:6px">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">'+
+        '<span class="name" style="cursor:pointer">'+(p.ordem?'<span style="color:var(--red2);font-weight:800;margin-right:4px">'+p.ordem+'º</span>':'')+
+        '<span onclick="ceTogglePrev(\''+s.id+'\')" style="cursor:pointer">'+s.l+' <span class="sub">('+s.n+')</span></span></span>'+
+        '<div style="display:flex;align-items:center;gap:6px">'+
+          '<button class="btn" style="width:30px;padding:6px 0;font-size:14px" onclick="ceAjustarPrevQty(\''+s.id+'\',-1)">−</button>'+
+          '<input type="text" class="prev-qty" value="'+(p.qty||1)+'" onchange="ceSetPrevQty(\''+s.id+'\',this.value)">'+
+          '<button class="btn" style="width:30px;padding:6px 0;font-size:14px" onclick="ceAjustarPrevQty(\''+s.id+'\',1)">+</button>'+
+        '</div>'+
+      '</div>'+
+      '<input type="text" placeholder="Detalhe / observação (opcional)" value="'+(p.info||'').replace(/"/g,'&quot;')+'" onchange="ceSetPrevInfo(\''+s.id+'\',this.value)">'+
+      laudoHtml+
+    '</div>';
+  }).join('');
+}
+function ceSetPrevLaudoData(sid,val){ if(cePreventivos[sid]){ cePreventivos[sid].laudoData = val; ceRenderPreventivos(); } }
+function ceSetPrevLaudoPeriodicidade(sid,val){ if(cePreventivos[sid]){ cePreventivos[sid].laudoPeriodicidade = parseInt(val,10); ceRenderPreventivos(); } }
+function ceTogglePrev(sid){
+  if(!cePreventivos[sid]) cePreventivos[sid]={ativo:false,qty:1,info:''};
+  var novoAtivo = !cePreventivos[sid].ativo;
+  cePreventivos[sid].ativo = novoAtivo;
+  if(novoAtivo){
+    var maiorOrdem = Object.keys(cePreventivos).reduce(function(max,k){
+      return cePreventivos[k].ativo && cePreventivos[k].ordem ? Math.max(max, cePreventivos[k].ordem) : max;
+    }, 0);
+    cePreventivos[sid].ordem = maiorOrdem + 1;
+  } else {
+    cePreventivos[sid].ordem = null;
+  }
+  ceRenderPreventivos();
+}
+function ceAjustarPrevQty(sid, delta){
+  if(!cePreventivos[sid]) return;
+  cePreventivos[sid].qty = Math.max(0, (cePreventivos[sid].qty||0) + delta);
+  ceRenderPreventivos();
+}
+function ceSetPrevQty(sid,val){ if(cePreventivos[sid]) cePreventivos[sid].qty = parseInt(val)||0; }
+function ceSetPrevInfo(sid,val){ if(cePreventivos[sid]) cePreventivos[sid].info = val; }
 
 function capturarGPSEdif(){
   if(!navigator.geolocation){ alert('Este dispositivo não tem GPS disponível.'); return; }
@@ -1761,8 +1927,26 @@ function salvarEdifEditCampo(){
     tel: document.getElementById('ee-telefone').value.trim()
   };
   e.area = document.getElementById('ee-area').value.trim();
+  e.altura = document.getElementById('ee-altura').value.trim();
+
+  e.projetos = ceProjetos;
+  e.preventivos = cePreventivos;
+
+  // deriva habiteSe/vigenciaFuncionamento da última linha de protocolo de cada tipo — mesma
+  // lógica do Quartel — MUTANDO o objeto existente (não recriando do zero), pra preservar
+  // avisoEnviadoEm e qualquer outro campo que o Campo não conhece
+  var linhaHSAtual = ceProjetos.filter(function(p){return p.tipo==='habite-se';}).pop();
+  var linhaFuncAtual = ceProjetos.filter(function(p){return p.tipo==='funcionamento';}).pop();
+  e.habiteSe = e.habiteSe || {};
+  e.habiteSe.situacao = linhaHSAtual ? 'possui' : 'nao_possui';
+  e.habiteSe.protocolo = linhaHSAtual ? (linhaHSAtual.num||'') : '';
+  e.habiteSe.projetoId = linhaHSAtual ? (linhaHSAtual.projetoVinculadoId||null) : null;
   e.vigenciaFuncionamento = e.vigenciaFuncionamento || {};
-  e.vigenciaFuncionamento.situacao = document.getElementById('ee-func-situacao').value || null;
+  e.vigenciaFuncionamento.situacao = linhaFuncAtual ? 'possui' : 'nao_possui';
+  e.vigenciaFuncionamento.protocolo = linhaFuncAtual ? (linhaFuncAtual.num||'') : '';
+  e.vigenciaFuncionamento.dataEmissao = linhaFuncAtual ? (linhaFuncAtual.dataEmissao||'') : '';
+  e.vigenciaFuncionamento.validadeAnos = linhaFuncAtual ? (parseInt(linhaFuncAtual.validadeAnos,10)||carregarValidadeFuncAnos()) : carregarValidadeFuncAnos();
+  e.vigenciaFuncionamento.vencimento = linhaFuncAtual ? (linhaFuncAtual.vencimento||'') : '';
 
   var gpsStatus = document.getElementById('gpsEdifStatus');
   if(gpsStatus.dataset.lat && gpsStatus.dataset.lng){
@@ -2682,12 +2866,33 @@ function buscarEdifNoMapaCampo(){
   abrirCartaoEdificacao(e);
 }
 
+var mapFiltroRota = '';
+function setMapFiltroRota(rotaId){
+  mapFiltroRota = rotaId;
+  renderMapEdificacoes();
+}
+function popularFiltroRotaMapa(){
+  var db = loadDB();
+  var sel = document.getElementById('mapFiltroRota');
+  if(!sel) return;
+  var atual = sel.value;
+  sel.innerHTML = '<option value="">Todas as edificações</option>'+
+    (db.rotas||[]).map(function(r){ return '<option value="'+r.id+'">🧭 '+r.nome+'</option>'; }).join('');
+  if((db.rotas||[]).some(function(r){return r.id===atual;})) sel.value = atual;
+}
 function renderMapEdificacoes(){
   if(!map) return;
   lyrEdif.clearLayers(); lyrForaComp.clearLayers();
   var db = loadDB();
+  popularFiltroRotaMapa();
+  var edifIdsDaRota = null;
+  if(mapFiltroRota){
+    edifIdsDaRota = {};
+    (db.vistorias||[]).forEach(function(v){ if(v.rotaId===mapFiltroRota) edifIdsDaRota[v.edificacaoId] = true; });
+  }
   (db.edificacoes||[]).forEach(function(e){
     if(!e.lat || !e.lng) return;
+    if(edifIdsDaRota && !edifIdsDaRota[e.id]) return;
     if(e.competencia==='fora'){
       var iconFora = L.divIcon({
         html:'<div style="width:24px;height:24px;border-radius:50%;background:#6b6b70;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:12px">🚫</div>',
@@ -2774,7 +2979,7 @@ function abrirCartaoEdificacao(e){
     '<div style="margin:14px 0">'+
       '<div class="ecard-row"><span class="l">Funcionamento</span><span>'+venc+'</span></div>'+
       '<div class="ecard-row"><span class="l">Última vistoria</span><span>'+(ultimaVist? new Date(ultimaVist.concluidaEm).toLocaleDateString('pt-BR') : '—')+'</span></div>'+
-      '<div class="ecard-row" style="border-bottom:none"><span class="l">Endereço</span><span style="text-align:right">'+(e.endereco||'—')+'</span></div>'+
+      '<div class="ecard-row" style="border-bottom:none"><span class="l">Endereço</span><span style="text-align:right">'+(e.endereco||'—')+(e.bairro?' — '+e.bairro:'')+'</span></div>'+
     '</div>'+
     '<div class="btnrow">'+
       '<button class="btn" onclick="abrirDetalhesCompletos(\''+e.id+'\')">Detalhes</button>'+
