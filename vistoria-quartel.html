@@ -170,7 +170,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v72</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v73</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -228,6 +228,16 @@
         </div>
         <button class="btn primary" onclick="abrirPlanejarVist()">+ Planejar vistoria</button>
         <button class="btn" style="background:var(--red2)" onclick="excluirTodasVistorias()">🗑️ Excluir todas</button>
+      </div>
+      <div class="toolbar" style="margin-top:8px">
+        <input type="text" id="vistBuscaRe" placeholder="Filtrar por RE..." style="width:auto;max-width:160px" oninput="renderVistorias()">
+        <select id="vistFiltroRotaSel" onchange="renderVistorias()" style="width:auto">
+          <option value="">Rota: todas</option>
+        </select>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--sub)">
+          Dia: <input type="text" id="vistFiltroDia" placeholder="DD/MM/AAAA" style="width:110px" oninput="renderVistorias()">
+          <button class="btn" style="width:auto;padding:6px 10px;font-size:12px" onclick="document.getElementById('vistFiltroDia').value='';renderVistorias()">✕</button>
+        </label>
       </div>
       <div id="vistList"></div>
     </div>
@@ -376,14 +386,7 @@
           <option value="habite-se">Habite-se</option>
           <option value="funcionamento">Funcionamento</option>
         </select>
-        <select id="relRota" onchange="renderRelatorios()" style="width:auto">
-          <option value="">Rota: todas</option>
-        </select>
         <input type="text" id="relBusca" placeholder="Filtrar por RE, nome, bairro ou município..." style="width:auto;min-width:220px" oninput="renderRelatorios()">
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--sub)">
-          Dia: <input type="text" id="relDia" placeholder="DD/MM/AAAA" style="width:110px" oninput="renderRelatorios()">
-          <button class="btn" style="width:auto;padding:6px 10px;font-size:12px" onclick="document.getElementById('relDia').value='';renderRelatorios()">✕</button>
-        </label>
         <button class="btn" style="width:auto;padding:8px 14px" onclick="copiarRelatorioAnosTexto()">📋 Copiar relatório em texto</button>
       </div>
       <div style="margin:10px 0">
@@ -2116,15 +2119,39 @@ function vincularVistoriaA(edificacaoId){
   renderVistorias();
 }
 
+function popularFiltroRotaVist(db){
+  var sel = document.getElementById('vistFiltroRotaSel');
+  var atual = sel.value;
+  sel.innerHTML = '<option value="">Rota: todas</option>'+(db.rotas||[]).map(function(r){return '<option value="'+r.id+'">'+r.nome+'</option>';}).join('');
+  if((db.rotas||[]).some(function(r){return r.id===atual;})) sel.value = atual;
+}
+function vistoriaBateFiltrosExtra(v, db){
+  var reFiltro = (document.getElementById('vistBuscaRe').value||'').toLowerCase();
+  var rotaFiltro = document.getElementById('vistFiltroRotaSel').value;
+  var diaFiltro = parseDataBR(document.getElementById('vistFiltroDia').value);
+  if(reFiltro){
+    var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
+    if(!e || (e.re||'').toLowerCase().indexOf(reFiltro)<0) return false;
+  }
+  if(rotaFiltro && v.rotaId!==rotaFiltro) return false;
+  if(diaFiltro){
+    if(!v.concluidaEm) return false;
+    var dc = new Date(v.concluidaEm);
+    if(dc.getFullYear()!==diaFiltro.getFullYear() || dc.getMonth()!==diaFiltro.getMonth() || dc.getDate()!==diaFiltro.getDate()) return false;
+  }
+  return true;
+}
+
 function renderVistorias(){
   var db = loadDB();
+  popularFiltroRotaVist(db);
 
   if(filtroVist==='emrota'){ renderVistoriasPorRota(db); return; }
 
   var lista = (db.vistorias||[]).filter(function(v){
-    if(filtroVist==='pendentes') return !v.concluida && !v.rotaId;
-    if(filtroVist==='concluidas') return v.concluida;
-    return true;
+    if(filtroVist==='pendentes' && (v.concluida || v.rotaId)) return false;
+    if(filtroVist==='concluidas' && !v.concluida) return false;
+    return vistoriaBateFiltrosExtra(v, db);
   }).sort(function(a,b){
     // pendentes/em rota sempre primeiro, concluídas sempre por último — dentro de cada
     // grupo, mais recente primeiro
@@ -2145,10 +2172,12 @@ function renderVistorias(){
 var rotasExpandidas = {};
 function renderVistoriasPorRota(db){
   var el = document.getElementById('vistList');
+  var rotaFiltro = document.getElementById('vistFiltroRotaSel').value;
   var rotasComPendente = (db.rotas||[]).filter(function(r){
+    if(rotaFiltro && r.id!==rotaFiltro) return false;
     return (r.vistorias||[]).some(function(vid){
       var v = db.vistorias.find(function(x){return x.id===vid;});
-      return v && !v.concluida;
+      return v && !v.concluida && vistoriaBateFiltrosExtra(v, db);
     });
   });
   if(!rotasComPendente.length){
@@ -2157,7 +2186,7 @@ function renderVistoriasPorRota(db){
   }
   el.innerHTML = rotasComPendente.map(function(r){
     var vistsDaRota = (r.vistorias||[]).map(function(vid){ return db.vistorias.find(function(x){return x.id===vid;}); }).filter(Boolean);
-    var pendentesDaRota = vistsDaRota.filter(function(v){ return !v.concluida; });
+    var pendentesDaRota = vistsDaRota.filter(function(v){ return !v.concluida && vistoriaBateFiltrosExtra(v, db); });
     var aberta = !!rotasExpandidas[r.id];
     var corpo = aberta ? pendentesDaRota.map(function(v){ return renderVistoriaCard(v, db); }).join('') : '';
     return '<div class="vist-item" style="margin-bottom:10px">'+
@@ -3673,8 +3702,6 @@ function copiarRelatorioAnosTexto(){
   var todas = db.edificacoes||[];
   var vistorias = db.vistorias||[];
   var tipoFiltro = document.getElementById('relTipo').value;
-  var rotaFiltro = document.getElementById('relRota').value;
-  var diaFiltro = parseDataBR(document.getElementById('relDia').value);
   var busca = (document.getElementById('relBusca').value||'').toLowerCase();
 
   function bateBuscaExp(e){
@@ -3685,18 +3712,12 @@ function copiarRelatorioAnosTexto(){
 
   var vistoriasFiltradas = vistorias.filter(function(v){
     if(!v.concluida || !v.concluidaEm) return false;
-    var dc = new Date(v.concluidaEm);
-    if(diaFiltro){
-      if(dc.getFullYear()!==diaFiltro.getFullYear() || dc.getMonth()!==diaFiltro.getMonth() || dc.getDate()!==diaFiltro.getDate()) return false;
-    } else if(relAnosSelecionados.indexOf(dc.getFullYear())<0){
-      return false;
-    }
+    if(relAnosSelecionados.indexOf(new Date(v.concluidaEm).getFullYear())<0) return false;
     if(tipoFiltro && v.tipo !== tipoFiltro) return false;
-    if(rotaFiltro && v.rotaId !== rotaFiltro) return false;
     return true;
   });
   var edifIdsVist = Array.from(new Set(vistoriasFiltradas.map(function(v){return v.edificacaoId;})));
-  var rotuloPeriodo = diaFiltro ? document.getElementById('relDia').value : relAnosSelecionados.slice().sort(function(a,b){return a-b;}).join(', ');
+  var rotuloPeriodo = relAnosSelecionados.slice().sort(function(a,b){return a-b;}).join(', ');
 
   var vistoriadasList = todas.filter(function(e){ return edifIdsVist.indexOf(e.id)>=0 && bateBuscaExp(e); })
     .sort(function(a,b){ return (a.re||'').localeCompare(b.re||'', undefined, {numeric:true}); });
@@ -3754,27 +3775,14 @@ function renderRelatorios(){
 
   var tipoFiltro = document.getElementById('relTipo').value;
 
-  var selRota = document.getElementById('relRota');
-  var rotaValAntes = selRota.value;
-  selRota.innerHTML = '<option value="">Rota: todas</option>'+(db.rotas||[]).map(function(r){ return '<option value="'+r.id+'">'+r.nome+'</option>'; }).join('');
-  if((db.rotas||[]).some(function(r){return r.id===rotaValAntes;})) selRota.value = rotaValAntes;
-  var rotaFiltro = selRota.value;
-
-  var diaFiltro = parseDataBR(document.getElementById('relDia').value);
   var vistoriasNoAno = vistorias.filter(function(v){
     if(!v.concluida || !v.concluidaEm) return false;
-    var dc = new Date(v.concluidaEm);
-    if(diaFiltro){
-      if(dc.getFullYear()!==diaFiltro.getFullYear() || dc.getMonth()!==diaFiltro.getMonth() || dc.getDate()!==diaFiltro.getDate()) return false;
-    } else if(relAnosSelecionados.indexOf(dc.getFullYear())<0){
-      return false;
-    }
+    if(relAnosSelecionados.indexOf(new Date(v.concluidaEm).getFullYear())<0) return false;
     if(tipoFiltro && v.tipo !== tipoFiltro) return false;
-    if(rotaFiltro && v.rotaId !== rotaFiltro) return false;
     return true;
   });
 
-  var rotuloAnos = diaFiltro ? document.getElementById('relDia').value : relAnosSelecionados.slice().sort(function(a,b){return a-b;}).join(', ');
+  var rotuloAnos = relAnosSelecionados.slice().sort(function(a,b){return a-b;}).join(', ');
 
   // uma edificação pode ter sido vistoriada mais de uma vez nos anos escolhidos — conta ela uma vez só na lista de "vistoriadas"
   var edifIdsVistoriados = Array.from(new Set(vistoriasNoAno.map(function(v){return v.edificacaoId;})));
