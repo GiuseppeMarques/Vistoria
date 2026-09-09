@@ -213,7 +213,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v45</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v47</div>
   </header>
 
   <main>
@@ -836,6 +836,7 @@ function renderVistoriasCampo(){
     if(vistFiltroRota==='sem') return !v.rotaId;
     return v.rotaId===vistFiltroRota;
   }).sort(function(a,b){
+    if(!!a.concluida !== !!b.concluida) return a.concluida ? 1 : -1;
     return new Date(b.atualizadoEm || b.criadoEm || 0) - new Date(a.atualizadoEm || a.criadoEm || 0);
   });
   var el = document.getElementById('vistCampoList');
@@ -1193,6 +1194,12 @@ function setItemObs(itemId, val){
   v.checklist[itemId].obs = val;
   salvarVistoria(v);
 }
+function setItemDuvida(itemId, val){
+  var v = garantirVistoria();
+  if(!v.checklist[itemId]) v.checklist[itemId]={};
+  v.checklist[itemId].duvida = val;
+  salvarVistoria(v);
+}
 function setItemLocal(itemId, val){
   var v = garantirVistoria();
   if(!v.checklist[itemId]) v.checklist[itemId]={};
@@ -1481,6 +1488,12 @@ function renderExecucao(){
               '<input type="text" value="'+((v.checklist[it.id].local||'').replace(/"/g,'&quot;'))+'" onchange="setItemLocal(\''+it.id+'\',this.value)">'+
               '<label class="lbl">Observação (opcional)</label>'+
               '<input type="text" value="'+((v.checklist[it.id].obs||'').replace(/"/g,'&quot;'))+'" onchange="setItemObs(\''+it.id+'\',this.value)">'+
+            '</div>'
+          ) : '') +
+          (st==='naoAv' ? (
+            '<div class="item-extra">'+
+              '<label class="lbl">Descreva a dúvida</label>'+
+              '<input type="text" value="'+((v.checklist[it.id].duvida||'').replace(/"/g,'&quot;'))+'" placeholder="Ex: não deu pra acessar o local, precisa confirmar depois" onchange="setItemDuvida(\''+it.id+'\',this.value)">'+
             '</div>'
           ) : '') +
         '</div>';

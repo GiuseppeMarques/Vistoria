@@ -170,7 +170,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v69</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v72</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -369,17 +369,26 @@
 
     <div class="view" id="v-relatorios">
       <h2>Relatórios</h2>
-      <div class="lead">Quais edificações já foram vistoriadas, por ano.</div>
+      <div class="lead">Quais edificações já foram vistoriadas, por ano — e quais estão em atraso na periodicidade.</div>
       <div class="toolbar">
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--sub)">
-          Ano: <select id="relAno" onchange="renderRelatorios()" style="width:auto"></select>
-        </label>
         <select id="relTipo" onchange="renderRelatorios()" style="width:auto">
           <option value="">Tipo: todos</option>
           <option value="habite-se">Habite-se</option>
           <option value="funcionamento">Funcionamento</option>
         </select>
+        <select id="relRota" onchange="renderRelatorios()" style="width:auto">
+          <option value="">Rota: todas</option>
+        </select>
         <input type="text" id="relBusca" placeholder="Filtrar por RE, nome, bairro ou município..." style="width:auto;min-width:220px" oninput="renderRelatorios()">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--sub)">
+          Dia: <input type="text" id="relDia" placeholder="DD/MM/AAAA" style="width:110px" oninput="renderRelatorios()">
+          <button class="btn" style="width:auto;padding:6px 10px;font-size:12px" onclick="document.getElementById('relDia').value='';renderRelatorios()">✕</button>
+        </label>
+        <button class="btn" style="width:auto;padding:8px 14px" onclick="copiarRelatorioAnosTexto()">📋 Copiar relatório em texto</button>
+      </div>
+      <div style="margin:10px 0">
+        <label class="lbl">Ano(s) — clique pra marcar mais de um</label>
+        <div id="relAnosChips" class="btnrow" style="gap:6px;flex-wrap:wrap"></div>
       </div>
 
       <div id="relResumo" class="btnrow" style="gap:14px;margin:16px 0;flex-wrap:wrap"></div>
@@ -387,11 +396,22 @@
       <div class="sec-title" style="margin-top:0">Vistorias concluídas por mês</div>
       <canvas id="relChart" width="900" height="240" style="width:100%;max-width:900px;height:240px;background:var(--card2);border-radius:12px;margin-bottom:20px"></canvas>
 
-      <div class="sec-title">Edificações vistoriadas no ano</div>
+      <div class="sec-title">Edificações vistoriadas no(s) ano(s) selecionado(s)</div>
       <div id="relListaVistoriadas" style="margin-bottom:20px"></div>
 
-      <div class="sec-title">Edificações ainda não vistoriadas no ano</div>
-      <div id="relListaPendentes"></div>
+      <div class="sec-title">Edificações ainda não vistoriadas no(s) ano(s) selecionado(s)</div>
+      <div id="relListaPendentes" style="margin-bottom:24px"></div>
+
+      <div class="sec-title">⚠️ Periodicidade — edificações em atraso</div>
+      <div class="sub" style="margin-bottom:8px">A cada quantos anos cada grau de risco precisa ser revistoriado (pelo menos uma vez, qualquer tipo). Ajuste se precisar.</div>
+      <div class="frow" style="flex-wrap:wrap;margin-bottom:12px">
+        <div class="fcol" style="flex:0 0 90px"><label class="lbl">Risco 1</label><input type="number" min="1" id="relPer1" onchange="salvarPeriodicidadeRisco()"></div>
+        <div class="fcol" style="flex:0 0 90px"><label class="lbl">Risco 2</label><input type="number" min="1" id="relPer2" onchange="salvarPeriodicidadeRisco()"></div>
+        <div class="fcol" style="flex:0 0 90px"><label class="lbl">Risco 3</label><input type="number" min="1" id="relPer3" onchange="salvarPeriodicidadeRisco()"></div>
+        <div class="fcol" style="flex:0 0 90px"><label class="lbl">Risco 4</label><input type="number" min="1" id="relPer4" onchange="salvarPeriodicidadeRisco()"></div>
+        <div class="fcol" style="flex:0 0 90px"><label class="lbl">Risco 5</label><input type="number" min="1" id="relPer5" onchange="salvarPeriodicidadeRisco()"></div>
+      </div>
+      <div id="relListaAtrasadas"></div>
     </div>
 
     <div class="view" id="v-avisos">
@@ -2105,7 +2125,12 @@ function renderVistorias(){
     if(filtroVist==='pendentes') return !v.concluida && !v.rotaId;
     if(filtroVist==='concluidas') return v.concluida;
     return true;
-  }).sort(function(a,b){ return new Date(b.criadoEm||0)-new Date(a.criadoEm||0); });
+  }).sort(function(a,b){
+    // pendentes/em rota sempre primeiro, concluídas sempre por último — dentro de cada
+    // grupo, mais recente primeiro
+    if(!!a.concluida !== !!b.concluida) return a.concluida ? 1 : -1;
+    return new Date(b.criadoEm||0)-new Date(a.criadoEm||0);
+  });
 
   var el = document.getElementById('vistList');
   if(!lista.length){
@@ -2442,6 +2467,7 @@ function abrirRelatorio(vistId){
   // Item nunca marcado (não avaliado) agora conta como APROVADO — só entra aqui o que foi
   // explicitamente marcado como não conforme.
   var pendGerais = [];
+  var duvidasGerais = [];
   var reprovadosChecklist = 0;
   grupos.forEach(function(g){
     cl[g].forEach(function(it){
@@ -2454,6 +2480,8 @@ function abrirRelatorio(vistId){
           motivo: d.causa || 'Não conforme',
           obs: d && d.obs
         });
+      } else if(st==='naoAv'){
+        duvidasGerais.push({ texto: it.c, duvida: (d && d.duvida) || 'Sem descrição informada' });
       }
     });
   });
@@ -2536,7 +2564,7 @@ function abrirRelatorio(vistId){
   var totalItens = grupos.reduce(function(n,g){return n+cl[g].length;}, 0);
   var totalPendencias = pendGerais.length + totalPendBloco;
 
-  var textoRelatorio = gerarRelatorioTexto(e, v, pendGerais, porBloco, aprovadosPorBloco, totalItens, reprovadosChecklist, totalPendencias);
+  var textoRelatorio = gerarRelatorioTexto(e, v, pendGerais, duvidasGerais, porBloco, aprovadosPorBloco, totalItens, reprovadosChecklist, totalPendencias);
   window._relatorioTextoAtual = textoRelatorio;
 
   var html = '<pre style="white-space:pre-wrap;font-family:inherit;font-size:14px;line-height:1.6;margin:0">'+
@@ -2547,12 +2575,12 @@ function abrirRelatorio(vistId){
   document.getElementById('modalRelatorio').style.display='flex';
 }
 
-function gerarRelatorioTexto(e, v, pendGerais, porBloco, aprovadosPorBloco, totalItens, reprovadosChecklist, totalPendencias){
+function gerarRelatorioTexto(e, v, pendGerais, duvidasGerais, porBloco, aprovadosPorBloco, totalItens, reprovadosChecklist, totalPendencias){
   var linhas = [];
   linhas.push((e?e.nome:'—')+' — RE '+(e?e.re:''));
   linhas.push((v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+' · concluída em '+(v.concluidaEm?new Date(v.concluidaEm).toLocaleString('pt-BR'):'—'));
   linhas.push('');
-  linhas.push('RESUMO: '+(totalItens-reprovadosChecklist)+' de '+totalItens+' itens do checklist aprovados · '+totalPendencias+' pendência(s) no total');
+  linhas.push('RESUMO: '+(totalItens-reprovadosChecklist)+' de '+totalItens+' itens do checklist aprovados · '+totalPendencias+' pendência(s) no total'+(duvidasGerais.length?' · '+duvidasGerais.length+' dúvida(s)':''));
   linhas.push('');
   if(totalPendencias===0){
     linhas.push('Nenhuma pendência — todos os itens aprovados.');
@@ -2577,6 +2605,13 @@ function gerarRelatorioTexto(e, v, pendGerais, porBloco, aprovadosPorBloco, tota
         linhas.push('- '+r.texto+': '+r.motivo+(r.obs?' (Obs: '+r.obs+')':''));
       });
     }
+  }
+  if(duvidasGerais.length){
+    linhas.push('');
+    linhas.push('=== ❔ ITENS COM DÚVIDA (precisam de confirmação) ===');
+    duvidasGerais.forEach(function(dv){
+      linhas.push('- '+dv.texto+': '+dv.duvida);
+    });
   }
   if(aprovadosPorBloco.length){
     linhas.push('');
@@ -3087,6 +3122,12 @@ function renderExecucaoQuartel(){
               '<input type="text" value="'+((v.checklist[it.id].local||'').replace(/"/g,'&quot;'))+'" onchange="quSetItemCampo(\''+it.id+'\',\'local\',this.value)">'+
               '<label class="lbl">Observação (opcional)</label>'+
               '<input type="text" value="'+((v.checklist[it.id].obs||'').replace(/"/g,'&quot;'))+'" onchange="quSetItemCampo(\''+it.id+'\',\'obs\',this.value)">'+
+            '</div>'
+          ) : '')+
+          (st==='naoAv' ? (
+            '<div class="item-extra">'+
+              '<label class="lbl">Descreva a dúvida</label>'+
+              '<input type="text" value="'+((v.checklist[it.id].duvida||'').replace(/"/g,'&quot;'))+'" placeholder="Ex: não deu pra acessar o local, precisa confirmar depois" onchange="quSetItemCampo(\''+it.id+'\',\'duvida\',this.value)">'+
             '</div>'
           ) : '')+
         '</div>';
@@ -3603,6 +3644,96 @@ function enviarAvisoWhatsapp(chave){
   marcarAvisoEnviado(chave);
 }
 
+var relAnosSelecionados = [];
+function toggleRelAno(ano){
+  var idx = relAnosSelecionados.indexOf(ano);
+  if(idx>=0) relAnosSelecionados.splice(idx,1);
+  else relAnosSelecionados.push(ano);
+  if(!relAnosSelecionados.length) relAnosSelecionados = [new Date().getFullYear()]; // nunca fica sem nenhum marcado
+  renderRelatorios();
+}
+
+var PERIODICIDADE_RISCO_PADRAO = {1:5, 2:4, 3:3, 4:2, 5:2};
+function carregarPeriodicidadeRisco(){
+  try {
+    var salvo = JSON.parse(localStorage.getItem('vistoria_periodicidade_risco'));
+    if(salvo && typeof salvo==='object') return Object.assign({}, PERIODICIDADE_RISCO_PADRAO, salvo);
+  } catch(err){}
+  return Object.assign({}, PERIODICIDADE_RISCO_PADRAO);
+}
+function salvarPeriodicidadeRisco(){
+  var per = {};
+  [1,2,3,4,5].forEach(function(r){ per[r] = parseInt(document.getElementById('relPer'+r).value,10) || PERIODICIDADE_RISCO_PADRAO[r]; });
+  localStorage.setItem('vistoria_periodicidade_risco', JSON.stringify(per));
+  renderRelatorios();
+}
+
+function copiarRelatorioAnosTexto(){
+  var db = loadDB();
+  var todas = db.edificacoes||[];
+  var vistorias = db.vistorias||[];
+  var tipoFiltro = document.getElementById('relTipo').value;
+  var rotaFiltro = document.getElementById('relRota').value;
+  var diaFiltro = parseDataBR(document.getElementById('relDia').value);
+  var busca = (document.getElementById('relBusca').value||'').toLowerCase();
+
+  function bateBuscaExp(e){
+    if(!busca) return true;
+    return (e.re||'').toLowerCase().indexOf(busca)>=0 || (e.nome||'').toLowerCase().indexOf(busca)>=0 ||
+      (e.bairro||'').toLowerCase().indexOf(busca)>=0 || (e.municipio||'').toLowerCase().indexOf(busca)>=0;
+  }
+
+  var vistoriasFiltradas = vistorias.filter(function(v){
+    if(!v.concluida || !v.concluidaEm) return false;
+    var dc = new Date(v.concluidaEm);
+    if(diaFiltro){
+      if(dc.getFullYear()!==diaFiltro.getFullYear() || dc.getMonth()!==diaFiltro.getMonth() || dc.getDate()!==diaFiltro.getDate()) return false;
+    } else if(relAnosSelecionados.indexOf(dc.getFullYear())<0){
+      return false;
+    }
+    if(tipoFiltro && v.tipo !== tipoFiltro) return false;
+    if(rotaFiltro && v.rotaId !== rotaFiltro) return false;
+    return true;
+  });
+  var edifIdsVist = Array.from(new Set(vistoriasFiltradas.map(function(v){return v.edificacaoId;})));
+  var rotuloPeriodo = diaFiltro ? document.getElementById('relDia').value : relAnosSelecionados.slice().sort(function(a,b){return a-b;}).join(', ');
+
+  var vistoriadasList = todas.filter(function(e){ return edifIdsVist.indexOf(e.id)>=0 && bateBuscaExp(e); })
+    .sort(function(a,b){ return (a.re||'').localeCompare(b.re||'', undefined, {numeric:true}); });
+  var pendentesList = todas.filter(function(e){ return edifIdsVist.indexOf(e.id)<0 && bateBuscaExp(e); })
+    .sort(function(a,b){ return (a.re||'').localeCompare(b.re||'', undefined, {numeric:true}); });
+
+  var linhas = [];
+  linhas.push('RELATÓRIO DE VISTORIAS — período: '+rotuloPeriodo);
+  linhas.push('Gerado em '+new Date().toLocaleString('pt-BR'));
+  linhas.push('');
+  linhas.push('Total de edificações cadastradas: '+todas.length);
+  linhas.push('Vistoriadas no período: '+vistoriadasList.length);
+  linhas.push('Ainda não vistoriadas no período: '+pendentesList.length);
+  linhas.push('');
+  linhas.push('=== EDIFICAÇÕES VISTORIADAS ('+vistoriadasList.length+') ===');
+  if(!vistoriadasList.length) linhas.push('(nenhuma)');
+  vistoriadasList.forEach(function(e){
+    var v = vistoriasFiltradas.filter(function(x){return x.edificacaoId===e.id;}).sort(function(a,b){return new Date(b.concluidaEm)-new Date(a.concluidaEm);})[0];
+    linhas.push('- '+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+' ('+(v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+', '+new Date(v.concluidaEm).toLocaleDateString('pt-BR')+')');
+  });
+  linhas.push('');
+  linhas.push('=== EDIFICAÇÕES AINDA NÃO VISTORIADAS NO PERÍODO ('+pendentesList.length+') ===');
+  if(!pendentesList.length) linhas.push('(nenhuma — todas foram vistoriadas no período)');
+  pendentesList.forEach(function(e){
+    linhas.push('- '+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+(e.municipio?' · '+e.municipio:'')+(e.bairro?' · '+e.bairro:''));
+  });
+
+  var texto = linhas.join('\n');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(texto).then(function(){
+      alert('Relatório copiado! Já pode colar (Ctrl+V) numa mensagem ou documento.');
+    }).catch(function(){ window.prompt('Copie o texto abaixo (Ctrl+C):', texto); });
+  } else {
+    window.prompt('Copie o texto abaixo (Ctrl+C):', texto);
+  }
+}
+
 function renderRelatorios(){
   var db = loadDB();
   var todas = db.edificacoes||[];
@@ -3615,20 +3746,37 @@ function renderRelatorios(){
   if(anosComDados.indexOf(anoAtual)<0) anosComDados.push(anoAtual);
   anosComDados.sort(function(a,b){return b-a;});
 
-  var selAno = document.getElementById('relAno');
-  var anoEscolhido = selAno.value ? Number(selAno.value) : anoAtual;
-  selAno.innerHTML = anosComDados.map(function(a){ return '<option value="'+a+'" '+(a===anoEscolhido?'selected':'')+'>'+a+'</option>'; }).join('');
+  if(!relAnosSelecionados.length) relAnosSelecionados = [anoAtual];
+  document.getElementById('relAnosChips').innerHTML = anosComDados.map(function(a){
+    var on = relAnosSelecionados.indexOf(a)>=0;
+    return '<button class="btn" style="width:auto;padding:8px 16px;'+(on?'background:var(--red2);color:#fff':'')+'" onclick="toggleRelAno('+a+')">'+a+'</button>';
+  }).join('');
 
   var tipoFiltro = document.getElementById('relTipo').value;
 
+  var selRota = document.getElementById('relRota');
+  var rotaValAntes = selRota.value;
+  selRota.innerHTML = '<option value="">Rota: todas</option>'+(db.rotas||[]).map(function(r){ return '<option value="'+r.id+'">'+r.nome+'</option>'; }).join('');
+  if((db.rotas||[]).some(function(r){return r.id===rotaValAntes;})) selRota.value = rotaValAntes;
+  var rotaFiltro = selRota.value;
+
+  var diaFiltro = parseDataBR(document.getElementById('relDia').value);
   var vistoriasNoAno = vistorias.filter(function(v){
     if(!v.concluida || !v.concluidaEm) return false;
-    if(new Date(v.concluidaEm).getFullYear() !== anoEscolhido) return false;
+    var dc = new Date(v.concluidaEm);
+    if(diaFiltro){
+      if(dc.getFullYear()!==diaFiltro.getFullYear() || dc.getMonth()!==diaFiltro.getMonth() || dc.getDate()!==diaFiltro.getDate()) return false;
+    } else if(relAnosSelecionados.indexOf(dc.getFullYear())<0){
+      return false;
+    }
     if(tipoFiltro && v.tipo !== tipoFiltro) return false;
+    if(rotaFiltro && v.rotaId !== rotaFiltro) return false;
     return true;
   });
 
-  // uma edificação pode ter sido vistoriada mais de uma vez no ano — conta ela uma vez só na lista de "vistoriadas"
+  var rotuloAnos = diaFiltro ? document.getElementById('relDia').value : relAnosSelecionados.slice().sort(function(a,b){return a-b;}).join(', ');
+
+  // uma edificação pode ter sido vistoriada mais de uma vez nos anos escolhidos — conta ela uma vez só na lista de "vistoriadas"
   var edifIdsVistoriados = Array.from(new Set(vistoriasNoAno.map(function(v){return v.edificacaoId;})));
   var totalEdif = todas.length;
   var totalVistoriadas = edifIdsVistoriados.length;
@@ -3637,8 +3785,8 @@ function renderRelatorios(){
 
   document.getElementById('relResumo').innerHTML =
     '<div class="exec-ctr" style="flex:1;min-width:120px"><div class="v">'+totalEdif+'</div><div class="l">Edificações cadastradas</div></div>'+
-    '<div class="exec-ctr" style="flex:1;min-width:120px"><div class="v" style="color:var(--verde)">'+totalVistoriadas+'</div><div class="l">Vistoriadas em '+anoEscolhido+'</div></div>'+
-    '<div class="exec-ctr" style="flex:1;min-width:120px"><div class="v" style="color:var(--red2)">'+pct+'%</div><div class="l">Cobertura do ano</div></div>'+
+    '<div class="exec-ctr" style="flex:1;min-width:120px"><div class="v" style="color:var(--verde)">'+totalVistoriadas+'</div><div class="l">Vistoriadas em '+rotuloAnos+'</div></div>'+
+    '<div class="exec-ctr" style="flex:1;min-width:120px"><div class="v" style="color:var(--red2)">'+pct+'%</div><div class="l">Cobertura do(s) ano(s)</div></div>'+
     '<div class="exec-ctr" style="flex:1;min-width:120px"><div class="v" style="color:var(--verde)">'+deferidas+'</div><div class="l">Deferidas</div></div>'+
     '<div class="exec-ctr" style="flex:1;min-width:120px"><div class="v">'+vistoriasNoAno.length+'</div><div class="l">Vistorias concluídas</div></div>';
 
@@ -3667,7 +3815,7 @@ function renderRelatorios(){
       '<div><div class="elist-t">'+(x.e.re||'Sem RE')+' — '+(x.e.nome||'Sem nome')+'</div>'+
       '<div class="elist-s">'+(x.v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+' · concluída '+d.toLocaleDateString('pt-BR')+'</div></div>'+
     '</div></div>';
-  }).join('') : '<div class="sub">Nenhuma edificação vistoriada em '+anoEscolhido+' '+(busca?'com esse filtro':'ainda')+'.</div>';
+  }).join('') : '<div class="sub">Nenhuma edificação vistoriada em '+rotuloAnos+' '+(busca?'com esse filtro':'ainda')+'.</div>';
 
   var listaPend = todas.filter(function(e){ return edifIdsVistoriados.indexOf(e.id)<0 && bateBusca(e); })
     .sort(function(a,b){ return (a.re||'').localeCompare(b.re||'', undefined, {numeric:true}); });
@@ -3678,7 +3826,35 @@ function renderRelatorios(){
       '<div class="elist-s">'+(e.municipio||'')+(e.bairro?' · '+e.bairro:'')+'</div></div>'+
       '<button class="btn primary" style="width:auto;padding:8px 14px" onclick="abrirPlanejarVist(\''+e.id+'\')">+ Gerar vistoria</button>'+
     '</div></div>';
-  }).join('') : '<div class="sub">Todas as edificações '+(busca?'com esse filtro já foram':'cadastradas já foram')+' vistoriadas em '+anoEscolhido+'.</div>';
+  }).join('') : '<div class="sub">Todas as edificações '+(busca?'com esse filtro já foram':'cadastradas já foram')+' vistoriadas em '+rotuloAnos+'.</div>';
+
+  // ═══ Periodicidade: edificações em atraso (independente do filtro de ano acima —
+  // olha a vistoria concluída mais recente de cada edificação, de QUALQUER ano/tipo) ═══
+  var periodicidade = carregarPeriodicidadeRisco();
+  [1,2,3,4,5].forEach(function(r){ document.getElementById('relPer'+r).value = periodicidade[r]; });
+  var hoje = new Date();
+  var atrasadas = todas.filter(bateBusca).map(function(e){
+    var risco = riscoEfetivo(e) || 1;
+    var prazoAnos = periodicidade[risco] || PERIODICIDADE_RISCO_PADRAO[risco] || 3;
+    var vistoriasDaEdif = vistorias.filter(function(v){ return v.edificacaoId===e.id && v.concluida && v.concluidaEm; });
+    var ultima = vistoriasDaEdif.sort(function(a,b){ return new Date(b.concluidaEm)-new Date(a.concluidaEm); })[0];
+    if(!ultima) return {e:e, risco:risco, prazoAnos:prazoAnos, nunca:true, anosPassados:null};
+    var anosPassados = (hoje - new Date(ultima.concluidaEm)) / (365.25*24*3600*1000);
+    if(anosPassados < prazoAnos) return null; // dentro do prazo, não entra na lista
+    return {e:e, risco:risco, prazoAnos:prazoAnos, nunca:false, anosPassados:anosPassados, ultima:ultima};
+  }).filter(Boolean).sort(function(a,b){
+    var a1 = a.nunca ? 9999 : a.anosPassados, b1 = b.nunca ? 9999 : b.anosPassados;
+    return b1 - a1; // mais atrasada primeiro
+  });
+
+  document.getElementById('relListaAtrasadas').innerHTML = atrasadas.length ? atrasadas.map(function(x){
+    var det = x.nunca ? 'Nunca foi vistoriada' : ('Última vistoria há '+Math.floor(x.anosPassados)+' ano(s) ('+new Date(x.ultima.concluidaEm).toLocaleDateString('pt-BR')+')');
+    return '<div class="elist-item" style="border-color:var(--red2)"><div class="elist-row">'+
+      '<div><div class="elist-t">⚠️ '+(x.e.re||'Sem RE')+' — '+(x.e.nome||'Sem nome')+'</div>'+
+      '<div class="elist-s">Risco '+x.risco+' · prazo de '+x.prazoAnos+' ano(s) · '+det+'</div></div>'+
+      '<button class="btn primary" style="width:auto;padding:8px 14px" onclick="abrirPlanejarVist(\''+x.e.id+'\')">+ Gerar vistoria</button>'+
+    '</div></div>';
+  }).join('') : '<div class="sub">Nenhuma edificação em atraso'+(busca?' com esse filtro':'')+' — todas dentro do prazo da periodicidade.</div>';
 }
 
 function desenharGraficoRelatorios(porMes){
