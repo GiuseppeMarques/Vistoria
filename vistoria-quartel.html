@@ -170,7 +170,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v73</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v74</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -3901,6 +3901,110 @@ function desenharGraficoRelatorios(porMes){
   });
 }
 
+// Resumo compacto de pendências de UMA vistoria (checklist reprovado + preventivos quantificados
+// com falta/reprovado) — usado pelo relatório consolidado de rota, pra saber rápido o "quantitativo
+// de itens errados" e a lista de "alterações" de cada edificação.
+function calcularResumoPendenciasVistoria(e, v){
+  var cl = getCL(v.tipo);
+  var gruposAtivos = getGruposAtivosQuartel(e);
+  var grupos = Object.keys(cl).filter(function(g){return gruposAtivos.indexOf(g)>=0;});
+  var alteracoes = [];
+  var reprovadosChecklist = 0;
+  grupos.forEach(function(g){
+    cl[g].forEach(function(it){
+      var d = v.checklist[it.id];
+      var st = (d&&d.status) || 'ok';
+      if(st==='nao'){
+        reprovadosChecklist++;
+        alteracoes.push(it.c+(d.causa?' — '+d.causa:''));
+      }
+    });
+  });
+  var totalPendBloco = 0;
+  function checarSistema(esperado, chave, label){
+    var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
+    var aprovados = qd.aprovados!=null ? qd.aprovados : (qd.val!=null ? qd.val : null);
+    var motivos = qd.motivos || [];
+    var reprovadosTotal = motivos.reduce(function(s,m){return s+(m.qtd||0);}, 0);
+    var totalContado = (aprovados||0) + reprovadosTotal;
+    motivos.forEach(function(m){
+      if(!m.qtd) return;
+      totalPendBloco += m.qtd;
+      alteracoes.push(label+': '+m.qtd+' un. reprovada(s) — '+(m.motivo||'motivo não especificado'));
+    });
+    if(aprovados==null && motivos.length===0){
+      totalPendBloco += esperado;
+      alteracoes.push(label+': falta contar (esperado '+esperado+' un.)');
+    } else if(totalContado < esperado){
+      var falta = esperado-totalContado;
+      totalPendBloco += falta;
+      alteracoes.push(label+': falta '+falta+' un. (esperado '+esperado+', encontrado '+totalContado+')');
+    }
+  }
+  if(e && e.blocos && e.blocos.length){
+    e.blocos.forEach(function(bloco, bi){
+      (bloco.pavimentos||[]).forEach(function(pav, pi){
+        Object.keys(pav.sist||{}).forEach(function(sid){
+          if(!pav.sist[sid].ativo) return;
+          var s = SIST.find(function(x){return x.id===sid;});
+          checarSistema(pav.sist[sid].qty||0, bi+'_'+pi+'_'+sid, (s?s.l:sid)+' ('+bloco.nome+' - '+pav.label+')');
+        });
+      });
+    });
+  } else if(e){
+    SIST.filter(function(s){return e.preventivos && e.preventivos[s.id] && e.preventivos[s.id].ativo;}).forEach(function(s){
+      checarSistema(e.preventivos[s.id].qty||0, '_'+s.id, s.l);
+    });
+  }
+  return {alteracoes: alteracoes, totalErrados: reprovadosChecklist + totalPendBloco};
+}
+
+function copiarRelatorioRotaTexto(rotaId){
+  var db = loadDB();
+  var r = (db.rotas||[]).find(function(x){return x.id===rotaId;});
+  if(!r) return;
+  var vistsDaRota = (r.vistorias||[]).map(function(vid){ return db.vistorias.find(function(x){return x.id===vid;}); }).filter(Boolean);
+  var concluidas = vistsDaRota.filter(function(v){return v.concluida;});
+  if(!concluidas.length){ alert('Nenhuma vistoria concluída nessa rota ainda.'); return; }
+
+  var linhas = [];
+  linhas.push('RELATÓRIO CONSOLIDADO DE VISTORIAS — Rota: '+r.nome);
+  linhas.push((r.data?'Data: '+r.data+' · ':'')+'Gerado em '+new Date().toLocaleString('pt-BR'));
+  linhas.push('');
+  linhas.push('Total de edificações vistoriadas nessa rota: '+concluidas.length);
+  linhas.push('');
+
+  var totalGeralErrados = 0, deferidas = 0, comPendencia = 0;
+  concluidas.forEach(function(v, i){
+    var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
+    var res = calcularResumoPendenciasVistoria(e, v);
+    totalGeralErrados += res.totalErrados;
+    if(res.totalErrados===0) deferidas++; else comPendencia++;
+    linhas.push((i+1)+'. '+(e?(e.re||'Sem RE')+' — '+(e.nome||'Sem nome'):'Edificação removida'));
+    linhas.push('   '+(v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+' · concluída em '+new Date(v.concluidaEm).toLocaleDateString('pt-BR'));
+    linhas.push('   Status: '+(res.totalErrados===0 ? '✅ Deferido' : '⚠️ Indeferido — '+res.totalErrados+' item(ns) com problema'));
+    if(res.alteracoes.length){
+      linhas.push('   Alterações encontradas:');
+      res.alteracoes.forEach(function(a){ linhas.push('     - '+a); });
+    }
+    linhas.push('');
+  });
+
+  linhas.push('=== RESUMO GERAL DA ROTA ===');
+  linhas.push('Edificações deferidas (sem pendência): '+deferidas);
+  linhas.push('Edificações com pendência: '+comPendencia);
+  linhas.push('Total de itens com problema somando todas as edificações: '+totalGeralErrados);
+
+  var texto = linhas.join('\n');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(texto).then(function(){
+      alert('Relatório da rota copiado! Já pode colar (Ctrl+V) numa mensagem ou documento.');
+    }).catch(function(){ window.prompt('Copie o texto abaixo (Ctrl+C):', texto); });
+  } else {
+    window.prompt('Copie o texto abaixo (Ctrl+C):', texto);
+  }
+}
+
 function renderRotas(){
   var db = loadDB();
   var lista = (db.rotas||[]).sort(function(a,b){ return new Date(b.data||0)-new Date(a.data||0); });
@@ -3910,9 +4014,14 @@ function renderRotas(){
     return;
   }
   el.innerHTML = lista.map(function(r){
+    var vistsDaRota = (r.vistorias||[]).map(function(vid){ return db.vistorias.find(function(x){return x.id===vid;}); }).filter(Boolean);
+    var concluidas = vistsDaRota.filter(function(v){return v.concluida;}).length;
     return '<div class="vist-item"><div class="elist-row">'+
       '<div><div class="elist-t">'+r.nome+'</div>'+
-      '<div class="elist-s">'+(r.data||'')+' · '+r.vistorias.length+' vistorias · ~'+(r.distanciaEstimadaKm||0).toFixed(1)+' km</div></div>'+
+      '<div class="elist-s">'+(r.data||'')+' · '+r.vistorias.length+' vistorias ('+concluidas+' concluídas) · ~'+(r.distanciaEstimadaKm||0).toFixed(1)+' km</div></div>'+
+    '</div>'+
+    '<div class="btnrow" style="margin-top:8px;gap:8px">'+
+      '<button class="btn primary" style="flex:1" onclick="copiarRelatorioRotaTexto(\''+r.id+'\')">📋 Relatório consolidado da rota</button>'+
       '<button class="btn" style="background:var(--red2)" onclick="excluirRota(\''+r.id+'\')">Excluir</button>'+
     '</div></div>';
   }).join('');
