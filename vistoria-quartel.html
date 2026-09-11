@@ -170,7 +170,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v74</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v76</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -463,6 +463,10 @@
       <div class="sec-title">Modelo de mensagem — Multa registrada</div>
       <div class="sub" style="margin-bottom:8px">Usado no botão "📱 Avisar via WhatsApp" na aba Multas. Use {OBM}, {NOME}, {RE}, {MULTA_NUMERO}, {MULTA_MOTIVO}, {MULTA_PRAZO}.</div>
       <textarea id="avisoModeloMulta" rows="10" style="width:100%;font-family:inherit;font-size:13px;padding:10px;border-radius:10px;background:var(--card2);border:1px solid var(--border);color:var(--txt);margin-bottom:16px" onchange="salvarModeloAvisoMulta()"></textarea>
+
+      <div class="sec-title">Modelo de mensagem — Resultado da vistoria</div>
+      <div class="sub" style="margin-bottom:8px">Usado no botão "💬 Enviar mensagem" ao lado de "Ver relatório", quando a vistoria já foi concluída. Use {OBM}, {NOME}, {RE}, {TIPO}, {DATA}, {RESULTADO}, {DETALHE_PENDENCIA}.</div>
+      <textarea id="avisoModeloResultadoVistoria" rows="10" style="width:100%;font-family:inherit;font-size:13px;padding:10px;border-radius:10px;background:var(--card2);border:1px solid var(--border);color:var(--txt);margin-bottom:16px" onchange="salvarModeloResultadoVistoria()"></textarea>
 
       <div class="sec-title">Modelo de mensagem — Combinar agendamento</div>
       <div class="sub" style="margin-bottom:8px">Usado no botão "💬 Conversar no WhatsApp" quando a vistoria ainda não está numa rota. Use {OBM}, {NOME}, {RE}, {TIPO}.</div>
@@ -2274,7 +2278,7 @@ function renderVistoriaCard(v, db){
     '<div class="btnrow" style="margin-top:10px;gap:8px;flex-wrap:wrap">'+
       (orfa ? '<button class="btn primary" onclick="abrirVincularVistoria(\''+v.id+'\')">🔗 Vincular edificação</button>' :
         (v.concluida
-          ? '<button class="btn" onclick="abrirRelatorio(\''+v.id+'\')">Ver relatório</button>'
+          ? '<button class="btn" style="'+(v.relatorioCopiadoEm?'border:1px solid var(--verde);color:var(--verde)':'')+'" onclick="abrirRelatorio(\''+v.id+'\')">'+(v.relatorioCopiadoEm?'✅ Fechada (copiada em '+new Date(v.relatorioCopiadoEm).toLocaleDateString('pt-BR')+')':'Ver relatório')+'</button>'+(telWaVist ? renderBotaoResultadoWhatsapp(v) : '')
           : '<button class="btn primary" onclick="abrirExecucaoQuartel(\''+v.id+'\')">Executar vistoria</button>'))+
       (!v.concluida && telWaVist ? renderBotaoConversarWhatsapp(v) : '')+
       (!v.concluida && v.rotaId ? '<button class="btn" onclick="removerVistoriaDaRota(\''+v.id+'\')">↩️ Remover da rota</button>' : '')+
@@ -2595,6 +2599,7 @@ function abrirRelatorio(vistId){
 
   var textoRelatorio = gerarRelatorioTexto(e, v, pendGerais, duvidasGerais, porBloco, aprovadosPorBloco, totalItens, reprovadosChecklist, totalPendencias);
   window._relatorioTextoAtual = textoRelatorio;
+  window._relatorioVistIdAtual = vistId;
 
   var html = '<pre style="white-space:pre-wrap;font-family:inherit;font-size:14px;line-height:1.6;margin:0">'+
     textoRelatorio.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+
@@ -2660,14 +2665,25 @@ function gerarRelatorioTexto(e, v, pendGerais, duvidasGerais, porBloco, aprovado
 }
 function copiarRelatorioTexto(){
   var texto = window._relatorioTextoAtual || '';
+  function marcarCopiado(){
+    var vistId = window._relatorioVistIdAtual;
+    if(!vistId) return;
+    var db = loadDB();
+    var v = db.vistorias.find(function(x){return x.id===vistId;});
+    if(v){ v.relatorioCopiadoEm = new Date().toISOString(); saveDB(db); }
+    if(document.getElementById('vistList')) renderVistorias();
+  }
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(texto).then(function(){
-      alert('Relatório copiado! Já pode colar (Ctrl+V) numa mensagem ou e-mail.');
+      marcarCopiado();
+      alert('Relatório copiado! Já pode colar (Ctrl+V) numa mensagem ou e-mail.\n\n✅ Marcado como fechado — essa vistoria fica identificada como já entregue.');
     }).catch(function(){
       promptCopiaManual(texto);
+      marcarCopiado();
     });
   } else {
     promptCopiaManual(texto);
+    marcarCopiado();
   }
 }
 function promptCopiaManual(texto){
@@ -3360,6 +3376,16 @@ var MODELO_AVISO_MULTA_PADRAO =
 'Att.,\n'+
 'SSCI da {OBM}';
 
+var MODELO_RESULTADO_VISTORIA_PADRAO =
+'*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*\n*{OBM}*\n\n'+
+'Olá, boa tarde.\n'+
+'I. Informamos que a vistoria de *{TIPO}* na edificação *{NOME} - RE{RE}*, realizada em *{DATA}*, foi concluída.\n\n'+
+'II. Resultado: *{RESULTADO}*.\n\n'+
+'{DETALHE_PENDENCIA}'+
+'III. Qualquer dúvida, estamos à disposição.\n\n'+
+'Att.,\n'+
+'SSCI da {OBM}';
+
 function carregarModeloAvisoHabiteSe(){
   return localStorage.getItem('vistoria_modelo_aviso_habitese') || MODELO_AVISO_HABITESE_PADRAO;
 }
@@ -3371,6 +3397,52 @@ function carregarModeloAvisoMulta(){
 }
 function salvarModeloAvisoMulta(){
   localStorage.setItem('vistoria_modelo_aviso_multa', document.getElementById('avisoModeloMulta').value);
+}
+function carregarModeloResultadoVistoria(){
+  return localStorage.getItem('vistoria_modelo_resultado_vistoria') || MODELO_RESULTADO_VISTORIA_PADRAO;
+}
+function salvarModeloResultadoVistoria(){
+  localStorage.setItem('vistoria_modelo_resultado_vistoria', document.getElementById('avisoModeloResultadoVistoria').value);
+}
+function montarMensagemResultadoVistoria(e, v){
+  var obm = carregarDadosObm();
+  var res = calcularResumoPendenciasVistoria(e, v);
+  var resultado = res.totalErrados===0 ? 'DEFERIDO' : 'INDEFERIDO';
+  var detalhe = res.totalErrados>0
+    ? 'Foram identificados '+res.totalErrados+' item(ns) que precisam de regularização. Entre em contato para mais detalhes ou para agendar nova verificação.\n\n'
+    : '';
+  return carregarModeloResultadoVistoria()
+    .replace(/{OBM}/g, obm.nome||'')
+    .replace(/{NOME}/g, e.nome||'')
+    .replace(/{RE}/g, e.re||'')
+    .replace(/{TIPO}/g, v.tipo==='funcionamento'?'Funcionamento':'Habite-se')
+    .replace(/{DATA}/g, v.concluidaEm ? new Date(v.concluidaEm).toLocaleDateString('pt-BR') : '')
+    .replace(/{RESULTADO}/g, resultado)
+    .replace(/{DETALHE_PENDENCIA}/g, detalhe);
+}
+function enviarResultadoVistoriaWhatsapp(vistId){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===vistId;});
+  if(!v) return;
+  var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
+  if(!e) return;
+  var telWa = telefoneParaWhatsapp(e.responsavel && e.responsavel.tel);
+  if(!telWa){ alert('Esta edificação não tem telefone cadastrado.'); return; }
+  if(v.resultadoEnviadoEm){
+    var ok = confirm('Esta mensagem já foi enviada em '+new Date(v.resultadoEnviadoEm).toLocaleString('pt-BR')+'. Enviar de novo mesmo assim?');
+    if(!ok) return;
+  }
+  var texto = montarMensagemResultadoVistoria(e, v);
+  window.open('https://wa.me/'+telWa+'?text='+encodeURIComponent(texto), '_blank');
+  v.resultadoEnviadoEm = new Date().toISOString();
+  saveDB(db);
+  renderVistorias();
+}
+function renderBotaoResultadoWhatsapp(v){
+  if(v.resultadoEnviadoEm){
+    return '<button class="btn" style="background:var(--card2);border:1px solid var(--amar);color:var(--amar)" onclick="enviarResultadoVistoriaWhatsapp(\''+v.id+'\')">✅ Enviado em '+new Date(v.resultadoEnviadoEm).toLocaleDateString('pt-BR')+' — Reenviar</button>';
+  }
+  return '<button class="btn" style="background:#25D366;color:#fff" onclick="enviarResultadoVistoriaWhatsapp(\''+v.id+'\')">💬 Enviar mensagem</button>';
 }
 
 function montarMensagemAvisoHabiteSe(e){
@@ -3581,6 +3653,7 @@ function renderAvisos(){
   document.getElementById('avisoModeloHabiteSe').value = carregarModeloAvisoHabiteSe();
   document.getElementById('avisoModeloFuncNecessidade').value = carregarModeloAvisoFuncNecessidade();
   document.getElementById('avisoModeloMulta').value = carregarModeloAvisoMulta();
+  document.getElementById('avisoModeloResultadoVistoria').value = carregarModeloResultadoVistoria();
   document.getElementById('avisoModeloConversarAgendar').value = carregarModeloConversarAgendar();
   document.getElementById('avisoModeloConfirmarVisita').value = carregarModeloConfirmarVisita();
   document.getElementById('diasPosVencimento').value = carregarDiasPosVencimento();
@@ -3921,23 +3994,33 @@ function calcularResumoPendenciasVistoria(e, v){
     });
   });
   var totalPendBloco = 0;
-  function checarSistema(esperado, chave, label){
+  var porSistema = {}; // sid -> {label, qtd} — pra agregar entre várias edificações depois (relatório de rota)
+  function checarSistema(esperado, chave, label, sid){
     var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
     var aprovados = qd.aprovados!=null ? qd.aprovados : (qd.val!=null ? qd.val : null);
     var motivos = qd.motivos || [];
     var reprovadosTotal = motivos.reduce(function(s,m){return s+(m.qtd||0);}, 0);
     var totalContado = (aprovados||0) + reprovadosTotal;
+    var s = SIST.find(function(x){return x.id===sid;});
+    var labelSistema = s ? s.l : sid;
+    function somarSistema(qtd){
+      if(!porSistema[sid]) porSistema[sid] = {label: labelSistema, qtd: 0};
+      porSistema[sid].qtd += qtd;
+    }
     motivos.forEach(function(m){
       if(!m.qtd) return;
       totalPendBloco += m.qtd;
+      somarSistema(m.qtd);
       alteracoes.push(label+': '+m.qtd+' un. reprovada(s) — '+(m.motivo||'motivo não especificado'));
     });
     if(aprovados==null && motivos.length===0){
       totalPendBloco += esperado;
+      somarSistema(esperado);
       alteracoes.push(label+': falta contar (esperado '+esperado+' un.)');
     } else if(totalContado < esperado){
       var falta = esperado-totalContado;
       totalPendBloco += falta;
+      somarSistema(falta);
       alteracoes.push(label+': falta '+falta+' un. (esperado '+esperado+', encontrado '+totalContado+')');
     }
   }
@@ -3947,16 +4030,16 @@ function calcularResumoPendenciasVistoria(e, v){
         Object.keys(pav.sist||{}).forEach(function(sid){
           if(!pav.sist[sid].ativo) return;
           var s = SIST.find(function(x){return x.id===sid;});
-          checarSistema(pav.sist[sid].qty||0, bi+'_'+pi+'_'+sid, (s?s.l:sid)+' ('+bloco.nome+' - '+pav.label+')');
+          checarSistema(pav.sist[sid].qty||0, bi+'_'+pi+'_'+sid, (s?s.l:sid)+' ('+bloco.nome+' - '+pav.label+')', sid);
         });
       });
     });
   } else if(e){
     SIST.filter(function(s){return e.preventivos && e.preventivos[s.id] && e.preventivos[s.id].ativo;}).forEach(function(s){
-      checarSistema(e.preventivos[s.id].qty||0, '_'+s.id, s.l);
+      checarSistema(e.preventivos[s.id].qty||0, '_'+s.id, s.l, s.id);
     });
   }
-  return {alteracoes: alteracoes, totalErrados: reprovadosChecklist + totalPendBloco};
+  return {alteracoes: alteracoes, totalErrados: reprovadosChecklist + totalPendBloco, porSistema: porSistema};
 }
 
 function copiarRelatorioRotaTexto(rotaId){
@@ -3975,6 +4058,7 @@ function copiarRelatorioRotaTexto(rotaId){
   linhas.push('');
 
   var totalGeralErrados = 0, deferidas = 0, comPendencia = 0;
+  var agregadoPorSistema = {}; // sid -> {label, qtd, edificacoes: Set}
   concluidas.forEach(function(v, i){
     var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
     var res = calcularResumoPendenciasVistoria(e, v);
@@ -3988,12 +4072,27 @@ function copiarRelatorioRotaTexto(rotaId){
       res.alteracoes.forEach(function(a){ linhas.push('     - '+a); });
     }
     linhas.push('');
+    Object.keys(res.porSistema).forEach(function(sid){
+      if(!agregadoPorSistema[sid]) agregadoPorSistema[sid] = {label: res.porSistema[sid].label, qtd: 0, edificacoes: []};
+      agregadoPorSistema[sid].qtd += res.porSistema[sid].qtd;
+      agregadoPorSistema[sid].edificacoes.push((e&&e.re)||'Sem RE');
+    });
   });
 
   linhas.push('=== RESUMO GERAL DA ROTA ===');
   linhas.push('Edificações deferidas (sem pendência): '+deferidas);
   linhas.push('Edificações com pendência: '+comPendencia);
   linhas.push('Total de itens com problema somando todas as edificações: '+totalGeralErrados);
+
+  var sidsComPendencia = Object.keys(agregadoPorSistema);
+  if(sidsComPendencia.length){
+    linhas.push('');
+    linhas.push('=== QUANTITATIVO POR PREVENTIVO (providenciar) ===');
+    sidsComPendencia.sort(function(a,b){ return agregadoPorSistema[b].qtd - agregadoPorSistema[a].qtd; }).forEach(function(sid){
+      var it = agregadoPorSistema[sid];
+      linhas.push('- '+it.label+': '+it.qtd+' unidade(s) em '+it.edificacoes.length+' edificação(ões) — RE: '+it.edificacoes.join(', '));
+    });
+  }
 
   var texto = linhas.join('\n');
   if(navigator.clipboard && navigator.clipboard.writeText){
