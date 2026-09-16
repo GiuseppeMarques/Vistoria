@@ -170,7 +170,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v76</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v79</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -253,8 +253,36 @@
       <div class="sec-title">Rotas avulsas</div>
       <div class="toolbar">
         <button class="btn primary" onclick="abrirFormRota()">+ Nova rota</button>
+        <button class="btn" style="background:var(--red2)" onclick="abrirGerarRotasAuto()">🤖 Gerar rotas automáticas</button>
       </div>
       <div id="rotasList"></div>
+    </div>
+
+    <div id="modalGerarRotasAuto" class="modal-overlay" style="display:none">
+      <div class="modal">
+        <h3>Gerar rotas automáticas</h3>
+        <div class="sub" style="margin-bottom:16px">Junta edificações com Funcionamento vencendo (ou já vencido) em rotas por bairro, priorizando as de maior risco, sem passar do tempo máximo por rota.</div>
+
+        <div class="frow">
+          <div class="fcol"><label class="lbl">Considerar vencimento em até (dias)</label><input type="number" id="garJanelaDias" min="1" value="60"></div>
+          <div class="fcol"><label class="lbl">Duração máxima da rota (horas)</label><input type="number" id="garMaxHoras" min="1" value="3" step="0.5"></div>
+        </div>
+        <div class="frow">
+          <div class="fcol"><label class="lbl">Tempo por vistoria (minutos)</label><input type="number" id="garTempoVistoria" min="5" value="45"></div>
+          <div class="fcol"><label class="lbl">Deslocamento entre edificações do mesmo bairro (minutos)</label><input type="number" id="garTempoDeslocamento" min="1" value="15"></div>
+        </div>
+        <div class="frow">
+          <div class="fcol"><label class="lbl">Primeiro dia das rotas</label><input type="text" id="garDataInicial" placeholder="DD/MM/AAAA"></div>
+        </div>
+
+        <div id="garPrevia" class="sub" style="margin:12px 0"></div>
+        <button class="btn" style="width:100%;margin-bottom:16px" onclick="preverRotasAuto()">🔎 Pré-visualizar</button>
+
+        <div class="modal-actions">
+          <button class="btn" onclick="document.getElementById('modalGerarRotasAuto').style.display='none'">Cancelar</button>
+          <button class="btn primary" id="garBtnConfirmar" style="display:none" onclick="confirmarGerarRotasAuto()">Criar rotas</button>
+        </div>
+      </div>
     </div>
 
     <div id="modalCadastroRapido" class="modal-overlay" style="display:none">
@@ -467,6 +495,10 @@
       <div class="sec-title">Modelo de mensagem — Resultado da vistoria</div>
       <div class="sub" style="margin-bottom:8px">Usado no botão "💬 Enviar mensagem" ao lado de "Ver relatório", quando a vistoria já foi concluída. Use {OBM}, {NOME}, {RE}, {TIPO}, {DATA}, {RESULTADO}, {DETALHE_PENDENCIA}.</div>
       <textarea id="avisoModeloResultadoVistoria" rows="10" style="width:100%;font-family:inherit;font-size:13px;padding:10px;border-radius:10px;background:var(--card2);border:1px solid var(--border);color:var(--txt);margin-bottom:16px" onchange="salvarModeloResultadoVistoria()"></textarea>
+
+      <div class="sec-title">Modelo de mensagem — Genérica (assunto livre)</div>
+      <div class="sub" style="margin-bottom:8px">Usado no botão "💬 Mensagem para o responsável" na lista de Edificações. Vem com o cabeçalho e 3 tópicos em branco — você preenche o conteúdo direto no WhatsApp, na hora de enviar. Use {OBM}, {NOME}, {RE}.</div>
+      <textarea id="avisoModeloMensagemGenerica" rows="10" style="width:100%;font-family:inherit;font-size:13px;padding:10px;border-radius:10px;background:var(--card2);border:1px solid var(--border);color:var(--txt);margin-bottom:16px" onchange="salvarModeloMensagemGenerica()"></textarea>
 
       <div class="sec-title">Modelo de mensagem — Combinar agendamento</div>
       <div class="sub" style="margin-bottom:8px">Usado no botão "💬 Conversar no WhatsApp" quando a vistoria ainda não está numa rota. Use {OBM}, {NOME}, {RE}, {TIPO}.</div>
@@ -1305,6 +1337,7 @@ function renderEdificacoes(){
     var foraCompTag = e.competencia==='fora' ? '<span style="font-size:10px;font-weight:700;color:#8E8E93;border:1px solid #8E8E93;border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle">🚫 FORA CBM</span>' : '';
     var riscoMostrar = riscoEfetivo(e);
     var badge = e.competencia==='fora' ? '<div class="elist-badge" style="background:#6b6b70">🚫</div>' : '<div class="elist-badge" style="background:'+corRisco(riscoMostrar)+'">'+(riscoMostrar||'—')+'</div>';
+    var telWaEdif = e.competencia!=='fora' ? telefoneParaWhatsapp(e.responsavel && e.responsavel.tel) : null;
     return '<div class="elist-item" onclick="abrirFormEdif(\''+e.id+'\')">'+
       '<div class="elist-row">'+
         badge+
@@ -1313,6 +1346,7 @@ function renderEdificacoes(){
           '<div class="elist-s">'+(e.competencia==='fora' ? (e.competenciaMotivo||'Sem motivo informado') : (e.re||'Sem RE')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(venc?' · vence '+venc:'')+' · '+hsInfo[0]+' '+hsInfo[1])+'</div>'+
         '</div>'+
       '</div>'+
+      (telWaEdif ? '<button class="btn" style="width:100%;margin-top:8px;background:#25D366;color:#fff" onclick="event.stopPropagation();enviarMensagemGenericaEdificacao(\''+e.id+'\')">💬 Mensagem para o responsável</button>' : '')+
     '</div>';
   }).join('');
 }
@@ -2217,7 +2251,7 @@ function renderVistoriaCard(v, db){
   var nc = todos.filter(function(it){return v.checklist[it.id] && v.checklist[it.id].status==='nao';}).length;
   var qtvIndef = false, qtvInfr = false;
   if(v.qtv){
-    var qsist = ['ext','ilu','sal'].filter(function(sid){return v.qtv[sid] && v.qtv[sid].val!=null && v.qtv[sid].val!=='';});
+    var qsist = ['ext','ilu','sal','ala'].filter(function(sid){return v.qtv[sid] && v.qtv[sid].val!=null && v.qtv[sid].val!=='';});
     var abaixo50 = qsist.some(function(sid){
       var esperado = (e&&e.preventivos&&e.preventivos[sid]) ? e.preventivos[sid].qty : 0;
       return esperado>0 && parseInt(v.qtv[sid].val,10) < esperado*0.5;
@@ -3082,7 +3116,7 @@ function renderExecucaoQuartel(){
     }
     return {esperado:esperado, aprovados:aprovados, reprovados:reprovados, contado:algumContado};
   }
-  var QTV_SIST = ['ext','ilu','sal'];
+  var QTV_SIST = ['ext','ilu','sal','ala'];
   var qtvAtivos = QTV_SIST.filter(function(sid){ return quTotalPrevSistema(sid).esperado>0; });
   var qtvAbaixo50=false, qtvAcimaAlgum=false, qtvTodosPreenchidos=true;
   if(qtvAtivos.length){
@@ -3386,6 +3420,36 @@ var MODELO_RESULTADO_VISTORIA_PADRAO =
 'Att.,\n'+
 'SSCI da {OBM}';
 
+var MODELO_MENSAGEM_GENERICA_PADRAO =
+'*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*\n*{OBM}*\n\n'+
+'Olá, boa tarde.\n'+
+'Sobre a edificação *{NOME} - RE{RE}*:\n\n'+
+'I. \n\n'+
+'II. \n\n'+
+'III. \n\n'+
+'Qualquer dúvida, estamos à disposição.\n\n'+
+'Att.,\n'+
+'SSCI da {OBM}';
+function carregarModeloMensagemGenerica(){
+  return localStorage.getItem('vistoria_modelo_mensagem_generica') || MODELO_MENSAGEM_GENERICA_PADRAO;
+}
+function salvarModeloMensagemGenerica(){
+  localStorage.setItem('vistoria_modelo_mensagem_generica', document.getElementById('avisoModeloMensagemGenerica').value);
+}
+function enviarMensagemGenericaEdificacao(edifId){
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===edifId;});
+  if(!e) return;
+  var telWa = telefoneParaWhatsapp(e.responsavel && e.responsavel.tel);
+  if(!telWa){ alert('Esta edificação não tem telefone cadastrado.'); return; }
+  var obm = carregarDadosObm();
+  var texto = carregarModeloMensagemGenerica()
+    .replace(/{OBM}/g, obm.nome||'')
+    .replace(/{NOME}/g, e.nome||'')
+    .replace(/{RE}/g, e.re||'');
+  window.open('https://wa.me/'+telWa+'?text='+encodeURIComponent(texto), '_blank');
+}
+
 function carregarModeloAvisoHabiteSe(){
   return localStorage.getItem('vistoria_modelo_aviso_habitese') || MODELO_AVISO_HABITESE_PADRAO;
 }
@@ -3654,6 +3718,7 @@ function renderAvisos(){
   document.getElementById('avisoModeloFuncNecessidade').value = carregarModeloAvisoFuncNecessidade();
   document.getElementById('avisoModeloMulta').value = carregarModeloAvisoMulta();
   document.getElementById('avisoModeloResultadoVistoria').value = carregarModeloResultadoVistoria();
+  document.getElementById('avisoModeloMensagemGenerica').value = carregarModeloMensagemGenerica();
   document.getElementById('avisoModeloConversarAgendar').value = carregarModeloConversarAgendar();
   document.getElementById('avisoModeloConfirmarVisita').value = carregarModeloConfirmarVisita();
   document.getElementById('diasPosVencimento').value = carregarDiasPosVencimento();
@@ -4102,6 +4167,141 @@ function copiarRelatorioRotaTexto(rotaId){
   } else {
     window.prompt('Copie o texto abaixo (Ctrl+C):', texto);
   }
+}
+
+// ════════════════════════════════════════
+// GERADOR AUTOMÁTICO DE ROTAS — agrupa edificações com Funcionamento vencendo (ou já vencido)
+// por bairro, prioriza as de maior risco dentro de cada bairro, e monta rotas sem passar do
+// tempo máximo configurado — quando um bairro não cabe inteiro numa rota, continua no dia
+// seguinte, numa rota nova.
+// ════════════════════════════════════════
+function calcularCandidatosRotasAuto(janelaDias){
+  var db = loadDB();
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  var candidatos = [];
+  (db.edificacoes||[]).forEach(function(e){
+    if(e.competencia==='fora') return;
+    var venc = e.vigenciaFuncionamento && e.vigenciaFuncionamento.vencimento;
+    var dataVenc = parseDataBR(venc);
+    if(!dataVenc) return;
+    var dias = diasAteVencimento(dataVenc);
+    if(dias > janelaDias) return; // ainda falta muito, não entra dessa vez
+    // já tem vistoria pendente (com ou sem rota)? não duplica
+    var jaTemPendente = (db.vistorias||[]).some(function(v){ return v.edificacaoId===e.id && !v.concluida; });
+    if(jaTemPendente) return;
+    candidatos.push({
+      edificacao: e,
+      bairro: e.bairro || 'Sem bairro',
+      risco: riscoEfetivo(e) || 1,
+      dias: dias
+    });
+  });
+  return candidatos;
+}
+
+function montarRotasAuto(){
+  var janelaDias = parseInt(document.getElementById('garJanelaDias').value,10) || 60;
+  var maxMinutos = (parseFloat(document.getElementById('garMaxHoras').value)||3) * 60;
+  var tempoVistoria = parseInt(document.getElementById('garTempoVistoria').value,10) || 45;
+  var tempoDeslocamento = parseInt(document.getElementById('garTempoDeslocamento').value,10) || 15;
+
+  var candidatos = calcularCandidatosRotasAuto(janelaDias);
+
+  // agrupar por bairro
+  var porBairro = {};
+  candidatos.forEach(function(c){
+    if(!porBairro[c.bairro]) porBairro[c.bairro] = [];
+    porBairro[c.bairro].push(c);
+  });
+  // dentro de cada bairro, prioriza maior risco primeiro (e, empatando, vencimento mais próximo)
+  Object.keys(porBairro).forEach(function(b){
+    porBairro[b].sort(function(a,b2){ return (b2.risco-a.risco) || (a.dias-b.dias); });
+  });
+
+  // empacotar em rotas respeitando o tempo máximo — uma rota nunca mistura bairros diferentes
+  var rotas = []; // [{bairro, itens:[candidato,...], minutos}]
+  Object.keys(porBairro).sort().forEach(function(bairro){
+    var fila = porBairro[bairro].slice();
+    var atual = null;
+    fila.forEach(function(c){
+      var custo = atual && atual.itens.length ? (tempoVistoria+tempoDeslocamento) : tempoVistoria;
+      if(!atual || atual.minutos+custo > maxMinutos){
+        atual = {bairro: bairro, itens: [], minutos: 0};
+        rotas.push(atual);
+        custo = tempoVistoria; // primeira parada da rota nova, sem deslocamento inicial
+      }
+      atual.itens.push(c);
+      atual.minutos += custo;
+    });
+  });
+  return rotas;
+}
+
+function preverRotasAuto(){
+  var rotas = montarRotasAuto();
+  var el = document.getElementById('garPrevia');
+  if(!rotas.length){
+    el.innerHTML = 'Nenhuma edificação encontrada nessa janela de vencimento (ou todas já têm vistoria pendente).';
+    document.getElementById('garBtnConfirmar').style.display = 'none';
+    return;
+  }
+  var totalEdif = rotas.reduce(function(n,r){return n+r.itens.length;},0);
+  el.innerHTML = '<b>'+rotas.length+' rota(s)</b> serão criadas, cobrindo <b>'+totalEdif+'</b> edificação(ões):<br><br>'+
+    rotas.map(function(r,i){
+      return (i+1)+'. '+r.bairro+' — '+r.itens.length+' edificação(ões), ~'+(r.minutos/60).toFixed(1)+'h '+
+        '<span style="color:var(--sub)">('+r.itens.map(function(c){return c.edificacao.re||'s/RE';}).join(', ')+')</span>';
+    }).join('<br>');
+  document.getElementById('garBtnConfirmar').style.display = 'block';
+}
+
+function confirmarGerarRotasAuto(){
+  var rotas = montarRotasAuto();
+  if(!rotas.length) return;
+  var dataInicial = parseDataBR(document.getElementById('garDataInicial').value) || new Date();
+  var db = loadDB();
+  db.rotas = db.rotas || [];
+  db.vistorias = db.vistorias || [];
+
+  rotas.forEach(function(r, idx){
+    var dataRota = new Date(dataInicial);
+    dataRota.setDate(dataRota.getDate() + idx); // uma rota por dia, em sequência
+    var f = function(n){return (n<10?'0':'')+n;};
+    var dataFmt = f(dataRota.getDate())+'/'+f(dataRota.getMonth()+1)+'/'+dataRota.getFullYear();
+
+    var idsVistorias = [];
+    r.itens.forEach(function(c){
+      var v = {
+        id: novoId('vis'), edificacaoId: c.edificacao.id,
+        tipo: 'funcionamento', motivo: 'Gerada automaticamente — Funcionamento vencendo/vencido',
+        checklist:{}, concluida:false, concluidaEm:null,
+        trajetoriaId:null, rotaId:null, criadoEm:new Date().toISOString(), atualizadoEm:new Date().toISOString()
+      };
+      db.vistorias.push(v);
+      idsVistorias.push(v.id);
+    });
+    var nomeRota = 'Rota Auto — '+r.bairro+' — '+dataFmt;
+    var novaRota = {id: novoId('rot'), nome: nomeRota, data: dataFmt, vistorias: idsVistorias, distanciaEstimadaKm: 0};
+    db.rotas.push(novaRota);
+    idsVistorias.forEach(function(vid){
+      var v = db.vistorias.find(function(x){return x.id===vid;});
+      v.rotaId = novaRota.id;
+    });
+  });
+
+  saveDB(db);
+  document.getElementById('modalGerarRotasAuto').style.display='none';
+  renderRotas();
+  alert(rotas.length+' rota(s) criada(s) com sucesso, começando em '+document.getElementById('garDataInicial').value+'!');
+}
+
+function abrirGerarRotasAuto(){
+  var hoje = new Date();
+  var amanha = new Date(hoje); amanha.setDate(amanha.getDate()+1);
+  var f = function(n){return (n<10?'0':'')+n;};
+  document.getElementById('garDataInicial').value = f(amanha.getDate())+'/'+f(amanha.getMonth()+1)+'/'+amanha.getFullYear();
+  document.getElementById('garPrevia').innerHTML = '';
+  document.getElementById('garBtnConfirmar').style.display = 'none';
+  document.getElementById('modalGerarRotasAuto').style.display='flex';
 }
 
 function renderRotas(){
