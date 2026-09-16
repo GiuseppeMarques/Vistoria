@@ -170,7 +170,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v79</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v80</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -847,13 +847,13 @@
 <script>
 var SIST = [
   {id:'ext',l:'Extintores',n:'IN 6'},
-  {id:'shp',l:'Hidrante (SHP)',n:'IN 7'},
-  {id:'gas',l:'Instalação de Gás',n:'IN 8'},
-  {id:'sai',l:'Saídas de Emergência',n:'IN 9'},
-  {id:'fum',l:'Controle de Fumaça',n:'IN 10'},
   {id:'ilu',l:'Iluminação de Emergência',n:'IN 11'},
-  {id:'ala',l:'Alarme de Incêndio (SDAI)',n:'IN 12'},
   {id:'sal',l:'Sinalização de Abandono',n:'IN 13'},
+  {id:'sai',l:'Saídas de Emergência',n:'IN 9'},
+  {id:'gas',l:'Instalação de Gás',n:'IN 8'},
+  {id:'shp',l:'Hidrante (SHP)',n:'IN 7'},
+  {id:'fum',l:'Controle de Fumaça',n:'IN 10'},
+  {id:'ala',l:'Alarme de Incêndio (SDAI)',n:'IN 12'},
   {id:'com',l:'Compartimentação/TRF',n:'IN 14'},
   {id:'spr',l:'Sprinklers',n:'IN 15'},
   {id:'cmar',l:'Materiais de Acabamento',n:'IN 18'},
@@ -1461,11 +1461,7 @@ function renderPreventivosForm(){
       '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">'+
         '<span class="name" style="cursor:pointer">'+(p.ordem?'<span style="color:var(--red2);font-weight:800;margin-right:4px">'+p.ordem+'º</span>':'')+
         '<span onclick="togglePrevForm(\''+s.id+'\')" style="cursor:pointer">'+s.l+' <span class="sub">('+s.n+')</span></span></span>'+
-        '<div style="display:flex;align-items:center;gap:6px">'+
-          '<button class="btn" style="width:30px;padding:6px 0;font-size:14px" onclick="ajustarPrevQty(\''+s.id+'\',-1)">−</button>'+
-          '<input type="text" class="prev-qty" value="'+(p.qty||1)+'" onchange="setPrevQty(\''+s.id+'\',this.value)">'+
-          '<button class="btn" style="width:30px;padding:6px 0;font-size:14px" onclick="ajustarPrevQty(\''+s.id+'\',1)">+</button>'+
-        '</div>'+
+        '<span class="sub" style="font-size:11px">A quantidade se define abaixo, em Blocos e Pavimentos ↓</span>'+
       '</div>'+
       '<input type="text" placeholder="Detalhe / observação (opcional)" value="'+(p.info||'').replace(/"/g,'&quot;')+'" onchange="setPrevInfo(\''+s.id+'\',this.value)">'+
       laudoHtml+
@@ -1847,7 +1843,19 @@ function abrirFormEdif(id){
       pavimentos: e.pavimentos.map(function(p){ return {label:p.label, sist:p.sist||{}}; })
     }];
   } else {
-    efBlocos = [];
+    // toda edificação agora sempre tem pelo menos um bloco/pavimento — migra pra cá a
+    // quantidade que antes ficava solta em "Sistemas preventivos ativos" (formato antigo),
+    // pra não perder o que já tinha sido preenchido
+    var sistMigrado = {};
+    Object.keys(efPreventivos).forEach(function(sid){
+      var p = efPreventivos[sid];
+      if(p.ativo) sistMigrado[sid] = {ativo:true, qty:p.qty||0, info:p.info||''};
+    });
+    efBlocos = [{
+      nome:'Bloco 1', grauRisco: e ? (e.grauRisco||null) : null,
+      nPavimentos:0, terreoCfg:'sim',
+      pavimentos: [{label:'Pavimento único', sist: sistMigrado}]
+    }];
   }
 
   renderInquilinos(); renderProjetos(); renderPreventivosForm(); renderBlocosForm();
