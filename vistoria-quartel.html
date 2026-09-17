@@ -170,7 +170,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v81</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v82</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -781,7 +781,7 @@
 <!-- MODAL: nova rota -->
 <div id="modalRota" class="modal-overlay" style="display:none">
   <div class="modal">
-    <h3>Nova rota</h3>
+    <h3 id="rt-titulo">Nova rota</h3>
     <label class="lbl">Nome da rota</label>
     <input type="text" id="rt-nome" style="margin-bottom:12px" placeholder="Ex: Ronda Centro">
     <label class="lbl">Data</label>
@@ -791,7 +791,7 @@
     <div id="rt-vist-list" style="max-height:260px;overflow-y:auto;margin-bottom:12px;border:1px solid var(--border);border-radius:10px;padding:8px"></div>
     <div class="modal-actions">
       <button class="btn" onclick="document.getElementById('modalRota').style.display='none'">Cancelar</button>
-      <button class="btn primary" onclick="salvarRota()">Criar e otimizar rota</button>
+      <button class="btn primary" id="rt-btn-salvar" onclick="salvarRota()">Criar e otimizar rota</button>
     </div>
   </div>
 </div>
@@ -4332,14 +4332,33 @@ function renderRotas(){
       '<div class="elist-s">'+(r.data||'')+' · '+r.vistorias.length+' vistorias ('+concluidas+' concluídas) · ~'+(r.distanciaEstimadaKm||0).toFixed(1)+' km</div></div>'+
     '</div>'+
     '<div class="btnrow" style="margin-top:8px;gap:8px">'+
+      '<button class="btn" onclick="abrirFormRota(\''+r.id+'\')">✏️ Editar</button>'+
       '<button class="btn primary" style="flex:1" onclick="copiarRelatorioRotaTexto(\''+r.id+'\')">📋 Relatório consolidado da rota</button>'+
       '<button class="btn" style="background:var(--red2)" onclick="excluirRota(\''+r.id+'\')">Excluir</button>'+
     '</div></div>';
   }).join('');
 }
 
-function abrirFormRota(){
+var rotaEmEdicaoId = null;
+function abrirFormRota(rotaId){
+  rotaEmEdicaoId = rotaId || null;
   document.getElementById('rt-busca').value = '';
+  if(rotaEmEdicaoId){
+    var db = loadDB();
+    var r = (db.rotas||[]).find(function(x){return x.id===rotaEmEdicaoId;});
+    if(!r){ rotaEmEdicaoId = null; }
+    else {
+      document.getElementById('rt-titulo').textContent = 'Editar rota';
+      document.getElementById('rt-btn-salvar').textContent = 'Salvar alterações';
+      document.getElementById('rt-nome').value = r.nome||'';
+      document.getElementById('rt-data').value = r.data||'';
+      renderRtVistList();
+      document.getElementById('modalRota').style.display='flex';
+      return;
+    }
+  }
+  document.getElementById('rt-titulo').textContent = 'Nova rota';
+  document.getElementById('rt-btn-salvar').textContent = 'Criar e otimizar rota';
   document.getElementById('rt-nome').value='';
   document.getElementById('rt-data').value='';
   renderRtVistList();
@@ -4348,7 +4367,13 @@ function abrirFormRota(){
 function renderRtVistList(){
   var db = loadDB();
   var busca = (document.getElementById('rt-busca').value||'').toLowerCase();
-  var pendentes = (db.vistorias||[]).filter(function(v){ return !v.concluida && !v.rotaId; }).map(function(v){
+  // mostra as vistorias pendentes sem rota nenhuma, MAIS as que já pertencem à rota que está
+  // sendo editada agora (senão não daria pra ver/desmarcar o que já está nela)
+  var candidatas = (db.vistorias||[]).filter(function(v){
+    if(v.concluida) return false;
+    if(!v.rotaId) return true;
+    return rotaEmEdicaoId && v.rotaId===rotaEmEdicaoId;
+  }).map(function(v){
     return {v:v, e: db.edificacoes.find(function(x){return x.id===v.edificacaoId;})};
   }).filter(function(x){
     if(!busca) return true;
@@ -4359,11 +4384,13 @@ function renderRtVistList(){
   }).sort(function(a,b){ return ((a.e&&a.e.re)||'').localeCompare((b.e&&b.e.re)||'', undefined, {numeric:true}); });
 
   var el = document.getElementById('rt-vist-list');
-  if(!pendentes.length){
-    el.innerHTML = '<div class="sub">Nenhuma vistoria pendente sem rota encontrada.</div>';
+  if(!candidatas.length){
+    el.innerHTML = '<div class="sub">Nenhuma vistoria pendente encontrada.</div>';
   } else {
-    var marcados = Array.from(document.querySelectorAll('.rt-check:checked')).map(function(c){return c.value;});
-    el.innerHTML = pendentes.map(function(x){
+    var jaMarcados = document.querySelectorAll('.rt-check');
+    var marcados = jaMarcados.length ? Array.from(jaMarcados).filter(function(c){return c.checked;}).map(function(c){return c.value;})
+      : (rotaEmEdicaoId ? candidatas.filter(function(x){return x.v.rotaId===rotaEmEdicaoId;}).map(function(x){return x.v.id;}) : []);
+    el.innerHTML = candidatas.map(function(x){
       var v=x.v, e=x.e;
       return '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px">'+
         '<input type="checkbox" class="rt-check" value="'+v.id+'" '+(marcados.indexOf(v.id)>=0?'checked':'')+'> '+(e?e.re:'Sem RE')+' — '+(e?e.nome:'—')+
@@ -4408,18 +4435,29 @@ function salvarRota(){
     dist += haversineKm(ordenados[i].e.lat,ordenados[i].e.lng,ordenados[i+1].e.lat,ordenados[i+1].e.lng);
   }
 
+  var rotaIdFinal = rotaEmEdicaoId || novoId('rot');
   var rota = {
-    id: novoId('rot'), nome:nome, data: document.getElementById('rt-data').value.trim(),
+    id: rotaIdFinal, nome:nome, data: document.getElementById('rt-data').value.trim(),
     vistorias: ordenados.map(function(x){return x.v.id;}).concat(semCoord.map(function(v){return v.id;})),
     distanciaEstimadaKm: dist, ordemOtimizada: true, atualizadoEm: new Date().toISOString()
   };
   if(!db.rotas) db.rotas=[];
-  db.rotas.push(rota);
+  if(rotaEmEdicaoId){
+    // edição: tira o rotaId de quem foi desmarcado/removido, antes de aplicar a lista nova
+    (db.vistorias||[]).forEach(function(v){
+      if(v.rotaId===rotaEmEdicaoId && rota.vistorias.indexOf(v.id)<0) v.rotaId = null;
+    });
+    var idx = db.rotas.findIndex(function(x){return x.id===rotaEmEdicaoId;});
+    if(idx>=0) db.rotas[idx] = rota; else db.rotas.push(rota);
+  } else {
+    db.rotas.push(rota);
+  }
   rota.vistorias.forEach(function(vid){
-    var idx = db.vistorias.findIndex(function(x){return x.id===vid;});
-    if(idx>=0) db.vistorias[idx].rotaId = rota.id;
+    var idx2 = db.vistorias.findIndex(function(x){return x.id===vid;});
+    if(idx2>=0) db.vistorias[idx2].rotaId = rota.id;
   });
   saveDB(db);
+  rotaEmEdicaoId = null;
   document.getElementById('modalRota').style.display='none';
   renderRotas();
 }
