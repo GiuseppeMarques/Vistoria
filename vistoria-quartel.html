@@ -170,7 +170,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v80</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v81</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -729,7 +729,9 @@
     <button class="btn" style="margin-bottom:10px" onclick="addInquilinoRow()">+ Adicionar inquilino</button>
 
     <div class="sec-title">Sistemas preventivos ativos</div>
+    <div class="sub" style="margin:-4px 0 8px">Toque pra marcar quais essa edificação tem. A quantidade de cada um se define mais abaixo, em Blocos e Pavimentos.</div>
     <div class="prev-grid" id="ef-preventivos"></div>
+    <div id="ef-preventivos-detalhes"></div>
 
     <div class="sec-title">Blocos</div>
     <div style="font-size:11px;color:var(--sub);margin:-4px 0 10px">Edificações com mais de uma construção no terreno (ex: Bloco A e Bloco B) — cada bloco tem seus próprios pavimentos, sistemas e risco.</div>
@@ -1429,44 +1431,46 @@ function statusLaudo(dataStr, anos){
 }
 
 function renderPreventivosForm(){
+  // grade FIXA — cada sistema sempre no mesmo formato (chip pequeno), o clique só liga/desliga,
+  // nunca muda o tamanho/posição do item (evita o "pulo" visual de antes)
   document.getElementById('ef-preventivos').innerHTML = SIST.map(function(s){
-    var p = efPreventivos[s.id] || {ativo:false, qty:1, info:''};
-    if(!p.ativo){
-      return '<div class="prev-item">'+
-        '<span class="name" style="cursor:pointer" onclick="togglePrevForm(\''+s.id+'\')">'+s.l+' <span class="sub">('+s.n+')</span></span>'+
-      '</div>';
-    }
-    var laudoHtml = '';
-    if(SIDS_COM_LAUDO.indexOf(s.id)>=0){
-      var anos = s.id==='ala' ? (parseInt(p.laudoPeriodicidade,10)||1) : PERIODICIDADE_LAUDO_PADRAO.shp;
-      var status = statusLaudo(p.laudoData, anos);
-      laudoHtml = '<div style="border-top:1px solid var(--border);margin-top:4px;padding-top:8px">'+
-        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
-          '<div><label class="lbl" style="margin:0">Data do último laudo apresentado</label>'+
-            '<input type="text" placeholder="DD/MM/AAAA" style="width:120px" value="'+(p.laudoData||'').replace(/"/g,'&quot;')+'" onchange="setPrevLaudoData(\''+s.id+'\',this.value)"></div>'+
-          (s.id==='ala' ? (
-            '<div><label class="lbl" style="margin:0">Periodicidade</label>'+
-              '<select onchange="setPrevLaudoPeriodicidade(\''+s.id+'\',this.value)">'+
-                '<option value="1" '+((p.laudoPeriodicidade||1)==1?'selected':'')+'>Anual (com detectores automáticos)</option>'+
-                '<option value="3" '+(p.laudoPeriodicidade==3?'selected':'')+'>A cada 3 anos (sem detectores automáticos)</option>'+
-              '</select></div>'
-          ) : '')+
-        '</div>'+
-        (status ? '<div style="margin-top:6px;font-size:12px;font-weight:700;color:'+(status.vencido?'var(--red2)':'var(--verde)')+'">'+
-          (status.vencido ? '⚠️ Laudo vencido em '+status.vencTxt : '✅ Laudo válido até '+status.vencTxt)+
-        '</div>' : '<div class="sub" style="margin-top:6px">Informe a data pra calcular a validade.</div>')+
-      '</div>';
-    }
-    return '<div class="prev-item on" style="grid-column:1/-1;flex-direction:column;align-items:stretch;gap:6px">'+
-      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">'+
-        '<span class="name" style="cursor:pointer">'+(p.ordem?'<span style="color:var(--red2);font-weight:800;margin-right:4px">'+p.ordem+'º</span>':'')+
-        '<span onclick="togglePrevForm(\''+s.id+'\')" style="cursor:pointer">'+s.l+' <span class="sub">('+s.n+')</span></span></span>'+
-        '<span class="sub" style="font-size:11px">A quantidade se define abaixo, em Blocos e Pavimentos ↓</span>'+
-      '</div>'+
-      '<input type="text" placeholder="Detalhe / observação (opcional)" value="'+(p.info||'').replace(/"/g,'&quot;')+'" onchange="setPrevInfo(\''+s.id+'\',this.value)">'+
-      laudoHtml+
+    var p = efPreventivos[s.id] || {ativo:false};
+    return '<div class="prev-item'+(p.ativo?' on':'')+'" style="cursor:pointer" onclick="togglePrevForm(\''+s.id+'\')">'+
+      '<span class="name">'+(p.ativo && p.ordem?'<span style="color:var(--red2);font-weight:800;margin-right:4px">'+p.ordem+'º</span>':'')+s.l+' <span class="sub">('+s.n+')</span></span>'+
     '</div>';
   }).join('');
+
+  // detalhes (só laudo, pros sistemas que exigem) dos sistemas ATIVOS, em área separada —
+  // ativar/desativar um sistema não afeta o tamanho da grade acima, só se esse bloco aparece ou não
+  var ativosComDetalhe = SIST.filter(function(s){ return efPreventivos[s.id] && efPreventivos[s.id].ativo && SIDS_COM_LAUDO.indexOf(s.id)>=0; })
+    .sort(function(a,b){ return ordemPrev(a.id)-ordemPrev(b.id); });
+  var elDet = document.getElementById('ef-preventivos-detalhes');
+  if(!ativosComDetalhe.length){ elDet.innerHTML=''; }
+  else {
+    elDet.innerHTML = '<div class="sub" style="margin:10px 0 6px">Laudo dos sistemas ativos:</div>'+
+      ativosComDetalhe.map(function(s){
+        var p = efPreventivos[s.id];
+        var anos = s.id==='ala' ? (parseInt(p.laudoPeriodicidade,10)||1) : PERIODICIDADE_LAUDO_PADRAO.shp;
+        var status = statusLaudo(p.laudoData, anos);
+        return '<div class="prev-item on" style="flex-direction:column;align-items:stretch;gap:6px;margin-bottom:8px">'+
+          '<div style="font-weight:700">'+(p.ordem?p.ordem+'º ':'')+s.l+'</div>'+
+          '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+            '<div><label class="lbl" style="margin:0">Data do último laudo apresentado</label>'+
+              '<input type="text" placeholder="DD/MM/AAAA" style="width:120px" value="'+(p.laudoData||'').replace(/"/g,'&quot;')+'" onchange="setPrevLaudoData(\''+s.id+'\',this.value)"></div>'+
+            (s.id==='ala' ? (
+              '<div><label class="lbl" style="margin:0">Periodicidade</label>'+
+                '<select onchange="setPrevLaudoPeriodicidade(\''+s.id+'\',this.value)">'+
+                  '<option value="1" '+((p.laudoPeriodicidade||1)==1?'selected':'')+'>Anual (com detectores automáticos)</option>'+
+                  '<option value="3" '+(p.laudoPeriodicidade==3?'selected':'')+'>A cada 3 anos (sem detectores automáticos)</option>'+
+                '</select></div>'
+            ) : '')+
+          '</div>'+
+          (status ? '<div style="font-size:12px;font-weight:700;color:'+(status.vencido?'var(--red2)':'var(--verde)')+'">'+
+            (status.vencido ? '⚠️ Laudo vencido em '+status.vencTxt : '✅ Laudo válido até '+status.vencTxt)+
+          '</div>' : '<div class="sub">Informe a data pra calcular a validade.</div>')+
+        '</div>';
+      }).join('');
+  }
 }
 function setPrevLaudoData(sid,val){ if(efPreventivos[sid]){ efPreventivos[sid].laudoData = val; renderPreventivosForm(); } }
 function setPrevLaudoPeriodicidade(sid,val){ if(efPreventivos[sid]){ efPreventivos[sid].laudoPeriodicidade = parseInt(val,10); renderPreventivosForm(); } }
