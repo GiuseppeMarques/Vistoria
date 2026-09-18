@@ -170,7 +170,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v82</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v83</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -690,6 +690,9 @@
       </div>
     </div>
     <div style="font-size:11px;color:var(--sub);margin:-8px 0 12px">Se a edificação tiver blocos com risco próprio (seção Pavimentos), o maior risco entre eles é usado no mapa e na lista — este campo vira só um fallback.</div>
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px;color:var(--sub);cursor:pointer">
+      <input type="checkbox" id="ef-desocupada" style="width:auto"> Edificação desocupada
+    </label>
     <label class="lbl">Nome da edificação</label>
     <input type="text" id="ef-nome" style="margin-bottom:12px">
     <label class="lbl">Endereço</label>
@@ -1337,6 +1340,7 @@ function renderEdificacoes(){
     var hsInfo = hsMap[(e.habiteSe&&e.habiteSe.situacao)] || ['❔','HS não informado'];
     var origemTag = e.origem==='campo' ? '<span style="font-size:10px;font-weight:700;color:#5AC8FA;border:1px solid #5AC8FA;border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle">📍 CAMPO</span>' : '';
     var foraCompTag = e.competencia==='fora' ? '<span style="font-size:10px;font-weight:700;color:#8E8E93;border:1px solid #8E8E93;border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle">🚫 FORA CBM</span>' : '';
+    var desocupadaTag = e.desocupada ? '<span style="font-size:10px;font-weight:700;color:#8E8E93;border:1px solid #8E8E93;border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle">🏚️ DESOCUPADA</span>' : '';
     var riscoMostrar = riscoEfetivo(e);
     var badge = e.competencia==='fora' ? '<div class="elist-badge" style="background:#6b6b70">🚫</div>' : '<div class="elist-badge" style="background:'+corRisco(riscoMostrar)+'">'+(riscoMostrar||'—')+'</div>';
     var telWaEdif = e.competencia!=='fora' ? telefoneParaWhatsapp(e.responsavel && e.responsavel.tel) : null;
@@ -1344,7 +1348,7 @@ function renderEdificacoes(){
       '<div class="elist-row">'+
         badge+
         '<div style="flex:1;min-width:0">'+
-          '<div class="elist-t">'+(e.nome||'Sem nome')+origemTag+foraCompTag+'</div>'+
+          '<div class="elist-t">'+(e.nome||'Sem nome')+origemTag+foraCompTag+desocupadaTag+'</div>'+
           '<div class="elist-s">'+(e.competencia==='fora' ? (e.competenciaMotivo||'Sem motivo informado') : (e.re||'Sem RE')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(venc?' · vence '+venc:'')+' · '+hsInfo[0]+' '+hsInfo[1])+'</div>'+
         '</div>'+
       '</div>'+
@@ -1791,6 +1795,7 @@ function abrirFormEdif(id){
   document.getElementById('ef-fora-comp-motivo').value = e ? (e.competenciaMotivo||'') : '';
   document.getElementById('ef-fora-comp-motivo-box').style.display = (e && e.competencia==='fora') ? 'block' : 'none';
   document.getElementById('ef-risco').value = e ? (e.grauRisco||'') : '';
+  document.getElementById('ef-desocupada').checked = !!(e && e.desocupada);
   document.getElementById('ef-nome').value = e ? (e.nome||'') : '';
   document.getElementById('ef-endereco').value = e ? (e.endereco||'') : '';
   document.getElementById('ef-bairro').value = e ? (e.bairro||'') : '';
@@ -1903,6 +1908,7 @@ function salvarFormEdif(){
     preventivos: efPreventivos,
     blocos: efBlocos,
     grauRisco: document.getElementById('ef-risco').value || null,
+    desocupada: document.getElementById('ef-desocupada').checked,
     vigenciaFuncionamento: {
       situacao: linhaFuncAtual ? 'possui' : 'nao_possui',
       protocolo: linhaFuncAtual ? (linhaFuncAtual.num||'') : '',
@@ -4928,17 +4934,18 @@ function renderQMapaConteudo(){
     var cor = corRisco(riscoM);
     var num = riscoM || '?';
     var multa = multaAtivaDe(e);
+    var badgeDesocupada = e.desocupada ? '<div style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;background:#6b6b70;border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px">🏚️</div>' : '';
     var icon = multa
       ? L.divIcon({
-          html:'<div style="width:26px;height:26px;border-radius:50%;background:#B00020;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-size:14px">⚠️</div>',
+          html:'<div style="position:relative;width:26px;height:26px;border-radius:50%;background:#B00020;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-size:14px">⚠️'+badgeDesocupada+'</div>',
           className:'', iconSize:[26,26], iconAnchor:[13,13]
         })
       : L.divIcon({
-          html:'<div style="width:24px;height:24px;border-radius:50%;background:'+cor+';border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">'+num+'</div>',
+          html:'<div style="position:relative;width:24px;height:24px;border-radius:50%;background:'+cor+';border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">'+num+badgeDesocupada+'</div>',
           className:'', iconSize:[24,24], iconAnchor:[12,12]
         });
     var mk = L.marker([e.lat,e.lng], {icon:icon}).addTo(qlyEdif);
-    mk.bindTooltip((e.re||'Sem RE')+' — '+e.nome+(multa?' ⚠️ MULTA Nº '+multa.numero:''), {direction:'top'});
+    mk.bindTooltip((e.re||'Sem RE')+' — '+e.nome+(multa?' ⚠️ MULTA Nº '+multa.numero:'')+(e.desocupada?' (desocupada)':''), {direction:'top'});
     var btnRota = temPendente ? '<button class="btn" style="margin-top:6px;width:100%" onclick="abrirAdicionarRota(\''+e.id+'\')">📋 Adicionar a uma rota</button>' : '';
     if(multa){
       mk.bindPopup('<div style="text-align:center;min-width:180px"><b>⚠️ '+(e.re||'Sem RE')+' — '+e.nome+'</b><br>'+
