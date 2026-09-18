@@ -213,7 +213,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v50</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v51</div>
   </header>
 
   <main>
@@ -230,6 +230,7 @@
             <option value="">Todas as edificações</option>
           </select>
           <div id="mapFiltroGeoBanner"></div>
+          <div id="mapFiltroReBanner"></div>
         </div>
         <button class="map-fab" id="btnLocalizacao" onclick="centralizarNaMinhaLocalizacao()">📍</button>
         <button class="map-fab" style="bottom:74px" onclick="abrirCamadas()">🗂️</button>
@@ -394,6 +395,9 @@
             <select id="ee-risco"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
           </div>
         </div>
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px;color:var(--sub);cursor:pointer">
+          <input type="checkbox" id="ee-desocupada" style="width:auto"> Edificação desocupada
+        </label>
         <label class="lbl">Nome da edificação</label>
         <input type="text" id="ee-nome" style="margin-bottom:12px">
         <label class="lbl">Endereço</label>
@@ -1896,6 +1900,7 @@ function abrirEdifEditCampo(id){
 
   document.getElementById('ee-re').value = e.re||'';
   document.getElementById('ee-risco').value = e.grauRisco||'';
+  document.getElementById('ee-desocupada').checked = !!e.desocupada;
   document.getElementById('ee-nome').value = e.nome||'';
   document.getElementById('ee-endereco').value = e.endereco||'';
   document.getElementById('ee-bairro').value = e.bairro||'';
@@ -2092,6 +2097,7 @@ function salvarEdifEditCampo(){
 
   e.re = document.getElementById('ee-re').value.trim();
   e.grauRisco = document.getElementById('ee-risco').value || null;
+  e.desocupada = document.getElementById('ee-desocupada').checked;
   e.nome = document.getElementById('ee-nome').value.trim();
   e.endereco = document.getElementById('ee-endereco').value.trim();
   e.bairro = document.getElementById('ee-bairro').value.trim();
@@ -2610,8 +2616,10 @@ function tentarRecuperarTrajAtiva(){
 // ════════════════════════════════════════
 var map = null;
 var mapInited = false;
-var lyrEdif=null, lyrPontos=null, lyrTrajAtual=null, lyrTrajAnt=null, lyrForaComp=null;
+var lyrEdif=null, lyrPontos=null, lyrTrajAtual=null, lyrTrajAnt=null, lyrForaComp=null, lyrDirecao=null;
 var meuMarcador = null;
+var meuPosicaoAtual = null; // [lat,lng] — última posição conhecida do GPS, pro indicador de direção
+var mapFiltroRe = null; // id da edificação, quando o usuário busca/filtra por uma RE única no mapa
 var centroSelecionadoPacote = null; // {lat,lng} durante fluxo de download
 var modoEscolherCentro = false;
 
@@ -2960,6 +2968,7 @@ function initMap(){
   lyrPontos = L.layerGroup().addTo(map);
   lyrTrajAtual = L.layerGroup().addTo(map);
   lyrTrajAnt = L.layerGroup();
+  lyrDirecao = L.layerGroup().addTo(map);
 
   map.on('click', function(e){
     if(modoEscolherCentro){
@@ -3007,8 +3016,10 @@ function centralizarNaMinhaLocalizacao(){
 
 function atualizarMeuMarcador(ll){
   if(!map) return;
+  meuPosicaoAtual = ll;
   if(meuMarcador) map.removeLayer(meuMarcador);
   meuMarcador = L.circleMarker(ll, {radius:8, fillColor:'#0A84FF', color:'#fff', weight:2, fillOpacity:1}).addTo(map);
+  if(mapFiltroRe) renderMapFiltroReBanner(); // atualiza a direção em tempo real conforme anda
 }
 
 function abrirCamadas(){ document.getElementById('modalCamadas').style.display='flex'; }
@@ -3036,8 +3047,60 @@ function buscarEdifNoMapaCampo(){
     || (db.edificacoes||[]).find(function(x){ return (x.re||'').toLowerCase().indexOf(termo)>=0; });
   if(!e){ alert('Nenhuma edificação encontrada com esse RE.'); return; }
   if(!e.lat || !e.lng){ alert('"'+(e.re||'Sem RE')+' — '+(e.nome||'')+'" não tem localização cadastrada no mapa.'); return; }
+  mapFiltroRe = e.id;
   map.setView([e.lat, e.lng], 17);
+  renderMapEdificacoes();
   abrirCartaoEdificacao(e);
+}
+function limparMapFiltroRe(){
+  mapFiltroRe = null;
+  if(lyrDirecao) lyrDirecao.clearLayers();
+  renderMapEdificacoes();
+}
+function calcularBearing(lat1,lng1,lat2,lng2){
+  var toRad = function(d){return d*Math.PI/180;};
+  var toDeg = function(r){return r*180/Math.PI;};
+  var dLng = toRad(lng2-lng1);
+  var y = Math.sin(dLng)*Math.cos(toRad(lat2));
+  var x = Math.cos(toRad(lat1))*Math.sin(toRad(lat2)) - Math.sin(toRad(lat1))*Math.cos(toRad(lat2))*Math.cos(dLng);
+  return (toDeg(Math.atan2(y,x))+360)%360;
+}
+function bearingParaCardinal(deg){
+  var dirs = ['N','NE','L','SE','S','SO','O','NO'];
+  return dirs[Math.round(deg/45)%8];
+}
+function renderMapFiltroReBanner(){
+  var el = document.getElementById('mapFiltroReBanner');
+  if(!el) return;
+  if(!mapFiltroRe){ el.innerHTML=''; if(lyrDirecao) lyrDirecao.clearLayers(); return; }
+  var db = loadDB();
+  var e = (db.edificacoes||[]).find(function(x){return x.id===mapFiltroRe;});
+  if(!e){ mapFiltroRe=null; el.innerHTML=''; return; }
+
+  var direcaoHtml = '';
+  if(lyrDirecao) lyrDirecao.clearLayers();
+  if(meuPosicaoAtual && e.lat && e.lng){
+    var dist = haversineKm(meuPosicaoAtual[0], meuPosicaoAtual[1], e.lat, e.lng);
+    var bear = calcularBearing(meuPosicaoAtual[0], meuPosicaoAtual[1], e.lat, e.lng);
+    var distTxt = dist<1 ? Math.round(dist*1000)+' m' : dist.toFixed(1)+' km';
+    direcaoHtml = '<div style="display:flex;align-items:center;gap:6px;margin-top:4px">'+
+      '<span style="display:inline-block;font-size:20px;transform:rotate('+bear+'deg)">⬆️</span>'+
+      '<span>'+distTxt+' ao '+bearingParaCardinal(bear)+'</span>'+
+    '</div>';
+    if(lyrDirecao && map){
+      L.polyline([meuPosicaoAtual, [e.lat,e.lng]], {color:'#0A84FF', weight:3, dashArray:'6,8'}).addTo(lyrDirecao);
+    }
+  } else {
+    direcaoHtml = '<div class="sub" style="margin-top:4px;color:#fff">Toque em 📍 pra ativar sua localização e ver a direção.</div>';
+  }
+
+  el.innerHTML = '<div style="background:var(--red2);color:#fff;padding:8px 12px;border-radius:10px;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.4)">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center">'+
+      '<span>🔎 '+(e.re||'Sem RE')+' — '+(e.nome||'')+'</span>'+
+      '<button class="btn" style="width:auto;padding:4px 10px;background:rgba(255,255,255,.2);color:#fff" onclick="limparMapFiltroRe()">✕ Limpar</button>'+
+    '</div>'+
+    direcaoHtml+
+  '</div>';
 }
 
 var mapFiltroRota = '';
@@ -3060,6 +3123,7 @@ function renderMapEdificacoes(){
   var db = loadDB();
   popularFiltroRotaMapa();
   renderMapFiltroGeoBanner();
+  renderMapFiltroReBanner();
   var edifIdsDaRota = null;
   if(mapFiltroRota){
     edifIdsDaRota = {};
@@ -3067,6 +3131,7 @@ function renderMapEdificacoes(){
   }
   (db.edificacoes||[]).forEach(function(e){
     if(!e.lat || !e.lng) return;
+    if(mapFiltroRe && e.id!==mapFiltroRe) return;
     if(edifIdsDaRota && !edifIdsDaRota[e.id]) return;
     if(mapFiltroGeo && ((e.municipio||'Sem município')!==mapFiltroGeo.municipio || (e.bairro||'Sem bairro')!==mapFiltroGeo.bairro)) return;
     if(e.competencia==='fora'){
@@ -3082,11 +3147,13 @@ function renderMapEdificacoes(){
     var riscoM = riscoEfetivo(e);
     var cor = {1:'#34C759',2:'#A8D93A',3:'#FF9F0A',4:'#FF5E3A',5:'#C0272D'}[riscoM] || '#8E8E93';
     var num = riscoM || '?';
+    var badgeDesocupada = e.desocupada ? '<div style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;background:#6b6b70;border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px">🏚️</div>' : '';
     var icon = L.divIcon({
-      html:'<div style="width:24px;height:24px;border-radius:50%;background:'+cor+';border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">'+num+'</div>',
+      html:'<div style="position:relative;width:24px;height:24px;border-radius:50%;background:'+cor+';border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">'+num+badgeDesocupada+'</div>',
       className:'', iconSize:[24,24], iconAnchor:[12,12]
     });
     var mk = L.marker([e.lat, e.lng], {icon:icon}).addTo(lyrEdif);
+    if(e.desocupada) mk.bindTooltip((e.re||'Sem RE')+' — '+(e.nome||'')+' (desocupada)', {direction:'top'});
     mk.on('click', function(){ abrirCartaoEdificacao(e); });
   });
 }
@@ -3148,8 +3215,8 @@ function abrirCartaoEdificacao(e){
     '<div class="sheet-handle"></div>'+
     '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">'+
       '<div class="ecard-badge" style="background:'+cor+'">'+risco+'</div>'+
-      '<div><div style="font-weight:800;font-size:15px">'+(e.re||'Sem RE')+'</div>'+
-      '<div style="font-size:12px;color:var(--sub)">'+e.nome+'</div></div>'+
+      '<div><div style="font-weight:800;font-size:15px">'+(e.re||'Sem RE')+(e.desocupada?' 🏚️':'')+'</div>'+
+      '<div style="font-size:12px;color:var(--sub)">'+e.nome+(e.desocupada?' · Desocupada':'')+'</div></div>'+
     '</div>'+
     '<div class="hs-banner '+hs.classe+'" style="margin:12px 0">'+hs.icone+' Habite-se: '+hs.texto+(hs.protocolo?' · '+hs.protocolo:'')+'</div>'+
     '<div style="margin:14px 0">'+
