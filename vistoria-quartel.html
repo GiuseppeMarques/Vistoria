@@ -170,7 +170,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v83</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v84</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
@@ -194,6 +194,7 @@
         <button class="btn" onclick="abrirCadastroRapido()">⚡ Cadastro rápido (tabela)</button>
         <input type="file" id="xlsxImportInput" accept=".xlsx,.xls" style="display:none" onchange="importarExcelEdificacoes(this)">
         <button class="btn" onclick="document.getElementById('xlsxImportInput').click()">📊 Importar Excel</button>
+        <button class="btn" style="background:var(--red2)" onclick="abrirImportarESCI()">📥 Importar do e-SCI</button>
         <button class="btn primary" onclick="abrirFormEdif(null)">+ Nova edificação</button>
       </div>
       <div class="toolbar" style="margin-top:-6px">
@@ -281,6 +282,32 @@
         <div class="modal-actions">
           <button class="btn" onclick="document.getElementById('modalGerarRotasAuto').style.display='none'">Cancelar</button>
           <button class="btn primary" id="garBtnConfirmar" style="display:none" onclick="confirmarGerarRotasAuto()">Criar rotas</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modalImportarESCI" class="modal-overlay" style="display:none">
+      <div class="modal lg">
+        <h3>Importar do e-SCI</h3>
+        <div class="sub">Suba os arquivos que você exporta do e-SCI (ou a planilha "Controle SCI" completa, com as abas "Dados Importados" e "Funcionamento Vigente") — o sistema reconhece cada aba pelo formato das colunas, não importa o nome do arquivo.</div>
+
+        <label class="lbl" style="margin-top:12px">Arquivo(s) .xlsx</label>
+        <input type="file" id="esciFilesInput" accept=".xlsx,.xls" multiple style="margin-bottom:16px">
+
+        <div class="sec-title" style="margin-top:0">Município por prefixo do RE</div>
+        <div class="sub" style="margin-bottom:8px">O prefixo depois de "RE" indica o município (ex: RE8013... → Alfredo Wagner). Preenchido automaticamente nas edificações importadas quando o prefixo é conhecido.</div>
+        <div id="esciPrefixosLista" style="margin-bottom:8px"></div>
+        <div class="frow">
+          <div class="fcol"><input type="text" id="esciNovoPrefixo" placeholder="Prefixo (ex: 8013)" maxlength="4"></div>
+          <div class="fcol"><input type="text" id="esciNovoMunicipio" placeholder="Município"></div>
+          <button class="btn" style="width:auto" onclick="adicionarPrefixoMunicipio()">+ Adicionar</button>
+        </div>
+
+        <div id="esciResumo" class="sub" style="margin:12px 0"></div>
+
+        <div class="modal-actions">
+          <button class="btn" onclick="document.getElementById('modalImportarESCI').style.display='none'">Fechar</button>
+          <button class="btn primary" onclick="processarImportarESCI()">Importar</button>
         </div>
       </div>
     </div>
@@ -1528,14 +1555,40 @@ function gerarPavimentosBloco(bi){
   var n = parseInt(document.getElementById('bloco-npav-'+bi).value,10) || 0;
   var terreo = document.getElementById('bloco-terreo-'+bi).value;
   bloco.nPavimentos = n; bloco.terreoCfg = terreo;
-  var labels = [];
-  if(terreo==='sim') labels.push('Térreo');
-  for(var i=1;i<=n;i++) labels.push(i+'º pavimento');
+  var labelsPadrao = [];
+  if(terreo==='sim') labelsPadrao.push('Térreo');
+  for(var i=1;i<=n;i++) labelsPadrao.push(i+'º pavimento');
 
-  bloco.pavimentos = labels.map(function(lbl, idx){
+  // nunca REMOVE pavimento que já existia (nome nem sistemas) — "gerar/atualizar" só
+  // garante que existam ao menos os N configurados, adicionando o que faltar no final.
+  // pavimentos extras (ex: um mezanino adicionado à parte) ficam intactos, mesmo que o
+  // número configurado seja menor.
+  var totalFinal = Math.max(labelsPadrao.length, bloco.pavimentos.length);
+  var novosPavimentos = [];
+  for(var idx=0; idx<totalFinal; idx++){
     var existente = bloco.pavimentos[idx];
-    return {label: lbl, sist: (existente && existente.sist) || {}};
-  });
+    novosPavimentos.push(existente || {label: labelsPadrao[idx] || ((idx+1)+'º pavimento'), sist:{}});
+  }
+  bloco.pavimentos = novosPavimentos;
+  renderBlocosForm();
+}
+function setPavimentoLabel(bi, pi, val){
+  efBlocos[bi].pavimentos[pi].label = val;
+}
+function adicionarPavimentoAvulso(bi){
+  efBlocos[bi].pavimentos.push({label:'Novo pavimento', sist:{}});
+  renderBlocosForm();
+}
+function removerPavimento(bi, pi){
+  if(!confirm('Remover este pavimento? Os sistemas configurados nele se perdem.')) return;
+  efBlocos[bi].pavimentos.splice(pi,1);
+  renderBlocosForm();
+}
+function moverPavimento(bi, pi, direcao){
+  var pavs = efBlocos[bi].pavimentos;
+  var alvo = pi+direcao;
+  if(alvo<0 || alvo>=pavs.length) return;
+  var tmp = pavs[pi]; pavs[pi]=pavs[alvo]; pavs[alvo]=tmp;
   renderBlocosForm();
 }
 function setPavSistAtivoBloco(bi, pi, sid, checked){
@@ -1585,7 +1638,15 @@ function renderBlocosForm(){
           (pd.ativo ? '<input type="text" placeholder="Detalhe / observação (opcional)" value="'+(pd.info||'').replace(/"/g,'&quot;')+'" onchange="setPavSistInfoBloco('+bi+','+pi+',\''+sid+'\',this.value)">' : '')+
         '</div>';
       }).join('') : '<div class="sub" style="padding:2px 0">Ative sistemas preventivos acima pra detalhar por pavimento.</div>';
-      return '<div class="pav-card" style="margin-left:14px;background:var(--bg)"><div class="pav-h">'+pav.label+'</div>'+rows+'</div>';
+      return '<div class="pav-card" style="margin-left:14px;background:var(--bg)">'+
+        '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">'+
+          '<input type="text" value="'+pav.label.replace(/"/g,'&quot;')+'" style="margin-bottom:0;font-weight:700;flex:1" onchange="setPavimentoLabel('+bi+','+pi+',this.value)">'+
+          '<button class="btn" style="width:auto;padding:6px 9px;font-size:12px" '+(pi===0?'disabled':'')+' onclick="moverPavimento('+bi+','+pi+',-1)">▲</button>'+
+          '<button class="btn" style="width:auto;padding:6px 9px;font-size:12px" '+(pi===bloco.pavimentos.length-1?'disabled':'')+' onclick="moverPavimento('+bi+','+pi+',1)">▼</button>'+
+          '<button class="btn" style="width:auto;padding:6px 9px;font-size:12px" onclick="removerPavimento('+bi+','+pi+')">✕</button>'+
+        '</div>'+
+        rows+
+      '</div>';
     }).join('') || '<div class="sub" style="margin-left:14px">Nenhum pavimento gerado ainda pra este bloco.</div>';
 
     var riscoSelBloco = '<select style="width:auto;margin-bottom:0;padding:4px 8px;font-size:12px" onchange="setBlocoRisco('+bi+',this.value)">'+
@@ -1605,7 +1666,10 @@ function renderBlocosForm(){
           '<select id="bloco-terreo-'+bi+'"><option value="sim" '+(bloco.terreoCfg==='sim'?'selected':'')+'>Possui térreo</option><option value="nao" '+(bloco.terreoCfg==='nao'?'selected':'')+'>Sem térreo</option></select>'+
         '</div>'+
       '</div>'+
-      '<button class="btn" style="margin-bottom:10px" onclick="gerarPavimentosBloco('+bi+')">Gerar / atualizar pavimentos deste bloco</button>'+
+      '<div class="btnrow" style="gap:8px;margin-bottom:10px">'+
+        '<button class="btn" onclick="gerarPavimentosBloco('+bi+')">Gerar / atualizar pavimentos deste bloco</button>'+
+        '<button class="btn" onclick="adicionarPavimentoAvulso('+bi+')">+ Adicionar pavimento (ex: mezanino)</button>'+
+      '</div>'+
       pavsHtml+
     '</div>';
   }).join('');
@@ -1683,6 +1747,241 @@ function linhasExcelParaEdificacoes(linhas){
   });
   return criadas;
 }
+// ════════════════════════════════════════
+// IMPORTAR DO e-SCI — lê os dois exports nativos do sistema e-SCI (podem vir em arquivos
+// separados ou juntos numa planilha "Controle SCI", tanto faz — cada aba é reconhecida pelo
+// formato das colunas, não pelo nome do arquivo/aba), agrupa por RE, e traz só o mais recente.
+// ════════════════════════════════════════
+var PREFIXOS_MUNICIPIO_PADRAO = {'8013':'Alfredo Wagner', '8193':'Leoberto Leal'};
+function carregarPrefixosMunicipio(){
+  try {
+    var salvo = JSON.parse(localStorage.getItem('vistoria_prefixos_municipio'));
+    if(salvo && typeof salvo==='object') return salvo;
+  } catch(err){}
+  localStorage.setItem('vistoria_prefixos_municipio', JSON.stringify(PREFIXOS_MUNICIPIO_PADRAO));
+  return Object.assign({}, PREFIXOS_MUNICIPIO_PADRAO);
+}
+function salvarPrefixosMunicipio(mapa){
+  localStorage.setItem('vistoria_prefixos_municipio', JSON.stringify(mapa));
+}
+function renderPrefixosLista(){
+  var mapa = carregarPrefixosMunicipio();
+  var el = document.getElementById('esciPrefixosLista');
+  var prefixos = Object.keys(mapa).sort();
+  el.innerHTML = prefixos.length ? prefixos.map(function(p){
+    return '<div class="rowlist-item"><input type="text" value="'+p+'" disabled style="flex:0 0 90px"><input type="text" value="'+mapa[p].replace(/"/g,'&quot;')+'" disabled><button class="rowlist-del" onclick="removerPrefixoMunicipio(\''+p+'\')">✕</button></div>';
+  }).join('') : '<div class="sub">Nenhum prefixo cadastrado ainda.</div>';
+}
+function adicionarPrefixoMunicipio(){
+  var prefixo = document.getElementById('esciNovoPrefixo').value.trim();
+  var municipio = document.getElementById('esciNovoMunicipio').value.trim();
+  if(!prefixo || !municipio){ alert('Preencha o prefixo e o município.'); return; }
+  var mapa = carregarPrefixosMunicipio();
+  mapa[prefixo] = municipio;
+  salvarPrefixosMunicipio(mapa);
+  document.getElementById('esciNovoPrefixo').value = '';
+  document.getElementById('esciNovoMunicipio').value = '';
+  renderPrefixosLista();
+}
+function removerPrefixoMunicipio(prefixo){
+  var mapa = carregarPrefixosMunicipio();
+  delete mapa[prefixo];
+  salvarPrefixosMunicipio(mapa);
+  renderPrefixosLista();
+}
+
+function abrirImportarESCI(){
+  document.getElementById('esciFilesInput').value = '';
+  document.getElementById('esciResumo').innerHTML = '';
+  renderPrefixosLista();
+  document.getElementById('modalImportarESCI').style.display='flex';
+}
+
+// acha o valor de uma coluna aceitando várias grafias de cabeçalho, sem diferenciar
+// maiúsculo/minúsculo/espaço nas pontas
+function esciAchar(row, opcoes){
+  var chaves = Object.keys(row);
+  for(var i=0;i<opcoes.length;i++){
+    var alvo = opcoes[i];
+    var k = chaves.find(function(k2){ return k2.toString().trim().toLowerCase()===alvo; });
+    if(k!=null && row[k]!=='') return row[k];
+  }
+  return '';
+}
+// datas do XLSX podem vir como Date de verdade, string DD/MM/AAAA, ou serial do Excel —
+// esta função normaliza pra um objeto Date (ou null)
+function esciParaData(val){
+  if(!val) return null;
+  if(val instanceof Date) return val;
+  if(typeof val === 'number') return new Date(Math.round((val-25569)*86400*1000));
+  var d = parseDataBR(val.toString());
+  return d;
+}
+function esciFormatarData(d){
+  if(!d) return '';
+  var f = function(n){return (n<10?'0':'')+n;};
+  return f(d.getDate())+'/'+f(d.getMonth()+1)+'/'+d.getFullYear();
+}
+
+function processarImportarESCI(){
+  var input = document.getElementById('esciFilesInput');
+  var arquivos = Array.from(input.files||[]);
+  if(!arquivos.length){ alert('Selecione ao menos um arquivo .xlsx.'); return; }
+
+  var pendentes = arquivos.length;
+  var linhasFuncVigente = [];
+  var linhasDadosImportados = [];
+
+  arquivos.forEach(function(file){
+    var reader = new FileReader();
+    reader.onload = function(e){
+      try {
+        var data = new Uint8Array(e.target.result);
+        var wb = XLSX.read(data, {type:'array', cellDates:true});
+        wb.SheetNames.forEach(function(nomeAba){
+          var linhas = XLSX.utils.sheet_to_json(wb.Sheets[nomeAba], {defval:''});
+          if(!linhas.length) return;
+          var chaves = Object.keys(linhas[0]).map(function(k){return k.toString().trim().toLowerCase();});
+          var temRE = chaves.indexOf('re')>=0;
+          var pareceFuncVigente = temRE && chaves.indexOf('logradouro')>=0;
+          var pareceDadosImportados = temRE && (chaves.indexOf('tipo processo')>=0 && (chaves.indexOf('celular responsável')>=0 || chaves.indexOf('celular responsavel')>=0));
+          if(pareceFuncVigente) linhasFuncVigente = linhasFuncVigente.concat(linhas);
+          else if(pareceDadosImportados) linhasDadosImportados = linhasDadosImportados.concat(linhas);
+        });
+      } catch(err){
+        alert('Não foi possível ler o arquivo "'+file.name+'". Confirme que é um .xlsx válido.');
+      }
+      pendentes--;
+      if(pendentes===0) finalizarImportarESCI(linhasFuncVigente, linhasDadosImportados);
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function finalizarImportarESCI(linhasFuncVigente, linhasDadosImportados){
+  if(!linhasFuncVigente.length && !linhasDadosImportados.length){
+    alert('Nenhuma aba reconhecida como "Dados Importados" ou "Funcionamento Vigente" foi encontrada nos arquivo(s) selecionado(s).');
+    return;
+  }
+  var mapaPrefixos = carregarPrefixosMunicipio();
+
+  // ── Funcionamento Vigente: agrupa por RE, pega sempre a data de emissão mais recente
+  // (cai pra validade se não tiver emissão) — e registra quando um RE tinha mais de uma data
+  var porRE = {};
+  linhasFuncVigente.forEach(function(row){
+    var re = esciAchar(row, ['re']).toString().trim();
+    if(!re) return;
+    var emissao = esciParaData(esciAchar(row, ['data emissão atestado','data emissao atestado']));
+    var validade = esciParaData(esciAchar(row, ['validade atestado']));
+    var dataOrdenacao = emissao || validade;
+    if(!porRE[re]) porRE[re] = [];
+    porRE[re].push({row:row, data: dataOrdenacao, validade: validade});
+  });
+  var funcREsComHistorico = [];
+  var funcPorRE = {};
+  Object.keys(porRE).forEach(function(re){
+    var itens = porRE[re];
+    itens.sort(function(a,b){ return (b.data?b.data.getTime():0) - (a.data?a.data.getTime():0); });
+    var datasUnicas = Array.from(new Set(itens.map(function(x){ return x.data ? x.data.getTime() : null; })));
+    if(datasUnicas.length>1) funcREsComHistorico.push(re);
+    funcPorRE[re] = itens[0].row;
+  });
+
+  // ── Dados Importados: agrupa por RE, pega nome/área/celular (primeiro valor não-vazio)
+  var dadosPorRE = {};
+  linhasDadosImportados.forEach(function(row){
+    var re = esciAchar(row, ['re']).toString().trim();
+    if(!re) return;
+    if(!dadosPorRE[re]) dadosPorRE[re] = {nome:'', area:'', celular:''};
+    var d = dadosPorRE[re];
+    if(!d.nome) d.nome = esciAchar(row, ['nome edificação','nome edificacao']).toString().trim();
+    if(!d.area) d.area = esciAchar(row, ['área solicitação','area solicitacao','área','area']).toString().trim();
+    if(!d.celular) d.celular = esciAchar(row, ['celular responsável','celular responsavel']).toString().trim();
+  });
+
+  // ── junta os REs dos dois lados
+  var todosRE = Array.from(new Set(Object.keys(funcPorRE).concat(Object.keys(dadosPorRE))));
+
+  var db = loadDB();
+  db.edificacoes = db.edificacoes||[];
+  var criadas = 0, atualizadas = 0, telefonesPreenchidos = 0, prefixosDesconhecidos = {};
+
+  todosRE.forEach(function(re){
+    var fv = funcPorRE[re]; // linha de Funcionamento Vigente (pode não existir)
+    var di = dadosPorRE[re]; // {nome,area,celular} (pode não existir)
+
+    var nome = (fv ? esciAchar(fv, ['nome edificação','nome edificacao']).toString().trim() : '') || (di ? di.nome : '');
+    var logradouro = fv ? esciAchar(fv, ['logradouro']).toString().trim() : '';
+    var numero = fv ? esciAchar(fv, ['número endereço','numero endereco']).toString().trim() : '';
+    var bairro = fv ? esciAchar(fv, ['bairro']).toString().trim() : '';
+    var endereco = logradouro ? (logradouro + (numero && numero!=='-' ? ', '+numero : '')) : '';
+    var area = di ? di.area : '';
+    var celular = di ? di.celular : '';
+    var protocolo = fv ? esciAchar(fv, ['protocolo']).toString().trim() : '';
+    var statusAtestado = fv ? esciAchar(fv, ['status atestado']).toString().trim() : '';
+    var validadeData = fv ? esciParaData(esciAchar(fv, ['validade atestado'])) : null;
+    var emissaoData = fv ? esciParaData(esciAchar(fv, ['data emissão atestado','data emissao atestado'])) : null;
+    var situacao = (statusAtestado==='Vigente' || statusAtestado==='Vence em 30d') ? 'possui' : (fv ? 'nao_possui' : '');
+
+    var prefixo = re.length>=6 ? re.substring(2,6) : '';
+    var municipio = mapaPrefixos[prefixo] || '';
+    if(prefixo && !municipio) prefixosDesconhecidos[prefixo] = (prefixosDesconhecidos[prefixo]||0)+1;
+
+    var existente = db.edificacoes.find(function(x){ return x.re && x.re.trim()===re; });
+    if(existente){
+      if(!existente.nome && nome) existente.nome = nome;
+      if(!existente.endereco && endereco) existente.endereco = endereco;
+      if(!existente.bairro && bairro) existente.bairro = bairro;
+      if(!existente.municipio && municipio) existente.municipio = municipio;
+      if(!existente.area && area) existente.area = area;
+      if(!existente.responsavel || !existente.responsavel.tel){
+        if(celular){
+          existente.responsavel = existente.responsavel || {nome:'', tel:''};
+          existente.responsavel.tel = celular;
+          telefonesPreenchidos++;
+        }
+      }
+      if(fv){
+        existente.vigenciaFuncionamento = existente.vigenciaFuncionamento || {};
+        existente.vigenciaFuncionamento.situacao = situacao;
+        if(protocolo) existente.vigenciaFuncionamento.protocolo = protocolo;
+        if(validadeData) existente.vigenciaFuncionamento.vencimento = esciFormatarData(validadeData);
+        if(emissaoData) existente.vigenciaFuncionamento.dataEmissao = esciFormatarData(emissaoData);
+      }
+      existente.atualizadoEm = new Date().toISOString();
+      atualizadas++;
+    } else {
+      if(celular) telefonesPreenchidos++;
+      db.edificacoes.push({
+        id: novoId('edif'), re: re, nome: nome, endereco: endereco, municipio: municipio, bairro: bairro, area: area,
+        responsavel:{nome:'', tel:celular}, habiteSe:{}, blocos:[], projetos:[], inquilinos:[], preventivos:{},
+        vigenciaFuncionamento: fv ? {
+          situacao: situacao, protocolo: protocolo,
+          vencimento: validadeData ? esciFormatarData(validadeData) : '',
+          dataEmissao: emissaoData ? esciFormatarData(emissaoData) : ''
+        } : {},
+        origem:'cadastro', criadoEm: new Date().toISOString(), atualizadoEm: new Date().toISOString()
+      });
+      criadas++;
+    }
+  });
+
+  saveDB(db);
+  renderEdificacoes();
+
+  var resumo = [];
+  resumo.push('<b>'+criadas+'</b> edificação(ões) nova(s), <b>'+atualizadas+'</b> atualizada(s).');
+  resumo.push('<b>'+telefonesPreenchidos+'</b> telefone(s) preenchido(s) — só onde estava vazio, sem sobrescrever o que já tinha.');
+  if(funcREsComHistorico.length){
+    resumo.push('<b>'+funcREsComHistorico.length+'</b> RE(s) tinham mais de uma data no "Funcionamento Vigente" — usada sempre a mais recente. REs: '+funcREsComHistorico.slice(0,20).join(', ')+(funcREsComHistorico.length>20?' ... (+'+(funcREsComHistorico.length-20)+')':''));
+  }
+  var prefDesc = Object.keys(prefixosDesconhecidos);
+  if(prefDesc.length){
+    resumo.push('⚠️ Prefixo(s) sem município cadastrado: '+prefDesc.map(function(p){return p+' ('+prefixosDesconhecidos[p]+' RE)';}).join(', ')+'. Adicione acima e importe de novo pra preencher o município retroativamente.');
+  }
+  document.getElementById('esciResumo').innerHTML = resumo.join('<br><br>');
+}
+
 function importarExcelEdificacoes(input){
   var file = input.files[0];
   if(!file) return;
