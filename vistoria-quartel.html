@@ -170,16 +170,16 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v84</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v93</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
-    <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
+    <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
     <button data-v="rotas" onclick="navTo('rotas')"><span class="ic">🧭</span>Rotas</button>
     <button data-v="mapa" onclick="navTo('mapa')"><span class="ic">🗺️</span>Mapa</button>
     <button data-v="relatorios" onclick="navTo('relatorios')"><span class="ic">📊</span>Relatórios</button>
     <button data-v="avisos" onclick="navTo('avisos')"><span class="ic">📱</span>Avisos
       <span class="badge" id="badgeAvisos" style="display:none">0</span></button>
-    <button data-v="multas" onclick="navTo('multas')"><span class="ic">⚠️</span>Multas
+    <button data-v="multas" onclick="navTo('multas')"><span class="ic">⚖️</span>Cartório
       <span class="badge" id="badgeMultas" style="display:none">0</span></button>
     <button data-v="campo" class="on" onclick="navTo('campo')"><span class="ic">📍</span>Campo
       <span class="badge" id="badgeCampo" style="display:none">0</span></button>
@@ -219,19 +219,19 @@
     </div>
 
     <div class="view" id="v-vist">
-      <h2>Vistorias</h2><div class="lead">Planejamento, histórico e resultados.</div>
+      <h2>Histórico de vistorias</h2><div class="lead">Arquivo do que já foi feito e dos relatórios. Pra planejar ou executar, use a aba Rotas.</div>
       <div class="toolbar">
         <div class="vfilter" id="vistFiltros">
-          <button class="on" data-f="todas" onclick="setFiltroVist('todas')">Todas</button>
-          <button data-f="pendentes" onclick="setFiltroVist('pendentes')">Pendentes</button>
-          <button data-f="emrota" onclick="setFiltroVist('emrota')">Em rota</button>
-          <button data-f="concluidas" onclick="setFiltroVist('concluidas')">Concluídas</button>
+          <button class="on" data-f="concluidas" onclick="setFiltroVist('concluidas')">Concluídas</button>
+          <button data-f="soltas" id="vistBtnSoltas" onclick="setFiltroVist('soltas')" style="display:none">Planejadas sem rota</button>
         </div>
-        <button class="btn primary" onclick="abrirPlanejarVist()">+ Planejar vistoria</button>
-        <button class="btn" style="background:var(--red2)" onclick="excluirTodasVistorias()">🗑️ Excluir todas</button>
+        <button class="btn" style="background:var(--red2)" onclick="excluirTodasVistorias()">🗑️ Excluir as listadas</button>
       </div>
       <div class="toolbar" style="margin-top:8px">
         <input type="text" id="vistBuscaRe" placeholder="Filtrar por RE..." style="width:auto;max-width:160px" oninput="renderVistorias()">
+        <select id="vistFiltroTipo" onchange="renderVistorias()" style="width:auto">
+          <option value="">Tipo: todos</option><option value="habite-se">Habite-se</option><option value="funcionamento">Funcionamento</option><option value="ex-oficio">Ex-ofício</option><option value="cartorio">Cartório</option>
+        </select>
         <select id="vistFiltroRotaSel" onchange="renderVistorias()" style="width:auto">
           <option value="">Rota: todas</option>
         </select>
@@ -239,15 +239,18 @@
           Dia: <input type="text" id="vistFiltroDia" placeholder="DD/MM/AAAA" style="width:110px" oninput="renderVistorias()">
           <button class="btn" style="width:auto;padding:6px 10px;font-size:12px" onclick="document.getElementById('vistFiltroDia').value='';renderVistorias()">✕</button>
         </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--sub);cursor:pointer">
+          <input type="checkbox" id="vistMostrarAnosAnteriores" style="width:auto" onchange="renderVistorias()"> Mostrar anos anteriores
+        </label>
       </div>
       <div id="vistList"></div>
     </div>
 
     <div class="view" id="v-rotas">
-      <h2>Rotas</h2><div class="lead">Agrupe vistorias pendentes em um roteiro e otimize a ordem.</div>
+      <h2>Rotas</h2><div class="lead">Monte o roteiro direto das edificações, escolha o tipo de cada parada, execute e depois exclua a rota. O que foi feito fica no Histórico.</div>
 
       <div class="sec-title" style="margin-top:0">Rotas fixas (recorrentes)</div>
-      <div style="font-size:11px;color:var(--sub);margin:-4px 0 10px">Modelos salvos por critério (ex: "risco 4-5 anual") — a qualquer momento, gera vistorias pendentes pras edificações que se encaixam e ainda não foram vistoriadas dentro do ciclo.</div>
+      <div style="font-size:11px;color:var(--sub);margin:-4px 0 10px">Modelos salvos por critério (ex: "risco 4-5 anual") — a qualquer momento, cria uma rota (já ordenada) com as edificações que se encaixam e ainda não foram vistoriadas dentro do ciclo.</div>
       <div id="rotasFixasList" style="margin-bottom:10px"></div>
       <button class="btn" style="margin-bottom:20px" onclick="abrirFormRotaFixa()">+ Novo modelo de rota fixa</button>
 
@@ -515,8 +518,12 @@
       <div class="sub" style="margin-bottom:8px">Usado no botão "📱 Avisar sobre Funcionamento" no cadastro da edificação. Use {OBM}, {NOME}, {RE}, {LINK_VISTORIA}.</div>
       <textarea id="avisoModeloFuncNecessidade" rows="10" style="width:100%;font-family:inherit;font-size:13px;padding:10px;border-radius:10px;background:var(--card2);border:1px solid var(--border);color:var(--txt);margin-bottom:16px" onchange="salvarModeloAvisoFuncNecessidade()"></textarea>
 
+      <div class="sec-title">Modelo de mensagem — AF registrada</div>
+      <div class="sub" style="margin-bottom:8px">Usado no botão "📱 Avisar via WhatsApp" na aba Cartório, pra registros do tipo AF. Use {OBM}, {NOME}, {RE}, {MULTA_NUMERO}, {MULTA_MOTIVO}, {MULTA_PRAZO}.</div>
+      <textarea id="avisoModeloAF" rows="10" style="width:100%;font-family:inherit;font-size:13px;padding:10px;border-radius:10px;background:var(--card2);border:1px solid var(--border);color:var(--txt);margin-bottom:16px" onchange="salvarModeloAvisoAF()"></textarea>
+
       <div class="sec-title">Modelo de mensagem — Multa registrada</div>
-      <div class="sub" style="margin-bottom:8px">Usado no botão "📱 Avisar via WhatsApp" na aba Multas. Use {OBM}, {NOME}, {RE}, {MULTA_NUMERO}, {MULTA_MOTIVO}, {MULTA_PRAZO}.</div>
+      <div class="sub" style="margin-bottom:8px">Usado no botão "📱 Avisar via WhatsApp" na aba Cartório, pra registros do tipo Multa. Use {OBM}, {NOME}, {RE}, {MULTA_NUMERO}, {MULTA_MOTIVO}, {MULTA_PRAZO}.</div>
       <textarea id="avisoModeloMulta" rows="10" style="width:100%;font-family:inherit;font-size:13px;padding:10px;border-radius:10px;background:var(--card2);border:1px solid var(--border);color:var(--txt);margin-bottom:16px" onchange="salvarModeloAvisoMulta()"></textarea>
 
       <div class="sec-title">Modelo de mensagem — Resultado da vistoria</div>
@@ -543,32 +550,39 @@
     </div>
 
     <div class="view" id="v-multas">
-      <h2>Multas</h2>
-      <div class="lead">Marca edificações autuadas — aparece destacado no mapa até você resolver.</div>
+      <h2>Cartório</h2>
+      <div class="lead">Controle de AF (Auto de Infração) e Multas — uma edificação pode ter vários registros ao mesmo tempo, de qualquer tipo.</div>
 
       <div class="card2-box" style="margin-bottom:16px">
-        <div class="sec-title" style="margin-top:0">+ Registrar multa</div>
+        <div class="sec-title" style="margin-top:0">+ Novo registro</div>
         <input type="text" id="mt-edif-busca" placeholder="Buscar edificação por RE, nome, bairro ou município..." style="margin-bottom:8px" oninput="renderMtEdifLista()">
         <div id="mt-edif-lista" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;margin-bottom:10px"></div>
         <div id="mt-form-detalhe" style="display:none">
           <div class="sub" id="mt-edif-selecionada" style="margin-bottom:8px;font-weight:700"></div>
+          <div class="btnrow" style="gap:8px;margin-bottom:10px">
+            <button class="btn on" id="mt-tipo-af" style="flex:1" onclick="setMtTipo('af')">📋 AF (Auto de Infração)</button>
+            <button class="btn" id="mt-tipo-multa" style="flex:1" onclick="setMtTipo('multa')">💰 Multa</button>
+          </div>
           <div class="frow">
-            <div class="fcol"><label class="lbl">Número da multa</label><input type="text" id="mt-numero" placeholder="Ex: 2026/00123"></div>
-            <div class="fcol"><label class="lbl">Prazo pra regularizar</label><input type="text" id="mt-prazo" placeholder="DD/MM/AAAA"></div>
+            <div class="fcol"><label class="lbl" id="mt-lbl-numero">Número da AF</label><input type="text" id="mt-numero" placeholder="Ex: 2026/00123"></div>
+            <div class="fcol"><label class="lbl" id="mt-lbl-prazo">Prazo pra regularizar</label><input type="text" id="mt-prazo" placeholder="DD/MM/AAAA"></div>
           </div>
           <label class="lbl">Motivo</label>
           <input type="text" id="mt-motivo" placeholder="Ex: Deixar de solicitar vistoria para funcionamento" style="margin-bottom:10px">
-          <button class="btn primary" onclick="registrarMulta()">⚠️ Registrar multa</button>
+          <button class="btn primary" id="mt-btn-registrar" onclick="registrarMulta()">📋 Registrar AF</button>
         </div>
       </div>
 
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px">
-        <div class="sec-title" style="margin:0">Edificações com multa ativa</div>
-        <button class="btn" style="width:auto;padding:6px 12px;font-size:12px" onclick="copiarRelatorioMultas()">📋 Copiar relatório em texto</button>
+        <div class="sec-title" style="margin:0">Pendentes</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" style="width:auto;padding:6px 12px;font-size:12px" onclick="abrirCarregarAF()">📥 Carregar AFs (planilha ou PDFs)</button>
+          <button class="btn" style="width:auto;padding:6px 12px;font-size:12px" onclick="copiarRelatorioMultas()">📋 Copiar relatório em texto</button>
+        </div>
       </div>
       <div id="multasAtivasLista"></div>
 
-      <div class="sec-title" style="margin-top:20px">Histórico (resolvidas)</div>
+      <div class="sec-title" style="margin-top:20px">Histórico (resolvidos)</div>
       <div id="multasResolvidasLista"></div>
     </div>
 
@@ -776,31 +790,60 @@
   </div>
 </div>
 
-<!-- MODAL: planejar vistoria -->
-<div id="modalPlanVist" class="modal-overlay" style="display:none">
-  <div class="modal">
-    <h3>Planejar vistoria</h3>
-    <div class="sub">Fica pendente até ser executada no Vistoria Campo.</div>
-    <label class="lbl">Edificação(ões)</label>
-    <input type="text" id="pv-edif-busca" placeholder="Buscar por RE, nome, endereço, bairro ou município..." style="margin-bottom:8px" oninput="renderPvEdifLista()">
-    <div id="pv-selecionadas-info" class="sub" style="margin-bottom:6px"></div>
-    <div id="pv-edif-lista" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;margin-bottom:12px"></div>
-    <div class="frow">
-      <div class="fcol"><label class="lbl">Tipo</label>
-        <select id="pv-tipo"><option value="habite-se">Habite-se</option><option value="funcionamento">Funcionamento</option></select>
-      </div>
-      <div class="fcol"><label class="lbl">Motivo</label><input type="text" id="pv-motivo" placeholder="Ex: AF - hidrante vencido"></div>
-    </div>
+<!-- MODAL: relatório de vistoria concluída -->
+<div id="modalRelatorio" class="modal-overlay" style="display:none">
+  <div class="modal lg" id="relatorioBody"></div>
+</div>
+
+<!-- MODAL: carregar AFs da planilha Controle SCI e/ou dos PDFs da pasta SSCI do Drive -->
+<div id="modalCarregarAF" class="modal-overlay" style="display:none">
+  <div class="modal lg">
+    <h3>Carregar AFs da planilha ou dos PDFs</h3>
+    <div class="sub">Traz o <b>número</b> e o <b>prazo</b> oficiais das AFs pro Cartório: completa os rascunhos sem número (o mais antigo de cada edificação primeiro) e cadastra as AFs que o app ainda não conhecia. Aceita a planilha "Controle de AFs" ou a "Controle SCI" (colunas RE, Número do AF, Prazo AF) e/ou os PDFs da pasta SSCI — dos PDFs o app lê só o <b>nome</b> do arquivo (ex: <i>RE8013000554A - AF8013000037A-26 - Prazo 2026-09-14.pdf</i>), sem abrir nada.</div>
+    <label class="lbl" style="margin-top:12px">Arquivos (planilha .xlsx/.csv e/ou PDFs)</label>
+    <input type="file" id="cafArquivos" multiple accept=".xlsx,.xls,.csv,.pdf" style="margin-bottom:10px" onchange="lerArquivosCarregarAF(this.files)">
+    <label class="lbl">Ou uma pasta inteira (ex: a pasta de um bairro, ou "Alfredo Wagner")</label>
+    <input type="file" id="cafPasta" webkitdirectory multiple style="margin-bottom:10px" onchange="lerArquivosCarregarAF(this.files)">
+    <div id="cafPrevia" style="margin:12px 0"></div>
     <div class="modal-actions">
-      <button class="btn" onclick="document.getElementById('modalPlanVist').style.display='none'">Cancelar</button>
-      <button class="btn primary" id="pv-btn-planejar" onclick="salvarPlanejamentoVist()">Planejar</button>
+      <button class="btn" onclick="document.getElementById('modalCarregarAF').style.display='none'">Fechar</button>
+      <button class="btn primary" id="cafBtnAplicar" style="display:none" onclick="aplicarCarregarAF()">Aplicar</button>
     </div>
   </div>
 </div>
 
-<!-- MODAL: relatório de vistoria concluída -->
-<div id="modalRelatorio" class="modal-overlay" style="display:none">
-  <div class="modal lg" id="relatorioBody"></div>
+<!-- MODAL: gerar AF a partir de uma vistoria indeferida -->
+<div id="modalGerarAFVistoria" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h3>Gerar AF a partir desta vistoria</h3>
+    <div class="sub" id="gafEdifNome" style="margin-bottom:8px;font-weight:700"></div>
+    <label class="lbl">Motivo (pendências já puxadas da vistoria — pode editar)</label>
+    <textarea id="gaf-motivo" rows="6" style="width:100%;font-family:inherit;font-size:13px;padding:10px;border-radius:10px;background:var(--card2);border:1px solid var(--border);color:var(--txt);margin-bottom:10px"></textarea>
+    <div class="frow">
+      <div class="fcol"><label class="lbl">Número da AF (opcional — se ainda não criou no e-SCI, deixe em branco)</label><input type="text" id="gaf-numero" placeholder="Ex: 2026/00123"></div>
+      <div class="fcol"><label class="lbl">Prazo pra regularizar</label><input type="text" id="gaf-prazo" placeholder="DD/MM/AAAA"></div>
+    </div>
+    <div class="sub" id="gaf-prazo-explicacao" style="margin-bottom:10px"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="document.getElementById('modalGerarAFVistoria').style.display='none'">Cancelar</button>
+      <button class="btn primary" onclick="confirmarGerarAFDeVistoria()">📋 Registrar AF</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: gerar multa a partir de uma AF, escolhendo quais itens geraram a multa -->
+<div id="modalGerarMultaDeAF" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h3>Gerar multa a partir da AF</h3>
+    <div class="sub" style="margin-bottom:8px">Marque os itens da AF que geraram a multa (desmarque o que foi regularizado a tempo).</div>
+    <div id="gmaItensLista" style="margin-bottom:12px"></div>
+    <label class="lbl">Número da multa</label>
+    <input type="text" id="gma-numero" placeholder="Ex: 2026/00123" style="margin-bottom:10px">
+    <div class="modal-actions">
+      <button class="btn" onclick="document.getElementById('modalGerarMultaDeAF').style.display='none'">Cancelar</button>
+      <button class="btn primary" onclick="confirmarGerarMultaDeAF()">💰 Registrar multa</button>
+    </div>
+  </div>
 </div>
 
 <!-- MODAL: executar vistoria -->
@@ -816,9 +859,16 @@
     <input type="text" id="rt-nome" style="margin-bottom:12px" placeholder="Ex: Ronda Centro">
     <label class="lbl">Data</label>
     <input type="text" id="rt-data" style="margin-bottom:12px" placeholder="DD/MM/AAAA">
-    <label class="lbl">Vistorias pendentes</label>
-    <input type="text" id="rt-busca" placeholder="Buscar por RE, nome, endereço, bairro ou município..." style="margin-bottom:8px" oninput="renderRtVistList()">
-    <div id="rt-vist-list" style="max-height:260px;overflow-y:auto;margin-bottom:12px;border:1px solid var(--border);border-radius:10px;padding:8px"></div>
+    <label class="lbl">Tipo das novas paradas</label>
+    <select id="rt-tipo-padrao" onchange="rtPadraoMudou()" style="margin-bottom:8px"><option value="habite-se">Habite-se</option><option value="funcionamento" selected>Funcionamento</option><option value="ex-oficio">Ex-ofício</option><option value="cartorio">Cartório</option></select>
+    <div id="rt-padrao-cartorio" style="display:none;margin-bottom:8px"></div>
+    <div class="sub" style="margin-bottom:8px">Qualquer edificação pode entrar direto na rota — não precisa criar vistoria antes. O tipo de cada parada pode ser trocado na lista abaixo.</div>
+    <label class="lbl">Adicionar edificações</label>
+    <input type="text" id="rt-busca" placeholder="Buscar por RE, nome, endereço, bairro ou município..." style="margin-bottom:8px" oninput="renderRtEdifLista()">
+    <div id="rt-vist-list" style="max-height:200px;overflow-y:auto;margin-bottom:12px;border:1px solid var(--border);border-radius:10px"></div>
+    <button class="btn" style="width:100%;margin-bottom:12px" onclick="rtAdicionarCienciasPendentes()">✍️ Adicionar AF/multas pendentes de ciência (respeita a busca acima, ex: um bairro)</button>
+    <label class="lbl" id="rt-paradas-titulo">Paradas da rota</label>
+    <div id="rt-paradas" style="max-height:300px;overflow-y:auto;margin-bottom:12px"></div>
     <div class="modal-actions">
       <button class="btn" onclick="document.getElementById('modalRota').style.display='none'">Cancelar</button>
       <button class="btn primary" id="rt-btn-salvar" onclick="salvarRota()">Criar e otimizar rota</button>
@@ -829,7 +879,8 @@
 <div id="modalAdicionarRota" class="modal-overlay" style="display:none">
   <div class="modal">
     <h3>Adicionar a uma rota</h3>
-    <div class="sub" id="arEdifNome" style="margin-bottom:16px;font-weight:700"></div>
+    <div class="sub" id="arEdifNome" style="margin-bottom:6px;font-weight:700"></div>
+    <div class="sub" style="margin-bottom:16px">Entra como parada de Funcionamento — dá pra trocar o tipo em Rotas → Editar.</div>
 
     <div class="sec-title" style="margin-top:0">Adicionar a rota existente</div>
     <select id="arRotaExistente" style="margin-bottom:8px"><option value="">— escolha uma rota —</option></select>
@@ -1090,7 +1141,36 @@ var CL_FN = {
   ]
 };
 
-function getCL(tipo){ return tipo==='funcionamento' ? CL_FN : CL_HS; }
+// Tipos de vistoria: Habite-se, Funcionamento (padrão), Ex-ofício (usa o mesmo checklist do
+// Funcionamento) e Cartório (não tem checklist técnico — é visita pra registrar/dar ciência de
+// AF ou multa; subtipo em v.cartorioSubtipo: 'multa' | 'af' | 'ciencia', e v.cienciaDe: 'multa' | 'af')
+var TIPOS_VISTORIA = [
+  {id:'habite-se', l:'Habite-se'},
+  {id:'funcionamento', l:'Funcionamento'},
+  {id:'ex-oficio', l:'Ex-ofício'},
+  {id:'cartorio', l:'Cartório'}
+];
+var SISTEMAS_AF = [
+  {id:'ext', l:'Extintores'},
+  {id:'ilu', l:'Iluminação de emergência'},
+  {id:'sal', l:'Sinalização de abandono'},
+  {id:'glp', l:'GLP'},
+  {id:'outros', l:'Outros'}
+];
+function getCL(tipo){
+  if(tipo==='cartorio') return {};
+  return (tipo==='funcionamento' || tipo==='ex-oficio') ? CL_FN : CL_HS;
+}
+function rotuloVistoria(v){
+  var t = TIPOS_VISTORIA.find(function(x){return x.id===v.tipo;});
+  var rot = t ? t.l : 'Habite-se';
+  if(v.tipo==='cartorio' && v.cartorioSubtipo){
+    var sub = {multa:'Multa', af:'AF', ciencia:'Ciência'}[v.cartorioSubtipo];
+    if(v.cartorioSubtipo==='ciencia' && v.cienciaDe) sub += ' de '+(v.cienciaDe==='af'?'AF':'Multa');
+    rot += ' · '+sub;
+  }
+  return rot;
+}
 
 // Grupos do checklist que aparecem sempre, independente de quais sistemas preventivos estão ativos
 var GRUPOS_FIXOS = ['Documentação', 'Características Gerais do Bloco', 'Características Gerais'];
@@ -1183,8 +1263,20 @@ function navTo(v){
 // ════════════════════════════════════════
 var DB_KEY = 'vistoria_unificado';
 function loadDB(){
-  try{ return JSON.parse(localStorage.getItem(DB_KEY)) || {edificacoes:[],vistorias:[],trajetorias:[],pontos:[],rotas:[]}; }
-  catch(e){ return {edificacoes:[],vistorias:[],trajetorias:[],pontos:[],rotas:[]}; }
+  var db;
+  try{ db = JSON.parse(localStorage.getItem(DB_KEY)) || {edificacoes:[],vistorias:[],trajetorias:[],pontos:[],rotas:[]}; }
+  catch(e){ db = {edificacoes:[],vistorias:[],trajetorias:[],pontos:[],rotas:[]}; }
+  // migração: Multas virou Cartório (AF + Multa, múltiplos registros por edificação) — toda
+  // multa do formato antigo (e.multas) entra como um item tipo='multa' em e.cartorio, sem
+  // perder nada. Idempotente: só migra o que ainda não tem e.cartorio.
+  (db.edificacoes||[]).forEach(function(e){
+    if(!e.cartorio){
+      e.cartorio = (e.multas||[]).map(function(m){
+        return Object.assign({tipo:'multa', cienciaDadaEm:null, afOrigemId:null}, m);
+      });
+    }
+  });
+  return db;
 }
 function saveDB(db){ localStorage.setItem(DB_KEY, JSON.stringify(db)); }
 function novoId(prefixo){ return prefixo+'_'+Date.now()+'_'+Math.random().toString(36).slice(2,8); }
@@ -2245,30 +2337,26 @@ function excluirEdificacao(){
 
 function excluirTodasVistorias(){
   var db = loadDB();
-  var alvo = (db.vistorias||[]).filter(function(v){
-    if(filtroVist==='pendentes') return !v.concluida;
-    if(filtroVist==='concluidas') return v.concluida;
-    return true;
-  });
-  if(!alvo.length){ alert('Não há vistorias nessa lista pra excluir.'); return; }
-  var rotulo = filtroVist==='pendentes' ? 'PENDENTES' : (filtroVist==='concluidas' ? 'CONCLUÍDAS' : 'TODAS');
-  var ok = confirm('Excluir '+alvo.length+' vistoria(s) '+rotulo+'? Essa ação NÃO PODE ser desfeita.');
+  var alvo = vistoriasFiltradasHistorico(db); // exatamente o que está na tela, com todos os filtros
+  if(!alvo.length){ alert('Não há vistorias na lista pra excluir.'); return; }
+  var ok = confirm('Excluir as '+alvo.length+' vistoria(s) que estão listadas agora? Essa ação NÃO PODE ser desfeita.');
   if(!ok) return;
   var ok2 = confirm('Tem certeza mesmo? '+alvo.length+' vistoria(s) serão apagadas permanentemente.');
   if(!ok2) return;
   var idsAlvo = alvo.map(function(v){return v.id;});
   db.vistorias = (db.vistorias||[]).filter(function(v){ return idsAlvo.indexOf(v.id)<0; });
+  registrarExclusao(db, 'vistoriasExcluidas', idsAlvo);
   (db.rotas||[]).forEach(function(r){
     if(r.vistorias) r.vistorias = r.vistorias.filter(function(id){return idsAlvo.indexOf(id)<0;});
   });
   saveDB(db);
   renderVistorias();
 }
-
 function excluirVistoria(vistId){
   if(!confirm('Excluir esta vistoria? Essa ação não pode ser desfeita.')) return;
   var db = loadDB();
   db.vistorias = (db.vistorias||[]).filter(function(x){return x.id!==vistId;});
+  registrarExclusao(db, 'vistoriasExcluidas', [vistId]);
   // tira também de qualquer rota que a referenciava
   (db.rotas||[]).forEach(function(r){
     if(r.vistorias) r.vistorias = r.vistorias.filter(function(id){return id!==vistId;});
@@ -2431,7 +2519,7 @@ function salvarEdificacaoDoPonto(){
 // ════════════════════════════════════════
 // VISTORIAS — planejamento, histórico, relatório (Fase 10)
 // ════════════════════════════════════════
-var filtroVist = 'todas';
+var filtroVist = 'concluidas';
 function setFiltroVist(f){
   filtroVist = f;
   document.querySelectorAll('#vistFiltros button').forEach(function(b){b.classList.toggle('on', b.dataset.f===f);});
@@ -2497,68 +2585,49 @@ function vistoriaBateFiltrosExtra(v, db){
   return true;
 }
 
-function renderVistorias(){
+// Lista do Histórico: concluídas (padrão) ou planejadas soltas (sem rota — dado antigo). O mesmo
+// predicado serve pra desenhar a lista e pro "Excluir as listadas", pra nunca apagar o que não está na tela.
+function vistoriasFiltradasHistorico(db){
+  var mostrarAnosAnteriores = document.getElementById('vistMostrarAnosAnteriores').checked;
+  var tipoSel = document.getElementById('vistFiltroTipo').value;
+  var anoAtual = new Date().getFullYear();
+  return (db.vistorias||[]).filter(function(v){
+    if(filtroVist==='soltas' && (v.concluida || v.rotaId)) return false;
+    if(filtroVist==='concluidas' && !v.concluida) return false;
+    if(tipoSel && v.tipo!==tipoSel) return false;
+    // concluída de ano anterior fica escondida por padrão — continua acessível marcando
+    // "Mostrar anos anteriores" ou pela aba Relatórios (filtro multi-ano)
+    if(v.concluida && !mostrarAnosAnteriores && v.concluidaEm && new Date(v.concluidaEm).getFullYear()!==anoAtual) return false;
+    return vistoriaBateFiltrosExtra(v, db);
+  });
+}
+function renderVistoriasLista(){
   var db = loadDB();
   popularFiltroRotaVist(db);
+  // o botão de "planejadas sem rota" só aparece se existir alguma (dado de antes das rotas diretas)
+  var soltas = (db.vistorias||[]).filter(function(v){return !v.concluida && !v.rotaId;}).length;
+  var btnSoltas = document.getElementById('vistBtnSoltas');
+  btnSoltas.style.display = soltas ? '' : 'none';
+  btnSoltas.textContent = 'Planejadas sem rota ('+soltas+')';
+  if(filtroVist==='soltas' && !soltas){ filtroVist = 'concluidas'; document.querySelectorAll('#vistFiltros button').forEach(function(b){b.classList.toggle('on', b.dataset.f==='concluidas');}); }
 
-  if(filtroVist==='emrota'){ renderVistoriasPorRota(db); return; }
-
-  var lista = (db.vistorias||[]).filter(function(v){
-    if(filtroVist==='pendentes' && (v.concluida || v.rotaId)) return false;
-    if(filtroVist==='concluidas' && !v.concluida) return false;
-    return vistoriaBateFiltrosExtra(v, db);
-  }).sort(function(a,b){
-    // pendentes/em rota sempre primeiro, concluídas sempre por último — dentro de cada
-    // grupo, mais recente primeiro
-    if(!!a.concluida !== !!b.concluida) return a.concluida ? 1 : -1;
-    return new Date(b.criadoEm||0)-new Date(a.criadoEm||0);
+  var lista = vistoriasFiltradasHistorico(db).sort(function(a,b){
+    var da = new Date(b.concluidaEm||b.criadoEm||0) - new Date(a.concluidaEm||a.criadoEm||0);
+    return da;
   });
-
   var el = document.getElementById('vistList');
   if(!lista.length){
-    el.innerHTML = '<div class="empty"><div class="ico">✅</div>Nenhuma vistoria aqui ainda.</div>';
+    el.innerHTML = '<div class="empty"><div class="ico">🗄️</div>Nenhuma vistoria no histórico com esses filtros.</div>';
     return;
   }
   el.innerHTML = lista.map(function(v){ return renderVistoriaCard(v, db); }).join('');
 }
-
-// Filtro "Em rota": mostra as ROTAS (pendentes, com pelo menos 1 vistoria não concluída) como
-// cabeçalhos — clicar numa rota expande e mostra as vistorias dela, reaproveitando o mesmo card.
-var rotasExpandidas = {};
-function renderVistoriasPorRota(db){
-  var el = document.getElementById('vistList');
-  var rotaFiltro = document.getElementById('vistFiltroRotaSel').value;
-  var rotasComPendente = (db.rotas||[]).filter(function(r){
-    if(rotaFiltro && r.id!==rotaFiltro) return false;
-    return (r.vistorias||[]).some(function(vid){
-      var v = db.vistorias.find(function(x){return x.id===vid;});
-      return v && !v.concluida && vistoriaBateFiltrosExtra(v, db);
-    });
-  });
-  if(!rotasComPendente.length){
-    el.innerHTML = '<div class="empty"><div class="ico">✅</div>Nenhuma edificação em rota aguardando execução no momento.</div>';
-    return;
-  }
-  el.innerHTML = rotasComPendente.map(function(r){
-    var vistsDaRota = (r.vistorias||[]).map(function(vid){ return db.vistorias.find(function(x){return x.id===vid;}); }).filter(Boolean);
-    var pendentesDaRota = vistsDaRota.filter(function(v){ return !v.concluida && vistoriaBateFiltrosExtra(v, db); });
-    var aberta = !!rotasExpandidas[r.id];
-    var corpo = aberta ? pendentesDaRota.map(function(v){ return renderVistoriaCard(v, db); }).join('') : '';
-    return '<div class="vist-item" style="margin-bottom:10px">'+
-      '<div class="elist-row" style="cursor:pointer" onclick="toggleRotaExpandida(\''+r.id+'\')">'+
-        '<div style="flex:1;min-width:0">'+
-          '<div class="elist-t">🧭 '+r.nome+'</div>'+
-          '<div class="elist-s">'+(r.data?r.data+' · ':'')+pendentesDaRota.length+' edificação(ões) aguardando vistoria</div>'+
-        '</div>'+
-        '<div style="font-size:18px">'+(aberta?'▲':'▼')+'</div>'+
-      '</div>'+
-      (aberta ? '<div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">'+corpo+'</div>' : '')+
-    '</div>';
-  }).join('');
-}
-function toggleRotaExpandida(rotaId){
-  rotasExpandidas[rotaId] = !rotasExpandidas[rotaId];
-  renderVistorias();
+// as ações dos cartões (executar, WhatsApp, observação, tirar da rota...) existem na lista da Rotas e
+// no Histórico — ao mexer em qualquer uma, atualiza as duas telas
+function renderVistorias(){
+  renderVistoriasLista();
+  var vr = document.getElementById('v-rotas');
+  if(vr && vr.classList.contains('on')) renderRotas();
 }
 
 function renderVistoriaCard(v, db){
@@ -2609,7 +2678,9 @@ function renderVistoriaCard(v, db){
   }
   if(pendBloco>0) qtvIndef = true;
   var statusCls, statusTxt;
-  if(v.concluida){
+  var ehCart = v.tipo==='cartorio';
+  if(ehCart && v.concluida){ statusCls='def'; statusTxt='✅ Registrado no Cartório'; }
+  else if(v.concluida){
     if(qtvIndef || nc>0){ statusCls='indef'; statusTxt='⚠️ '+(nc>0?nc+' não conf.':(pendBloco>0?pendBloco+' preventivo(s) c/ pendência':'Indeferido (quantitativo)')); }
     else if(qtvInfr){ statusCls='pend'; statusTxt='⚠️ Aprovado c/ Auto de Infração'; }
     else { statusCls='def'; statusTxt='✅ Deferido'; }
@@ -2621,7 +2692,7 @@ function renderVistoriaCard(v, db){
     '<div class="vtop">'+
       '<div style="flex:1;min-width:0">'+
         '<div class="vnome">'+(e?e.nome:'⚠️ Edificação sem vínculo')+'</div>'+
-        '<div class="vsub">'+(e?e.re:'esta vistoria não está ligada a nenhuma edificação')+' · '+(v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+(v.motivo?' · '+v.motivo:'')+'</div>'+
+        '<div class="vsub">'+(e?e.re:'esta vistoria não está ligada a nenhuma edificação')+' · '+rotuloVistoria(v)+(v.motivo?' · '+v.motivo:'')+'</div>'+
         (v.obs ? '<div class="vsub" style="margin-top:4px;font-style:italic">📝 '+v.obs+'</div>' : '')+
       '</div>'+
       '<span class="vist-status '+statusCls+'">'+statusTxt+'</span>'+
@@ -2629,8 +2700,8 @@ function renderVistoriaCard(v, db){
     '<div class="btnrow" style="margin-top:10px;gap:8px;flex-wrap:wrap">'+
       (orfa ? '<button class="btn primary" onclick="abrirVincularVistoria(\''+v.id+'\')">🔗 Vincular edificação</button>' :
         (v.concluida
-          ? '<button class="btn" style="'+(v.relatorioCopiadoEm?'border:1px solid var(--verde);color:var(--verde)':'')+'" onclick="abrirRelatorio(\''+v.id+'\')">'+(v.relatorioCopiadoEm?'✅ Fechada (copiada em '+new Date(v.relatorioCopiadoEm).toLocaleDateString('pt-BR')+')':'Ver relatório')+'</button>'+(telWaVist ? renderBotaoResultadoWhatsapp(v) : '')
-          : '<button class="btn primary" onclick="abrirExecucaoQuartel(\''+v.id+'\')">Executar vistoria</button>'))+
+          ? '<button class="btn" style="'+(v.relatorioCopiadoEm?'border:1px solid var(--verde);color:var(--verde)':'')+'" onclick="abrirRelatorio(\''+v.id+'\')">'+(v.relatorioCopiadoEm?'✅ Fechada (copiada em '+new Date(v.relatorioCopiadoEm).toLocaleDateString('pt-BR')+')':'Ver relatório')+'</button>'+(telWaVist && !ehCart ? renderBotaoResultadoWhatsapp(v) : '')
+          : '<button class="btn primary" onclick="abrirExecucaoQuartel(\''+v.id+'\')">'+(ehCart?'Executar visita':'Executar vistoria')+'</button>'))+
       (!v.concluida && telWaVist ? renderBotaoConversarWhatsapp(v) : '')+
       (!v.concluida && v.rotaId ? '<button class="btn" onclick="removerVistoriaDaRota(\''+v.id+'\')">↩️ Remover da rota</button>' : '')+
       '<button class="btn" onclick="abrirObsVistoria(\''+v.id+'\')">'+(v.obs?'📝 Editar observação':'📝 Adicionar observação')+'</button>'+
@@ -2749,7 +2820,7 @@ function montarMensagemAgendarVisita(e, v){
     .replace(/{OBM}/g, obm.nome||'')
     .replace(/{NOME}/g, e.nome||'')
     .replace(/{RE}/g, e.re||'')
-    .replace(/{TIPO}/g, v.tipo==='funcionamento'?'Funcionamento':'Habite-se');
+    .replace(/{TIPO}/g, rotuloVistoria(v));
 }
 
 // Modelo pra quando já está numa rota (confirma data e período)
@@ -2772,70 +2843,222 @@ function montarMensagemConfirmarVisita(e, v, data, periodo){
     .replace(/{OBM}/g, obm.nome||'')
     .replace(/{NOME}/g, e.nome||'')
     .replace(/{RE}/g, e.re||'')
-    .replace(/{TIPO}/g, v.tipo==='funcionamento'?'Funcionamento':'Habite-se')
+    .replace(/{TIPO}/g, rotuloVistoria(v))
     .replace(/{DATA}/g, data)
     .replace(/{PERIODO}/g, periodo);
 }
 
-var pvEdifSelecionadasIds = [];
-function abrirPlanejarVist(edifIdPreSelecionado){
-  pvEdifSelecionadasIds = edifIdPreSelecionado ? [edifIdPreSelecionado] : [];
-  document.getElementById('pv-edif-busca').value = '';
-  document.getElementById('pv-motivo').value='';
-  renderPvEdifLista();
-  document.getElementById('modalPlanVist').style.display='flex';
-}
-function renderPvEdifLista(){
-  var db = loadDB();
-  var busca = (document.getElementById('pv-edif-busca').value||'').toLowerCase();
-  var lista = (db.edificacoes||[]).filter(function(e){
-    if(!busca) return true;
-    return (e.re||'').toLowerCase().indexOf(busca)>=0 || (e.nome||'').toLowerCase().indexOf(busca)>=0 ||
-      (e.endereco||'').toLowerCase().indexOf(busca)>=0 || (e.bairro||'').toLowerCase().indexOf(busca)>=0 ||
-      (e.municipio||'').toLowerCase().indexOf(busca)>=0;
-  }).sort(function(a,b){ return (a.re||'').localeCompare(b.re||'', undefined, {numeric:true}); });
-
-  var el = document.getElementById('pv-edif-lista');
-  if(!lista.length){ el.innerHTML = '<div class="sub" style="padding:10px">Nenhuma edificação encontrada.</div>'; }
-  else {
-    el.innerHTML = lista.map(function(e){
-      var sel = pvEdifSelecionadasIds.indexOf(e.id)>=0;
-      return '<div onclick="selecionarPvEdif(\''+e.id+'\')" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;'+(sel?'background:rgba(192,39,45,.15)':'')+'">'+
-        '<div style="font-weight:700">'+(sel?'✓ ':'')+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+'</div>'+
-        '<div style="color:var(--sub);font-size:11px">'+(e.municipio||'')+(e.bairro?' · '+e.bairro:'')+'</div>'+
-      '</div>';
-    }).join('');
+// ════════════════════════════════════════
+// VISITA DE CARTÓRIO (tipo de vistoria 'cartorio') — Multa, AF ou Ciência (de Multa ou de AF).
+// A visita guarda o que foi feito na própria vistoria; ao concluir, `aplicarCartorioDaVistoria`
+// lança isso em e.cartorio (idempotente — v.cartorioAplicadoEm). Assim vistorias de Cartório
+// feitas no Campo e importadas no Quartel entram no Cartório sem conflito de edição.
+// ════════════════════════════════════════
+function aplicarCampoCartorio(st, campo, valor){
+  if(campo==='cartorioSubtipo'){
+    st.cartorioSubtipo = valor;
+    if(valor!=='ciencia') st.cienciaDe = null;
+    st.cienciaItemId = null; st.cienciaBaixas = [];
+  } else if(campo==='cienciaDe'){
+    st.cienciaDe = valor; st.cienciaItemId = null; st.cienciaBaixas = [];
+  } else if(campo==='toggleSistema'){
+    st.afSistemas = st.afSistemas || [];
+    var i = st.afSistemas.indexOf(valor);
+    if(i>=0) st.afSistemas.splice(i,1); else st.afSistemas.push(valor);
   }
-
-  var infoEl = document.getElementById('pv-selecionadas-info');
-  var n = pvEdifSelecionadasIds.length;
-  infoEl.textContent = n ? n+' edificação(ões) selecionada(s) — a busca não desmarca, pode continuar buscando e marcando mais.' : 'Nenhuma selecionada ainda. Marque uma ou mais na lista abaixo.';
-  document.getElementById('pv-btn-planejar').textContent = n>1 ? 'Planejar '+n+' vistorias' : 'Planejar';
 }
-function selecionarPvEdif(id){
-  var idx = pvEdifSelecionadasIds.indexOf(id);
-  if(idx>=0) pvEdifSelecionadasIds.splice(idx,1);
-  else pvEdifSelecionadasIds.push(id);
-  renderPvEdifLista();
+function htmlSeletorCartorio(st, fn){
+  var sub = st.cartorioSubtipo;
+  function btn(campo, valor, rot, ativo){
+    return '<button type="button" class="btn" style="width:auto;padding:8px 14px;'+(ativo?'background:var(--red2);color:#fff':'')+'" onclick="'+fn+'(\''+campo+'\',\''+valor+'\')">'+rot+'</button>';
+  }
+  var h = '<div class="sub" style="margin-bottom:4px">Cartório:</div><div class="btnrow" style="gap:6px;margin-bottom:8px;flex-wrap:wrap">'+
+    btn('cartorioSubtipo','multa','💰 Multa',sub==='multa')+
+    btn('cartorioSubtipo','af','📋 AF',sub==='af')+
+    btn('cartorioSubtipo','ciencia','✍️ Ciência',sub==='ciencia')+'</div>';
+  if(sub==='ciencia'){
+    h += '<div class="sub" style="margin-bottom:4px">Ciência de:</div><div class="btnrow" style="gap:6px;margin-bottom:8px">'+
+      btn('cienciaDe','multa','Multa',st.cienciaDe==='multa')+btn('cienciaDe','af','AF',st.cienciaDe==='af')+'</div>';
+  }
+  if(sub==='af'){
+    var marc = st.afSistemas || [];
+    h += '<div class="sub" style="margin-bottom:4px">Sistemas da AF (marque quantos precisar):</div><div class="btnrow" style="gap:6px;margin-bottom:8px;flex-wrap:wrap">'+
+      SISTEMAS_AF.map(function(x){ var on = marc.indexOf(x.id)>=0; return btn('toggleSistema', x.id, (on?'☑ ':'☐ ')+x.l, on); }).join('')+'</div>';
+  }
+  return h;
 }
-
-function salvarPlanejamentoVist(){
-  if(!pvEdifSelecionadasIds.length){ alert('Selecione ao menos uma edificação na lista.'); return; }
-  var db = loadDB();
-  var tipo = document.getElementById('pv-tipo').value;
-  var motivo = document.getElementById('pv-motivo').value.trim();
-  var agora = new Date().toISOString();
-  pvEdifSelecionadasIds.forEach(function(edifId){
-    db.vistorias.push({
-      id: novoId('vis'), edificacaoId: edifId,
-      tipo: tipo, motivo: motivo,
-      checklist:{}, situacaoHS:'', obs:'', concluida:false, concluidaEm:null,
-      trajetoriaId:null, rotaId:null, criadoEm:agora, atualizadoEm:agora
+function quPrazoPadraoCartorio(v){
+  return formatarDataBR(ajustarPrazoDiaUtil(calcularPrazoPadraoAF({tipo:'funcionamento'}, [v.cartorioMotivo||''])));
+}
+function aplicarCartorioDaVistoria(db, v){
+  if(v.tipo!=='cartorio' || !v.concluida || v.cartorioAplicadoEm) return false;
+  var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
+  if(!e) return false;
+  if(!e.cartorio) e.cartorio = [];
+  var agora = v.concluidaEm || new Date().toISOString();
+  var sub = v.cartorioSubtipo;
+  if(sub==='af' || sub==='multa'){
+    var itens = [];
+    if(sub==='af'){
+      (v.afSistemas||[]).forEach(function(id){
+        var x = SISTEMAS_AF.find(function(y){return y.id===id;});
+        if(x) itens.push({texto:x.l, resolvidoEm:null});
+      });
+    }
+    var detalhe = (v.cartorioMotivo||'').trim();
+    if(detalhe) itens.push({texto:detalhe, resolvidoEm:null});
+    e.cartorio.push({
+      id:novoId('cart'), tipo:sub, numero:(v.cartorioNumero||'').trim(),
+      motivo: itens.map(function(i){return i.texto;}).join('\n'),
+      prazo: (v.cartorioPrazo!=null && v.cartorioPrazo!=='') ? v.cartorioPrazo : (sub==='af' ? quPrazoPadraoCartorio(v) : ''),
+      criadaEm:agora, resolvidaEm:null, cienciaDadaEm:null, avisoEnviadoEm:null, afOrigemId:null,
+      vistoriaOrigemId:v.id, afSistemas:(v.afSistemas||[]).slice(), itensPendencia:itens
     });
-  });
+  } else if(sub==='ciencia'){
+    var item = e.cartorio.find(function(x){return x.id===v.cienciaItemId;});
+    if(item){
+      item.cienciaDadaEm = agora;
+      if(item.tipo==='af' && v.cienciaBaixas && v.cienciaBaixas.length){
+        item.itensPendencia = normalizarItensPendencia(item.itensPendencia);
+        v.cienciaBaixas.forEach(function(i){
+          if(item.itensPendencia[i] && !item.itensPendencia[i].resolvidoEm) item.itensPendencia[i].resolvidoEm = agora;
+        });
+      }
+    }
+  }
+  v.cartorioAplicadoEm = new Date().toISOString();
+  return true;
+}
+function aplicarCartorioPendentes(){
+  var db = loadDB(), mudou = false;
+  (db.vistorias||[]).forEach(function(v){ if(aplicarCartorioDaVistoria(db, v)) mudou = true; });
+  if(mudou) saveDB(db);
+}
+
+function quHtmlCartorio(e, v){
+  var h = '<div class="sec-title" style="margin-top:14px">Visita de Cartório</div>';
+  var sub = v.cartorioSubtipo;
+  if(v.concluida){
+    return h + '<div class="sub">'+rotuloVistoria(v)+' — ✅ concluída e registrada no Cartório.</div>';
+  }
+  h += htmlSeletorCartorio(v, 'quSetCartorio');
+  function campoTxt(lbl, campo, ph, valor){
+    var val = (valor!=null) ? valor : (v[campo]||'');
+    return '<label class="lbl">'+lbl+'</label><input type="text" value="'+String(val).replace(/"/g,'&quot;')+'" placeholder="'+ph+'" style="margin-bottom:10px" onchange="quSetCartorioTexto(\''+campo+'\',this.value)">';
+  }
+  if(sub==='af' || sub==='multa'){
+    h += campoTxt(sub==='af' ? 'Detalhe da AF (opcional — além dos sistemas marcados)' : 'Motivo da multa', 'cartorioMotivo', 'Ex: extintor sem carga no 2º pavimento');
+    h += campoTxt(sub==='af' ? 'Número da AF (opcional — pode completar depois)' : 'Número da multa', 'cartorioNumero', 'Ex: 2026/00123');
+    h += campoTxt('Prazo (DD/MM/AAAA)', 'cartorioPrazo', 'DD/MM/AAAA', v.cartorioPrazo!=null ? v.cartorioPrazo : (sub==='af' ? quPrazoPadraoCartorio(v) : ''));
+  } else if(sub==='ciencia'){
+    if(!v.cienciaDe){ h += '<div class="sub">Escolha acima se é ciência de Multa ou de AF.</div>'; }
+    else {
+      var cand = (e.cartorio||[]).filter(function(m){ return m.tipo===v.cienciaDe && !m.resolvidaEm && !m.cienciaDadaEm; });
+      if(!cand.length){
+        h += '<div class="sub">Nenhuma '+(v.cienciaDe==='af'?'AF':'multa')+' pendente de ciência nesta edificação.</div>';
+      } else {
+        h += '<div class="sub" style="margin:8px 0 4px">Qual '+(v.cienciaDe==='af'?'AF':'multa')+'?</div>';
+        cand.forEach(function(m){
+          h += '<label style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;font-size:13px"><input type="radio" name="qu-ciencia-item" style="width:auto;margin-top:3px" '+(v.cienciaItemId===m.id?'checked':'')+' onchange="quSelecionarItemCiencia(\''+m.id+'\')"> <span>'+(m.tipo==='af'?'AF':'Multa')+' nº '+(m.numero||'(sem número)')+(m.prazo?' · prazo '+m.prazo:'')+(m.motivo?'<br><span class="sub">'+m.motivo.replace(/</g,'&lt;').replace(/\n/g,' · ')+'</span>':'')+'</span></label>';
+        });
+        var sel = cand.find(function(m){return m.id===v.cienciaItemId;});
+        if(sel && sel.tipo==='af'){
+          var itens = normalizarItensPendencia(sel.itensPendencia);
+          if(itens.length){
+            h += '<div class="sub" style="margin:10px 0 4px">Marque os itens que já foram regularizados (baixa):</div>';
+            itens.forEach(function(it, i){
+              var marcado = !!it.resolvidoEm || (v.cienciaBaixas||[]).indexOf(i)>=0;
+              h += '<label style="display:flex;gap:8px;align-items:flex-start;padding:4px 0;font-size:13px"><input type="checkbox" style="width:auto;margin-top:3px" '+(marcado?'checked':'')+(it.resolvidoEm?' disabled':'')+' onchange="quToggleBaixaCiencia('+i+')"> <span>'+it.texto.replace(/</g,'&lt;')+(it.resolvidoEm?' <span style="color:var(--verde)">(resolvido em '+new Date(it.resolvidoEm).toLocaleDateString('pt-BR')+')</span>':'')+'</span></label>';
+            });
+          }
+        }
+      }
+    }
+  } else {
+    h += '<div class="sub">Escolha acima o que vai ser feito nesta visita.</div>';
+  }
+  return h;
+}
+function quSetCartorio(campo, valor){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v) return;
+  aplicarCampoCartorio(v, campo, valor);
+  v.atualizadoEm = new Date().toISOString();
   saveDB(db);
-  document.getElementById('modalPlanVist').style.display='none';
-  renderVistorias();
+  renderExecucaoQuartel();
+}
+function quSetCartorioTexto(campo, val){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v) return;
+  v[campo] = val;
+  v.atualizadoEm = new Date().toISOString();
+  saveDB(db);
+}
+function quSelecionarItemCiencia(itemId){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v) return;
+  v.cienciaItemId = itemId; v.cienciaBaixas = [];
+  saveDB(db);
+  renderExecucaoQuartel();
+}
+function quToggleBaixaCiencia(idx){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v) return;
+  v.cienciaBaixas = v.cienciaBaixas || [];
+  var i = v.cienciaBaixas.indexOf(idx);
+  if(i>=0) v.cienciaBaixas.splice(i,1); else v.cienciaBaixas.push(idx);
+  saveDB(db);
+  renderExecucaoQuartel();
+}
+function quConcluirCartorio(){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v) return;
+  var sub = v.cartorioSubtipo;
+  if(!sub){ alert('Escolha se a visita é de Multa, AF ou Ciência.'); return; }
+  if(sub==='af' && !(v.afSistemas||[]).length && !(v.cartorioMotivo||'').trim()){ alert('Marque ao menos um sistema da AF ou escreva o detalhe.'); return; }
+  if(sub==='multa' && !(v.cartorioNumero||'').trim()){ alert('Informe o número da multa.'); return; }
+  if(sub==='ciencia' && (!v.cienciaDe || !v.cienciaItemId)){ alert('Escolha qual '+(v.cienciaDe==='af'?'AF':'multa')+' recebeu a ciência.'); return; }
+  if(!confirm('Concluir esta visita e registrar no Cartório?')) return;
+  v.concluida = true;
+  v.concluidaEm = new Date().toISOString();
+  aplicarCartorioDaVistoria(db, v);
+  saveDB(db);
+  renderExecucaoQuartel();
+}
+function abrirRelatorioCartorio(v, e, vistId){
+  var L = [];
+  L.push((e?e.nome:'—')+' — RE '+(e?e.re:''));
+  L.push(rotuloVistoria(v)+' · concluída em '+(v.concluidaEm?new Date(v.concluidaEm).toLocaleString('pt-BR'):'—'));
+  L.push('');
+  if(v.cartorioSubtipo==='af' || v.cartorioSubtipo==='multa'){
+    var nomes = (v.afSistemas||[]).map(function(id){ var x = SISTEMAS_AF.find(function(y){return y.id===id;}); return x?x.l:id; });
+    if(nomes.length) L.push('Sistemas: '+nomes.join(', '));
+    if((v.cartorioMotivo||'').trim()) L.push((v.cartorioSubtipo==='af'?'Detalhe: ':'Motivo: ')+v.cartorioMotivo.trim());
+    L.push('Número: '+((v.cartorioNumero||'').trim() || '(ainda sem número)'));
+    var item = e && (e.cartorio||[]).find(function(m){return m.vistoriaOrigemId===v.id;});
+    var prazo = (v.cartorioPrazo!=null && v.cartorioPrazo!=='') ? v.cartorioPrazo : (item ? item.prazo : '');
+    if(prazo) L.push('Prazo: '+prazo);
+  } else if(v.cartorioSubtipo==='ciencia'){
+    var it = e && (e.cartorio||[]).find(function(m){return m.id===v.cienciaItemId;});
+    L.push('Ciência de '+(v.cienciaDe==='af'?'AF':'multa')+(it ? ' nº '+(it.numero||'(sem número)') : ''));
+    if(it && v.cienciaBaixas && v.cienciaBaixas.length){
+      var baixados = normalizarItensPendencia(it.itensPendencia);
+      L.push('Itens baixados nesta visita:');
+      v.cienciaBaixas.forEach(function(i){ if(baixados[i]) L.push('- '+baixados[i].texto); });
+    }
+  }
+  var texto = L.join('\n');
+  window._relatorioTextoAtual = texto;
+  window._relatorioVistIdAtual = vistId;
+  var html = '<pre style="white-space:pre-wrap;font-family:inherit;font-size:14px;line-height:1.6;margin:0">'+texto.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</pre>'+
+    '<div class="modal-actions"><button class="btn" onclick="copiarRelatorioTexto()">📋 Copiar em texto</button><button class="btn primary" onclick="document.getElementById(\'modalRelatorio\').style.display=\'none\'">Fechar</button></div>';
+  document.getElementById('relatorioBody').innerHTML = html;
+  document.getElementById('modalRelatorio').style.display = 'flex';
 }
 
 function abrirRelatorio(vistId){
@@ -2843,6 +3066,7 @@ function abrirRelatorio(vistId){
   var v = db.vistorias.find(function(x){return x.id===vistId;});
   if(!v) return;
   var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
+  if(v.tipo==='cartorio'){ abrirRelatorioCartorio(v, e, vistId); return; }
   var cl = getCL(v.tipo);
   var gruposAtivos = getGruposAtivosQuartel(e);
   var grupos = Object.keys(cl).filter(function(g){return gruposAtivos.indexOf(g)>=0;});
@@ -2955,7 +3179,10 @@ function abrirRelatorio(vistId){
   var html = '<pre style="white-space:pre-wrap;font-family:inherit;font-size:14px;line-height:1.6;margin:0">'+
     textoRelatorio.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+
   '</pre>';
-  html += '<div class="modal-actions"><button class="btn" onclick="copiarRelatorioTexto()">📋 Copiar em texto</button><button class="btn primary" onclick="document.getElementById(\'modalRelatorio\').style.display=\'none\'">Fechar</button></div>';
+  var btnGerarAF = totalPendencias>0
+    ? '<button class="btn" style="background:var(--red2);color:#fff" onclick="abrirGerarAFDeVistoria(\''+vistId+'\')">📋 Gerar AF a partir desta vistoria</button>'
+    : '';
+  html += '<div class="modal-actions">'+btnGerarAF+'<button class="btn" onclick="copiarRelatorioTexto()">📋 Copiar em texto</button><button class="btn primary" onclick="document.getElementById(\'modalRelatorio\').style.display=\'none\'">Fechar</button></div>';
   document.getElementById('relatorioBody').innerHTML = html;
   document.getElementById('modalRelatorio').style.display='flex';
 }
@@ -2963,7 +3190,8 @@ function abrirRelatorio(vistId){
 function gerarRelatorioTexto(e, v, pendGerais, duvidasGerais, porBloco, aprovadosPorBloco, totalItens, reprovadosChecklist, totalPendencias){
   var linhas = [];
   linhas.push((e?e.nome:'—')+' — RE '+(e?e.re:''));
-  linhas.push((v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+' · concluída em '+(v.concluidaEm?new Date(v.concluidaEm).toLocaleString('pt-BR'):'—'));
+  linhas.push(rotuloVistoria(v)+' · concluída em '+(v.concluidaEm?new Date(v.concluidaEm).toLocaleString('pt-BR'):'—'));
+  if(v.ocupacao && v.ocupacao.trim()) linhas.push('Ocupação: '+v.ocupacao.trim());
   linhas.push('');
   linhas.push('RESUMO: '+(totalItens-reprovadosChecklist)+' de '+totalItens+' itens do checklist aprovados · '+totalPendencias+' pendência(s) no total'+(duvidasGerais.length?' · '+duvidasGerais.length+' dúvida(s)':''));
   linhas.push('');
@@ -2990,6 +3218,9 @@ function gerarRelatorioTexto(e, v, pendGerais, duvidasGerais, porBloco, aprovado
         linhas.push('- '+r.texto+': '+r.motivo+(r.obs?' (Obs: '+r.obs+')':''));
       });
     }
+    linhas.push('');
+    linhas.push('⚠️ Diante das pendências acima, será lavrado Auto de Infração (AF) com prazo pra regularização. '+
+      'Pra darmos andamento, envie: nome completo, CPF, e a ciência deste AF.');
   }
   if(duvidasGerais.length){
     linhas.push('');
@@ -3234,6 +3465,17 @@ function quSetItemStatus(itemId, status){
   saveDB(db);
   renderExecucaoQuartel();
 }
+function quSetOcupacao(val){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v) return;
+  v.ocupacao = val;
+  v.atualizadoEm = new Date().toISOString();
+  // lembra na edificação — a próxima vistoria desse local já abre com essa ocupação preenchida
+  var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
+  if(e) e.ocupacao = val;
+  saveDB(db);
+}
 function quSetItemCampo(itemId, campo, val){
   var db = loadDB();
   var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
@@ -3336,10 +3578,24 @@ function renderExecucaoQuartel(){
   var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
   if(!e){ document.getElementById('execucaoBody').innerHTML='<div class="sub">Edificação não encontrada.</div>'; return; }
 
-  var html = '<h3>'+(e.nome||'Sem nome')+'</h3><div class="sub">'+(e.re||'Sem RE')+' · '+(v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+'</div>';
+  var html = '<h3>'+(e.nome||'Sem nome')+'</h3><div class="sub">'+(e.re||'Sem RE')+' · '+rotuloVistoria(v)+'</div>';
+
+  if(v.tipo==='cartorio'){
+    html += quHtmlCartorio(e, v);
+    html += '<div class="modal-actions" style="margin-top:14px"><button class="btn" onclick="fecharExecucaoQuartel()">Fechar</button>'+
+      (v.concluida ? '<button class="btn" disabled>✅ Concluída</button>' : '<button class="btn primary" onclick="quConcluirCartorio()">✅ Registrar no Cartório e concluir</button>')+'</div>';
+    document.getElementById('execucaoBody').innerHTML = html;
+    return;
+  }
 
   var hs = infoHabiteSe(e);
   html += '<div class="hs-banner '+hs.classe+'" style="margin:14px 0">'+hs.icone+' Habite-se: '+hs.texto+(hs.protocolo?' · '+hs.protocolo:'')+'</div>';
+
+  // Ocupação do local — texto livre, vai pro relatório. Se esta vistoria ainda não tem nada
+  // escrito, já vem preenchido com a última ocupação registrada pra essa edificação.
+  var ocupacaoAtual = (v.ocupacao!=null) ? v.ocupacao : (e.ocupacao||'');
+  html += '<label class="lbl" style="margin-top:4px">Ocupação do local</label>'+
+    '<input type="text" value="'+ocupacaoAtual.replace(/"/g,'&quot;')+'" placeholder="Ex: Comércio de roupas (F-6), loja térrea + depósito" style="margin-bottom:14px" onchange="quSetOcupacao(this.value)">';
 
   html += '<div style="font-size:12px;color:var(--sub);margin-bottom:6px">Sistemas preventivos ativos nesta edificação:</div>';
   html += '<div class="prev-chips">'+SIST.map(function(s){
@@ -3613,23 +3869,59 @@ function excluirRotaFixa(id){
   saveDB(db);
   renderRotasFixas();
 }
+// ordem das paradas pelo vizinho mais próximo (haversine) — devolve ids na ordem + distância total
+function otimizarOrdemRota(db, vists){
+  var comCoord = vists.map(function(v){
+    return {v:v, e: db.edificacoes.find(function(x){return x.id===v.edificacaoId;})};
+  }).filter(function(x){ return x.e && x.e.lat && x.e.lng; });
+  var semCoord = vists.filter(function(v){
+    var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
+    return !(e && e.lat && e.lng);
+  });
+  var ordenados = [], restantes = comCoord.slice();
+  if(restantes.length){
+    var atual = restantes.shift();
+    ordenados.push(atual);
+    while(restantes.length){
+      restantes.sort(function(a,b){
+        return haversineKm(atual.e.lat,atual.e.lng,a.e.lat,a.e.lng) - haversineKm(atual.e.lat,atual.e.lng,b.e.lat,b.e.lng);
+      });
+      atual = restantes.shift();
+      ordenados.push(atual);
+    }
+  }
+  var dist = 0;
+  for(var i=0;i<ordenados.length-1;i++){
+    dist += haversineKm(ordenados[i].e.lat,ordenados[i].e.lng,ordenados[i+1].e.lat,ordenados[i+1].e.lng);
+  }
+  return {ids: ordenados.map(function(x){return x.v.id;}).concat(semCoord.map(function(v){return v.id;})), dist: dist};
+}
+
+// Rota fixa: cria direto uma ROTA com as edificações que estão vencidas no ciclo (cada uma é uma parada)
 function gerarVistoriasRotaFixa(id){
   var db = loadDB();
   var tpl = (db.rotasFixas||[]).find(function(r){return r.id===id;});
   if(!tpl) return;
   var elegiveis = edificacoesElegiveisRotaFixa(db, tpl);
   if(!elegiveis.length){ alert('Nenhuma edificação elegível agora — todas dentro do ciclo ou já com vistoria pendente.'); return; }
-  elegiveis.forEach(function(e){
-    db.vistorias.push({
-      id: novoId('vis'), edificacaoId: e.id, tipo: tpl.tipo, motivo: 'Rota fixa: '+tpl.nome,
-      checklist:{}, situacaoHS:'', obs:'', concluida:false, concluidaEm:null,
-      trajetoriaId:null, rotaId:null,
-      criadoEm: new Date().toISOString(), atualizadoEm: new Date().toISOString()
-    });
+  var hoje = new Date(); var pz=function(n){return (n<10?'0':'')+n;};
+  var dataHoje = pz(hoje.getDate())+'/'+pz(hoje.getMonth()+1)+'/'+hoje.getFullYear();
+  var agora = hoje.toISOString();
+  var rotaId = novoId('rot');
+  var vists = elegiveis.map(function(e){
+    var v = {id:novoId('vis'), edificacaoId:e.id, tipo:tpl.tipo, motivo:'Rota fixa: '+tpl.nome,
+      checklist:{}, situacaoHS:'', obs:'', concluida:false, concluidaEm:null, trajetoriaId:null,
+      rotaId:rotaId, criadoEm:agora, atualizadoEm:agora, criadaPelaRota:true};
+    db.vistorias.push(v);
+    return v;
   });
+  var ot = otimizarOrdemRota(db, vists);
+  db.rotas = db.rotas||[];
+  db.rotas.push({id:rotaId, nome:tpl.nome+' — '+dataHoje, data:dataHoje, vistorias:ot.ids, distanciaEstimadaKm:ot.dist, ordemOtimizada:true, atualizadoEm:agora, rotaFixaId:tpl.id});
   saveDB(db);
-  alert(elegiveis.length+' vistoria(s) pendente(s) gerada(s). Agora é só criar uma rota avulsa normal pra agrupar e otimizar o trajeto.');
+  alert('Rota "'+tpl.nome+' — '+dataHoje+'" criada com '+vists.length+' parada(s), já na melhor ordem. Veja em "Rotas avulsas" logo abaixo.');
   renderRotasFixas();
+  renderRotas();
 }
 function renderRotasFixas(){
   var db = loadDB();
@@ -3641,7 +3933,7 @@ function renderRotasFixas(){
   }
   el.innerHTML = lista.map(function(tpl){
     var elegiveis = edificacoesElegiveisRotaFixa(db, tpl);
-    var criterios = 'Risco '+tpl.riscoMin+'+'+(tpl.municipio?' · '+tpl.municipio:'')+(tpl.bairro?' · '+tpl.bairro:'')+' · ciclo '+tpl.cicloDias+'d · '+(tpl.tipo==='funcionamento'?'Funcionamento':'Habite-se');
+    var criterios = 'Risco '+tpl.riscoMin+'+'+(tpl.municipio?' · '+tpl.municipio:'')+(tpl.bairro?' · '+tpl.bairro:'')+' · ciclo '+tpl.cicloDias+'d · '+rotuloVistoria(tpl);
     return '<div class="vist-item"><div class="elist-row">'+
       '<div><div class="elist-t">'+tpl.nome+'</div><div class="elist-s">'+criterios+'</div></div>'+
       '<div style="text-align:right">'+
@@ -3649,7 +3941,7 @@ function renderRotasFixas(){
       '</div>'+
     '</div>'+
     '<div class="btnrow" style="gap:8px;margin-top:8px">'+
-      '<button class="btn primary" style="flex:1" onclick="gerarVistoriasRotaFixa(\''+tpl.id+'\')" '+(elegiveis.length?'':'disabled')+'>Gerar '+elegiveis.length+' vistoria(s) pendente(s)</button>'+
+      '<button class="btn primary" style="flex:1" onclick="gerarVistoriasRotaFixa(\''+tpl.id+'\')" '+(elegiveis.length?'':'disabled')+'>Criar rota com '+elegiveis.length+' edificação(ões)</button>'+
       '<button class="btn" style="background:var(--red2)" onclick="excluirRotaFixa(\''+tpl.id+'\')">Excluir</button>'+
     '</div></div>';
   }).join('');
@@ -3723,7 +4015,18 @@ var MODELO_AVISO_MULTA_PADRAO =
 'I. Informamos que a edificação *{NOME} - RE{RE}* foi autuada — Multa nº *{MULTA_NUMERO}*.\n\n'+
 'II. Motivo: {MULTA_MOTIVO}\n\n'+
 'III. Prazo para regularização: *{MULTA_PRAZO}*\n\n'+
-'IV. Providencie a regularização junto ao sistema e-SCI dentro do prazo, para evitar novas autuações.\n\n'+
+'IV. Pra darmos andamento, precisamos que você nos envie: *nome completo*, *CPF*, e a *ciência desta multa* (uma mensagem confirmando que recebeu e está ciente já serve).\n\n'+
+'V. Providencie a regularização junto ao sistema e-SCI dentro do prazo, para evitar novas autuações.\n\n'+
+'Att.,\n'+
+'SSCI da {OBM}';
+
+var MODELO_AVISO_AF_PADRAO =
+'*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*\n*{OBM}*\n\n'+
+'Olá, boa tarde.\n'+
+'I. Informamos que a edificação *{NOME} - RE{RE}* recebeu um Auto de Infração (AF) nº *{MULTA_NUMERO}*.\n\n'+
+'II. Motivo: {MULTA_MOTIVO}\n\n'+
+'III. Prazo para regularização: *{MULTA_PRAZO}*. Se não for cumprido dentro do prazo, poderá ser gerada multa.\n\n'+
+'IV. Pra darmos andamento, precisamos que você nos envie: *nome completo*, *CPF*, e a *ciência deste AF* (uma mensagem confirmando que recebeu e está ciente já serve).\n\n'+
 'Att.,\n'+
 'SSCI da {OBM}';
 
@@ -3779,6 +4082,12 @@ function carregarModeloAvisoMulta(){
 function salvarModeloAvisoMulta(){
   localStorage.setItem('vistoria_modelo_aviso_multa', document.getElementById('avisoModeloMulta').value);
 }
+function carregarModeloAvisoAF(){
+  return localStorage.getItem('vistoria_modelo_aviso_af') || MODELO_AVISO_AF_PADRAO;
+}
+function salvarModeloAvisoAF(){
+  localStorage.setItem('vistoria_modelo_aviso_af', document.getElementById('avisoModeloAF').value);
+}
 function carregarModeloResultadoVistoria(){
   return localStorage.getItem('vistoria_modelo_resultado_vistoria') || MODELO_RESULTADO_VISTORIA_PADRAO;
 }
@@ -3790,13 +4099,15 @@ function montarMensagemResultadoVistoria(e, v){
   var res = calcularResumoPendenciasVistoria(e, v);
   var resultado = res.totalErrados===0 ? 'DEFERIDO' : 'INDEFERIDO';
   var detalhe = res.totalErrados>0
-    ? 'Foram identificados '+res.totalErrados+' item(ns) que precisam de regularização. Entre em contato para mais detalhes ou para agendar nova verificação.\n\n'
+    ? 'Foram identificados os seguintes itens que precisam de regularização:\n'+
+      res.alteracoes.map(function(a){return '- '+a;}).join('\n')+'\n\n'+
+      'Diante disso, será lavrado Auto de Infração (AF) com prazo pra regularização. Pra darmos andamento, envie: nome completo, CPF, e a ciência deste AF.\n\n'
     : '';
   return carregarModeloResultadoVistoria()
     .replace(/{OBM}/g, obm.nome||'')
     .replace(/{NOME}/g, e.nome||'')
     .replace(/{RE}/g, e.re||'')
-    .replace(/{TIPO}/g, v.tipo==='funcionamento'?'Funcionamento':'Habite-se')
+    .replace(/{TIPO}/g, rotuloVistoria(v))
     .replace(/{DATA}/g, v.concluidaEm ? new Date(v.concluidaEm).toLocaleDateString('pt-BR') : '')
     .replace(/{RESULTADO}/g, resultado)
     .replace(/{DETALHE_PENDENCIA}/g, detalhe);
@@ -3898,18 +4209,19 @@ function enviarAvisoFuncionamento(edifId){
 
 function montarMensagemAvisoMulta(e, m){
   var obm = carregarDadosObm();
-  return carregarModeloAvisoMulta()
+  var modelo = m.tipo==='af' ? carregarModeloAvisoAF() : carregarModeloAvisoMulta();
+  return modelo
     .replace(/{OBM}/g, obm.nome||'')
     .replace(/{NOME}/g, e.nome||'')
     .replace(/{RE}/g, e.re||'')
-    .replace(/{MULTA_NUMERO}/g, m.numero||'')
+    .replace(/{MULTA_NUMERO}/g, m.numero||'(em registro)')
     .replace(/{MULTA_MOTIVO}/g, m.motivo||'—')
     .replace(/{MULTA_PRAZO}/g, m.prazo||'—');
 }
 function enviarAvisoMulta(edifId, multaId){
   var db = loadDB();
   var e = db.edificacoes.find(function(x){return x.id===edifId;});
-  var m = e && (e.multas||[]).find(function(x){return x.id===multaId;});
+  var m = e && (e.cartorio||[]).find(function(x){return x.id===multaId;});
   if(!e || !m) return;
   var telWa = telefoneParaWhatsapp(e.responsavel && e.responsavel.tel);
   if(!telWa){ alert('Esta edificação não tem telefone cadastrado.'); return; }
@@ -4034,6 +4346,7 @@ function renderAvisos(){
   document.getElementById('avisoModeloHabiteSe').value = carregarModeloAvisoHabiteSe();
   document.getElementById('avisoModeloFuncNecessidade').value = carregarModeloAvisoFuncNecessidade();
   document.getElementById('avisoModeloMulta').value = carregarModeloAvisoMulta();
+  document.getElementById('avisoModeloAF').value = carregarModeloAvisoAF();
   document.getElementById('avisoModeloResultadoVistoria').value = carregarModeloResultadoVistoria();
   document.getElementById('avisoModeloMensagemGenerica').value = carregarModeloMensagemGenerica();
   document.getElementById('avisoModeloConversarAgendar').value = carregarModeloConversarAgendar();
@@ -4191,7 +4504,7 @@ function copiarRelatorioAnosTexto(){
   if(!vistoriadasList.length) linhas.push('(nenhuma)');
   vistoriadasList.forEach(function(e){
     var v = vistoriasFiltradas.filter(function(x){return x.edificacaoId===e.id;}).sort(function(a,b){return new Date(b.concluidaEm)-new Date(a.concluidaEm);})[0];
-    linhas.push('- '+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+' ('+(v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+', '+new Date(v.concluidaEm).toLocaleDateString('pt-BR')+')');
+    linhas.push('- '+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+' ('+rotuloVistoria(v)+', '+new Date(v.concluidaEm).toLocaleDateString('pt-BR')+')');
   });
   linhas.push('');
   linhas.push('=== EDIFICAÇÕES AINDA NÃO VISTORIADAS NO PERÍODO ('+pendentesList.length+') ===');
@@ -4276,7 +4589,7 @@ function renderRelatorios(){
     var d = new Date(x.v.concluidaEm);
     return '<div class="elist-item" onclick="abrirRelatorio(\''+x.v.id+'\')" style="cursor:pointer"><div class="elist-row">'+
       '<div><div class="elist-t">'+(x.e.re||'Sem RE')+' — '+(x.e.nome||'Sem nome')+'</div>'+
-      '<div class="elist-s">'+(x.v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+' · concluída '+d.toLocaleDateString('pt-BR')+'</div></div>'+
+      '<div class="elist-s">'+rotuloVistoria(x.v)+' · concluída '+d.toLocaleDateString('pt-BR')+'</div></div>'+
     '</div></div>';
   }).join('') : '<div class="sub">Nenhuma edificação vistoriada em '+rotuloAnos+' '+(busca?'com esse filtro':'ainda')+'.</div>';
 
@@ -4287,7 +4600,7 @@ function renderRelatorios(){
     return '<div class="elist-item"><div class="elist-row">'+
       '<div><div class="elist-t">'+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+'</div>'+
       '<div class="elist-s">'+(e.municipio||'')+(e.bairro?' · '+e.bairro:'')+'</div></div>'+
-      '<button class="btn primary" style="width:auto;padding:8px 14px" onclick="abrirPlanejarVist(\''+e.id+'\')">+ Gerar vistoria</button>'+
+      '<button class="btn primary" style="width:auto;padding:8px 14px" onclick="abrirAdicionarRota(\''+e.id+'\')">🧭 Pôr em rota</button>'+
     '</div></div>';
   }).join('') : '<div class="sub">Todas as edificações '+(busca?'com esse filtro já foram':'cadastradas já foram')+' vistoriadas em '+rotuloAnos+'.</div>';
 
@@ -4315,7 +4628,7 @@ function renderRelatorios(){
     return '<div class="elist-item" style="border-color:var(--red2)"><div class="elist-row">'+
       '<div><div class="elist-t">⚠️ '+(x.e.re||'Sem RE')+' — '+(x.e.nome||'Sem nome')+'</div>'+
       '<div class="elist-s">Risco '+x.risco+' · prazo de '+x.prazoAnos+' ano(s) · '+det+'</div></div>'+
-      '<button class="btn primary" style="width:auto;padding:8px 14px" onclick="abrirPlanejarVist(\''+x.e.id+'\')">+ Gerar vistoria</button>'+
+      '<button class="btn primary" style="width:auto;padding:8px 14px" onclick="abrirAdicionarRota(\''+x.e.id+'\')">🧭 Pôr em rota</button>'+
     '</div></div>';
   }).join('') : '<div class="sub">Nenhuma edificação em atraso'+(busca?' com esse filtro':'')+' — todas dentro do prazo da periodicidade.</div>';
 }
@@ -4424,6 +4737,123 @@ function calcularResumoPendenciasVistoria(e, v){
   return {alteracoes: alteracoes, totalErrados: reprovadosChecklist + totalPendBloco, porSistema: porSistema};
 }
 
+// ════════════════════════════════════════
+// AF A PARTIR DA VISTORIA — pré-preenche o motivo da AF com as pendências já apuradas no
+// checklist da vistoria, e sugere um prazo padrão por categoria (sempre editável):
+//   - Funcionamento (solicitação em geral) e sistemas rápidos (extintor/iluminação/sinalização
+//     de abandono) → 30 dias
+//   - Habite-se e itens que envolvem obra → 90 dias
+//   - O prazo sugerido nunca cai em fim de semana — se cair, avança pro próximo dia útil
+// ════════════════════════════════════════
+function calcularPrazoPadraoAF(v, pendenciasTextos){
+  var dias = 30; // padrão: Funcionamento + sistemas (extintor/iluminação/sinalização de abandono)
+  if(v.tipo==='habite-se') dias = 90; // Habite-se
+  var pareceObra = (pendenciasTextos||[]).some(function(t){
+    return /\bobra\b|constru[çc][ãa]o|projeto aprovado|edifica[çc][ãa]o irregular/i.test(t);
+  });
+  if(pareceObra) dias = 90;
+  return dias;
+}
+function ajustarPrazoDiaUtil(diasAPartirDeHoje){
+  var d = new Date();
+  d.setDate(d.getDate() + diasAPartirDeHoje);
+  while(d.getDay()===0 || d.getDay()===6){ d.setDate(d.getDate()+1); } // nunca cai em fim de semana
+  return d;
+}
+function formatarDataBR(d){
+  var f = function(n){return (n<10?'0':'')+n;};
+  return f(d.getDate())+'/'+f(d.getMonth()+1)+'/'+d.getFullYear();
+}
+
+var gafVistIdAtual = null;
+var gafItensPendencia = [];
+function abrirGerarAFDeVistoria(vistId){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===vistId;});
+  if(!v) return;
+  var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
+  if(!e) return;
+  var res = calcularResumoPendenciasVistoria(e, v);
+  gafVistIdAtual = vistId;
+  gafItensPendencia = res.alteracoes.slice();
+  document.getElementById('gafEdifNome').textContent = (e.re||'Sem RE')+' — '+(e.nome||'Sem nome');
+  document.getElementById('gaf-motivo').value = res.alteracoes.join('\n');
+  document.getElementById('gaf-numero').value = '';
+  var dias = calcularPrazoPadraoAF(v, res.alteracoes);
+  document.getElementById('gaf-prazo').value = formatarDataBR(ajustarPrazoDiaUtil(dias));
+  document.getElementById('gaf-prazo-explicacao').textContent = 'Prazo sugerido: '+dias+' dia(s), já ajustado pro próximo dia útil se caísse em fim de semana. Pode alterar.';
+  document.getElementById('modalGerarAFVistoria').style.display='flex';
+}
+// itensPendencia sempre vira objeto {texto, resolvidoEm} — normaliza o formato antigo
+// (array de strings puras) pra nunca quebrar com dado salvo antes dessa mudança
+function normalizarItensPendencia(itens){
+  return (itens||[]).map(function(it){
+    return typeof it==='string' ? {texto:it, resolvidoEm:null} : {texto:it.texto, resolvidoEm:it.resolvidoEm||null};
+  });
+}
+function confirmarGerarAFDeVistoria(){
+  var numero = document.getElementById('gaf-numero').value.trim();
+  var prazo = document.getElementById('gaf-prazo').value.trim();
+  var motivo = document.getElementById('gaf-motivo').value.trim();
+  // número é opcional: se a AF ainda não foi criada no e-SCI, salva como rascunho e completa depois
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===gafVistIdAtual;});
+  if(!v) return;
+  var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
+  if(!e) return;
+  if(!e.cartorio) e.cartorio=[];
+  e.cartorio.push({
+    id:novoId('cart'), tipo:'af', numero:numero, motivo:motivo, prazo:prazo,
+    criadaEm:new Date().toISOString(), resolvidaEm:null, cienciaDadaEm:null, avisoEnviadoEm:null,
+    afOrigemId:null, vistoriaOrigemId: gafVistIdAtual,
+    itensPendencia: gafItensPendencia.map(function(t){ return {texto:t, resolvidoEm:null}; })
+  });
+  saveDB(db);
+  document.getElementById('modalGerarAFVistoria').style.display='none';
+  alert('AF registrada no Cartório!');
+  if(qmap) renderQMapaConteudo();
+}
+// baixa ou reabre um item específico de pendência dentro de uma AF — assim que a pessoa dá
+// ciência e resolve um item, fica registrado com a data; a geração de multa depois já lê
+// esse estado e só pré-marca quem ainda está pendente, sem precisar reconferir tudo de novo
+function toggleItemResolvidoAF(edifId, afId, idx){
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===edifId;});
+  if(!e) return;
+  var af = (e.cartorio||[]).find(function(x){return x.id===afId;});
+  if(!af) return;
+  af.itensPendencia = normalizarItensPendencia(af.itensPendencia);
+  var item = af.itensPendencia[idx];
+  if(!item) return;
+  item.resolvidoEm = item.resolvidoEm ? null : new Date().toISOString();
+  saveDB(db);
+  renderMultas();
+}
+
+var gmaEdifIdAtual=null, gmaAfIdAtual=null;
+function confirmarGerarMultaDeAF(){
+  var numero = document.getElementById('gma-numero').value.trim();
+  if(!numero){ alert('Informe o número da multa.'); return; }
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===gmaEdifIdAtual;});
+  if(!e) return;
+  var af = (e.cartorio||[]).find(function(x){return x.id===gmaAfIdAtual;});
+  if(!af) return;
+  var itensOrig = normalizarItensPendencia(af.itensPendencia && af.itensPendencia.length ? af.itensPendencia : [af.motivo||'(sem detalhamento)']);
+  var marcados = Array.from(document.querySelectorAll('.gma-item:checked')).map(function(c){return Number(c.value);});
+  var itensSelecionados = itensOrig.filter(function(_, i){ return marcados.indexOf(i)>=0; });
+  if(!itensSelecionados.length){ alert('Marque ao menos um item.'); return; }
+  e.cartorio.push({
+    id:novoId('cart'), tipo:'multa', numero:numero, motivo:itensSelecionados.map(function(it){return it.texto;}).join('\n'), prazo:'',
+    criadaEm:new Date().toISOString(), resolvidaEm:null, cienciaDadaEm:null, avisoEnviadoEm:null,
+    afOrigemId:af.id, itensPendencia: itensSelecionados.map(function(it){ return {texto:it.texto, resolvidoEm:null}; })
+  });
+  saveDB(db);
+  document.getElementById('modalGerarMultaDeAF').style.display='none';
+  renderMultas();
+  if(qmap) renderQMapaConteudo();
+}
+
 function copiarRelatorioRotaTexto(rotaId){
   var db = loadDB();
   var r = (db.rotas||[]).find(function(x){return x.id===rotaId;});
@@ -4447,7 +4877,7 @@ function copiarRelatorioRotaTexto(rotaId){
     totalGeralErrados += res.totalErrados;
     if(res.totalErrados===0) deferidas++; else comPendencia++;
     linhas.push((i+1)+'. '+(e?(e.re||'Sem RE')+' — '+(e.nome||'Sem nome'):'Edificação removida'));
-    linhas.push('   '+(v.tipo==='funcionamento'?'Funcionamento':'Habite-se')+' · concluída em '+new Date(v.concluidaEm).toLocaleDateString('pt-BR'));
+    linhas.push('   '+rotuloVistoria(v)+' · concluída em '+new Date(v.concluidaEm).toLocaleDateString('pt-BR'));
     linhas.push('   Status: '+(res.totalErrados===0 ? '✅ Deferido' : '⚠️ Indeferido — '+res.totalErrados+' item(ns) com problema'));
     if(res.alteracoes.length){
       linhas.push('   Alterações encontradas:');
@@ -4590,6 +5020,7 @@ function confirmarGerarRotasAuto(){
       var v = {
         id: novoId('vis'), edificacaoId: c.edificacao.id,
         tipo: 'funcionamento', motivo: 'Gerada automaticamente — Funcionamento vencendo/vencido',
+        criadaPelaRota: true,
         checklist:{}, concluida:false, concluidaEm:null,
         trajetoriaId:null, rotaId:null, criadoEm:new Date().toISOString(), atualizadoEm:new Date().toISOString()
       };
@@ -4632,180 +5063,292 @@ function renderRotas(){
   el.innerHTML = lista.map(function(r){
     var vistsDaRota = (r.vistorias||[]).map(function(vid){ return db.vistorias.find(function(x){return x.id===vid;}); }).filter(Boolean);
     var concluidas = vistsDaRota.filter(function(v){return v.concluida;}).length;
+    var aberto = !!rotasPainelAberto[r.id];
+    // pendentes primeiro, concluídas depois — com as mesmas ações do cartão de vistoria
+    var paradasHtml = aberto ? '<div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">'+
+      (vistsDaRota.length ? vistsDaRota.slice().sort(function(a,b){return (a.concluida?1:0)-(b.concluida?1:0);}).map(function(v){ return renderVistoriaCard(v, db); }).join('') : '<div class="sub">Esta rota não tem paradas.</div>')+
+    '</div>' : '';
     return '<div class="vist-item"><div class="elist-row">'+
       '<div><div class="elist-t">'+r.nome+'</div>'+
-      '<div class="elist-s">'+(r.data||'')+' · '+r.vistorias.length+' vistorias ('+concluidas+' concluídas) · ~'+(r.distanciaEstimadaKm||0).toFixed(1)+' km</div></div>'+
+      '<div class="elist-s">'+(r.data||'')+' · '+r.vistorias.length+' parada(s) ('+concluidas+' concluída(s)) · ~'+(r.distanciaEstimadaKm||0).toFixed(1)+' km</div></div>'+
     '</div>'+
     '<div class="btnrow" style="margin-top:8px;gap:8px">'+
+      '<button class="btn" onclick="toggleRotaPainel(\''+r.id+'\')">'+(aberto?'▲ Esconder paradas':'▼ Ver paradas ('+vistsDaRota.length+')')+'</button>'+
       '<button class="btn" onclick="abrirFormRota(\''+r.id+'\')">✏️ Editar</button>'+
       '<button class="btn primary" style="flex:1" onclick="copiarRelatorioRotaTexto(\''+r.id+'\')">📋 Relatório consolidado da rota</button>'+
       '<button class="btn" style="background:var(--red2)" onclick="excluirRota(\''+r.id+'\')">Excluir</button>'+
-    '</div></div>';
+    '</div>'+paradasHtml+'</div>';
   }).join('');
 }
+var rotasPainelAberto = {};
+function toggleRotaPainel(id){ rotasPainelAberto[id] = !rotasPainelAberto[id]; renderRotas(); }
 
+// ════════════════════════════════════════
+// ROTA — monta direto a partir das EDIFICAÇÕES (não precisa criar vistoria antes). Cada parada
+// escolhe seu tipo (Habite-se, Funcionamento, Ex-ofício ou Cartório). Por baixo, cada parada vira
+// uma vistoria pendente criada automaticamente (`criadaPelaRota`) — assim Campo, WhatsApp de
+// confirmação e relatórios continuam funcionando. Excluir a rota leva junto o que não foi
+// executado; o que já foi concluído fica no histórico.
+// ════════════════════════════════════════
 var rotaEmEdicaoId = null;
+var rtParadas = [];
+var rtPadrao = {cartorioSubtipo:null, cienciaDe:null, afSistemas:[]};
+
+// lápides: o Campo devolve vistorias pendentes antigas no arquivo de volta — sem registrar o que
+// foi excluído aqui, parada de rota apagada "ressuscitaria" na próxima importação
+function registrarExclusao(db, campo, ids){
+  db[campo] = db[campo] || [];
+  ids.forEach(function(id){ if(db[campo].indexOf(id)<0) db[campo].push(id); });
+}
+
+function rtNovaParada(edifId){
+  var tipo = document.getElementById('rt-tipo-padrao').value;
+  var pr = {edificacaoId:edifId, vistoriaId:null, adotada:false, tipo:tipo, cartorioSubtipo:null, cienciaDe:null, afSistemas:[]};
+  if(tipo==='cartorio'){
+    pr.cartorioSubtipo = rtPadrao.cartorioSubtipo; pr.cienciaDe = rtPadrao.cienciaDe; pr.afSistemas = (rtPadrao.afSistemas||[]).slice();
+  }
+  return pr;
+}
+function rtPadraoMudou(){
+  var t = document.getElementById('rt-tipo-padrao').value;
+  var box = document.getElementById('rt-padrao-cartorio');
+  box.style.display = t==='cartorio' ? 'block' : 'none';
+  box.innerHTML = t==='cartorio' ? htmlSeletorCartorio(rtPadrao, 'rtSetPadraoCartorio') : '';
+}
+function rtSetPadraoCartorio(campo, valor){ aplicarCampoCartorio(rtPadrao, campo, valor); rtPadraoMudou(); }
+
 function abrirFormRota(rotaId){
   rotaEmEdicaoId = rotaId || null;
   document.getElementById('rt-busca').value = '';
-  if(rotaEmEdicaoId){
-    var db = loadDB();
-    var r = (db.rotas||[]).find(function(x){return x.id===rotaEmEdicaoId;});
-    if(!r){ rotaEmEdicaoId = null; }
-    else {
-      document.getElementById('rt-titulo').textContent = 'Editar rota';
-      document.getElementById('rt-btn-salvar').textContent = 'Salvar alterações';
-      document.getElementById('rt-nome').value = r.nome||'';
-      document.getElementById('rt-data').value = r.data||'';
-      renderRtVistList();
-      document.getElementById('modalRota').style.display='flex';
-      return;
-    }
+  rtParadas = [];
+  rtPadrao = {cartorioSubtipo:null, cienciaDe:null, afSistemas:[]};
+  document.getElementById('rt-tipo-padrao').value = 'funcionamento';
+  var db = loadDB();
+  var r = rotaEmEdicaoId ? (db.rotas||[]).find(function(x){return x.id===rotaEmEdicaoId;}) : null;
+  if(rotaEmEdicaoId && !r) rotaEmEdicaoId = null;
+  if(r){
+    document.getElementById('rt-titulo').textContent = 'Editar rota';
+    document.getElementById('rt-btn-salvar').textContent = 'Salvar alterações';
+    document.getElementById('rt-nome').value = r.nome||'';
+    document.getElementById('rt-data').value = r.data||'';
+    // paradas = vistorias ainda não executadas da rota (as concluídas ficam como histórico)
+    (r.vistorias||[]).forEach(function(vid){
+      var v = db.vistorias.find(function(x){return x.id===vid;});
+      if(!v || v.concluida) return;
+      rtParadas.push({edificacaoId:v.edificacaoId, vistoriaId:v.id, adotada:!v.criadaPelaRota, tipo:v.tipo||'funcionamento',
+        cartorioSubtipo:v.cartorioSubtipo||null, cienciaDe:v.cienciaDe||null, cienciaItemId:v.cienciaItemId||null, afSistemas:(v.afSistemas||[]).slice()});
+    });
+  } else {
+    document.getElementById('rt-titulo').textContent = 'Nova rota';
+    document.getElementById('rt-btn-salvar').textContent = 'Criar e otimizar rota';
+    document.getElementById('rt-nome').value='';
+    document.getElementById('rt-data').value='';
   }
-  document.getElementById('rt-titulo').textContent = 'Nova rota';
-  document.getElementById('rt-btn-salvar').textContent = 'Criar e otimizar rota';
-  document.getElementById('rt-nome').value='';
-  document.getElementById('rt-data').value='';
-  renderRtVistList();
+  rtPadraoMudou();
+  renderRtEdifLista();
+  renderRtParadas();
   document.getElementById('modalRota').style.display='flex';
 }
-function renderRtVistList(){
+function renderRtEdifLista(){
   var db = loadDB();
   var busca = (document.getElementById('rt-busca').value||'').toLowerCase();
-  // mostra as vistorias pendentes sem rota nenhuma, MAIS as que já pertencem à rota que está
-  // sendo editada agora (senão não daria pra ver/desmarcar o que já está nela)
-  var candidatas = (db.vistorias||[]).filter(function(v){
-    if(v.concluida) return false;
-    if(!v.rotaId) return true;
-    return rotaEmEdicaoId && v.rotaId===rotaEmEdicaoId;
-  }).map(function(v){
-    return {v:v, e: db.edificacoes.find(function(x){return x.id===v.edificacaoId;})};
-  }).filter(function(x){
+  var todas = (db.edificacoes||[]).filter(function(e){ return e.competencia!=='fora'; }).filter(function(e){
     if(!busca) return true;
-    var e = x.e||{};
     return (e.re||'').toLowerCase().indexOf(busca)>=0 || (e.nome||'').toLowerCase().indexOf(busca)>=0 ||
       (e.endereco||'').toLowerCase().indexOf(busca)>=0 || (e.bairro||'').toLowerCase().indexOf(busca)>=0 ||
       (e.municipio||'').toLowerCase().indexOf(busca)>=0;
-  }).sort(function(a,b){ return ((a.e&&a.e.re)||'').localeCompare((b.e&&b.e.re)||'', undefined, {numeric:true}); });
-
+  }).sort(function(a,b){ return (a.re||'').localeCompare(b.re||'', undefined, {numeric:true}); });
+  var LIM = 60;
   var el = document.getElementById('rt-vist-list');
-  if(!candidatas.length){
-    el.innerHTML = '<div class="sub">Nenhuma vistoria pendente encontrada.</div>';
-  } else {
-    var jaMarcados = document.querySelectorAll('.rt-check');
-    var marcados = jaMarcados.length ? Array.from(jaMarcados).filter(function(c){return c.checked;}).map(function(c){return c.value;})
-      : (rotaEmEdicaoId ? candidatas.filter(function(x){return x.v.rotaId===rotaEmEdicaoId;}).map(function(x){return x.v.id;}) : []);
-    el.innerHTML = candidatas.map(function(x){
-      var v=x.v, e=x.e;
-      return '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px">'+
-        '<input type="checkbox" class="rt-check" value="'+v.id+'" '+(marcados.indexOf(v.id)>=0?'checked':'')+'> '+(e?e.re:'Sem RE')+' — '+(e?e.nome:'—')+
-      '</label>';
-    }).join('');
-  }
+  if(!todas.length){ el.innerHTML = '<div class="sub" style="padding:10px">Nenhuma edificação encontrada.</div>'; return; }
+  var html = todas.slice(0, LIM).map(function(e){
+    var sel = rtParadas.some(function(p){return p.edificacaoId===e.id;});
+    var planejada = (db.vistorias||[]).some(function(v){return v.edificacaoId===e.id && !v.concluida && !v.rotaId;});
+    return '<div onclick="rtAlternarEdif(\''+e.id+'\')" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;'+(sel?'background:rgba(192,39,45,.15)':'')+'">'+
+      '<div style="font-weight:700">'+(sel?'✓ ':'')+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+(planejada?' <span style="color:var(--amar);font-weight:400">(já tem vistoria planejada)</span>':'')+'</div>'+
+      '<div style="color:var(--sub);font-size:11px">'+(e.municipio||'')+(e.bairro?' · '+e.bairro:'')+(e.endereco?' · '+e.endereco:'')+'</div>'+
+    '</div>';
+  }).join('');
+  if(todas.length>LIM) html += '<div class="sub" style="padding:8px 10px">Mostrando '+LIM+' de '+todas.length+' — refine a busca (RE, nome ou bairro).</div>';
+  el.innerHTML = html;
 }
+function rtAlternarEdif(edifId){
+  var i = rtParadas.findIndex(function(p){return p.edificacaoId===edifId;});
+  if(i>=0){ rtParadas.splice(i,1); }
+  else {
+    var db = loadDB();
+    // se a edificação já tem uma vistoria planejada solta, a parada adota ela (sem duplicar)
+    var pend = (db.vistorias||[]).find(function(v){ return v.edificacaoId===edifId && !v.concluida && (!v.rotaId || v.rotaId===rotaEmEdicaoId); });
+    if(pend){
+      rtParadas.push({edificacaoId:edifId, vistoriaId:pend.id, adotada:!pend.criadaPelaRota, tipo:pend.tipo||'funcionamento',
+        cartorioSubtipo:pend.cartorioSubtipo||null, cienciaDe:pend.cienciaDe||null, cienciaItemId:pend.cienciaItemId||null, afSistemas:(pend.afSistemas||[]).slice()});
+    } else {
+      rtParadas.push(rtNovaParada(edifId));
+    }
+  }
+  renderRtEdifLista(); renderRtParadas();
+}
+// atalho da coleta de ciência: uma parada de Ciência por AF/multa pendente (respeita o filtro da
+// busca — ex: digitar o bairro), já com o item escolhido
+function rtAdicionarCienciasPendentes(){
+  var db = loadDB();
+  var busca = (document.getElementById('rt-busca').value||'').toLowerCase();
+  var add = 0;
+  (db.edificacoes||[]).forEach(function(e){
+    if(e.competencia==='fora') return;
+    if(busca && !((e.re||'').toLowerCase().indexOf(busca)>=0 || (e.nome||'').toLowerCase().indexOf(busca)>=0 ||
+      (e.endereco||'').toLowerCase().indexOf(busca)>=0 || (e.bairro||'').toLowerCase().indexOf(busca)>=0 ||
+      (e.municipio||'').toLowerCase().indexOf(busca)>=0)) return;
+    (e.cartorio||[]).forEach(function(m){
+      if(m.resolvidaEm || m.cienciaDadaEm) return;
+      if(rtParadas.some(function(p){return p.cienciaItemId===m.id;})) return;
+      // não duplica se já existe uma visita de ciência planejada pra esse mesmo item
+      if((db.vistorias||[]).some(function(v){return !v.concluida && v.cienciaItemId===m.id;})) return;
+      rtParadas.push({edificacaoId:e.id, vistoriaId:null, adotada:false, tipo:'cartorio', cartorioSubtipo:'ciencia', cienciaDe:m.tipo, cienciaItemId:m.id, afSistemas:[]});
+      add++;
+    });
+  });
+  renderRtEdifLista(); renderRtParadas();
+  alert(add ? add+' parada(s) de ciência adicionada(s).' : 'Nenhuma AF/multa pendente de ciência encontrada'+(busca?' nessa busca':'')+'.');
+}
+function renderRtParadas(){
+  var db = loadDB();
+  document.getElementById('rt-paradas-titulo').textContent = 'Paradas da rota ('+rtParadas.length+')';
+  var el = document.getElementById('rt-paradas');
+  if(!rtParadas.length){ el.innerHTML = '<div class="sub">Nenhuma parada ainda — toque nas edificações da lista acima.</div>'; return; }
+  el.innerHTML = rtParadas.map(function(pr, i){
+    var e = db.edificacoes.find(function(x){return x.id===pr.edificacaoId;});
+    var item = (pr.cienciaItemId && e) ? (e.cartorio||[]).find(function(m){return m.id===pr.cienciaItemId;}) : null;
+    return '<div class="pav-card" style="margin-bottom:8px">'+
+      '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">'+
+        '<div style="flex:1;font-weight:700;font-size:13px">'+(i+1)+'. '+(e?(e.re||'Sem RE')+' — '+(e.nome||''):'(edificação removida)')+'</div>'+
+        '<button class="btn" style="width:auto;padding:4px 10px" onclick="rtRemoverParada('+i+')">✕</button>'+
+      '</div>'+
+      '<select style="margin-bottom:6px" onchange="rtSetTipoParada('+i+',this.value)">'+
+        TIPOS_VISTORIA.map(function(t){ return '<option value="'+t.id+'" '+(pr.tipo===t.id?'selected':'')+'>'+t.l+'</option>'; }).join('')+
+      '</select>'+
+      (pr.tipo==='cartorio' ? htmlSeletorCartorio(pr, 'rtSetCartorioParada.bind(null,'+i+')') : '')+
+      (item ? '<div class="sub">'+(item.tipo==='af'?'AF':'Multa')+' nº '+(item.numero||'(sem número)')+(item.prazo?' · prazo '+item.prazo:'')+'</div>' : '')+
+      (pr.adotada ? '<div class="sub">Usa uma vistoria já planejada pra essa edificação.</div>' : '')+
+    '</div>';
+  }).join('');
+}
+function rtSetTipoParada(i, tipo){ rtParadas[i].tipo = tipo; renderRtParadas(); }
+function rtSetCartorioParada(i, campo, valor){ aplicarCampoCartorio(rtParadas[i], campo, valor); renderRtParadas(); }
+function rtRemoverParada(i){ rtParadas.splice(i,1); renderRtEdifLista(); renderRtParadas(); }
 
 function salvarRota(){
   var nome = document.getElementById('rt-nome').value.trim();
   if(!nome){ alert('Dê um nome à rota.'); return; }
-  var ids = Array.from(document.querySelectorAll('.rt-check:checked')).map(function(c){return c.value;});
-  if(!ids.length){ alert('Selecione ao menos uma vistoria.'); return; }
-
-  var db = loadDB();
-  var vists = ids.map(function(id){ return db.vistorias.find(function(x){return x.id===id;}); }).filter(Boolean);
-  var comCoord = vists.map(function(v){
-    var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
-    return {v:v, e:e};
-  }).filter(function(x){ return x.e && x.e.lat && x.e.lng; });
-  var semCoord = vists.filter(function(v){
-    var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
-    return !(e && e.lat && e.lng);
-  });
-
-  // otimização simples: vizinho mais próximo, com haversine real (corrige o bug do app atual)
-  var ordenados = [];
-  var restantes = comCoord.slice();
-  if(restantes.length){
-    var atual = restantes.shift();
-    ordenados.push(atual);
-    while(restantes.length){
-      restantes.sort(function(a,b){
-        return haversineKm(atual.e.lat,atual.e.lng,a.e.lat,a.e.lng) - haversineKm(atual.e.lat,atual.e.lng,b.e.lat,b.e.lng);
-      });
-      atual = restantes.shift();
-      ordenados.push(atual);
+  if(!rtParadas.length){ alert('Adicione ao menos uma edificação à rota.'); return; }
+  for(var k=0;k<rtParadas.length;k++){
+    var q = rtParadas[k];
+    if(q.tipo==='cartorio'){
+      if(!q.cartorioSubtipo){ alert('Escolha Multa, AF ou Ciência na parada '+(k+1)+'.'); return; }
+      if(q.cartorioSubtipo==='ciencia' && !q.cienciaDe){ alert('Escolha se a ciência da parada '+(k+1)+' é de Multa ou de AF.'); return; }
     }
   }
-  var dist = 0;
-  for(var i=0;i<ordenados.length-1;i++){
-    dist += haversineKm(ordenados[i].e.lat,ordenados[i].e.lng,ordenados[i+1].e.lat,ordenados[i+1].e.lng);
+
+  var db = loadDB();
+  var rotaIdFinal = rotaEmEdicaoId || novoId('rot');
+  var agora = new Date().toISOString();
+
+  // cada parada vira (ou atualiza) uma vistoria pendente
+  var vists = rtParadas.map(function(pr){
+    var v = pr.vistoriaId ? db.vistorias.find(function(x){return x.id===pr.vistoriaId && !x.concluida;}) : null;
+    if(!v){
+      v = {id:novoId('vis'), edificacaoId:pr.edificacaoId, tipo:pr.tipo, motivo:'', checklist:{}, situacaoHS:'', obs:'',
+           concluida:false, concluidaEm:null, trajetoriaId:null, rotaId:rotaIdFinal, criadoEm:agora, atualizadoEm:agora, criadaPelaRota:true};
+      db.vistorias.push(v);
+    }
+    v.tipo = pr.tipo;
+    if(pr.tipo==='cartorio'){
+      v.cartorioSubtipo = pr.cartorioSubtipo; v.cienciaDe = pr.cienciaDe; v.afSistemas = (pr.afSistemas||[]).slice();
+      v.cienciaItemId = pr.cienciaItemId || null;
+    } else {
+      v.cartorioSubtipo = null; v.cienciaDe = null; v.afSistemas = []; v.cienciaItemId = null;
+    }
+    v.rotaId = rotaIdFinal; v.atualizadoEm = agora;
+    return v;
+  });
+
+  // edição: quem saiu da rota — parada criada pela rota é apagada; vistoria planejada antes só é solta
+  var concluidasMantidas = [];
+  if(rotaEmEdicaoId){
+    var idsNaRota = vists.map(function(v){return v.id;});
+    var remover = [];
+    db.vistorias.forEach(function(v){
+      if(v.rotaId!==rotaEmEdicaoId || idsNaRota.indexOf(v.id)>=0) return;
+      if(v.concluida){ concluidasMantidas.push(v.id); return; }
+      if(v.criadaPelaRota) remover.push(v.id); else v.rotaId = null;
+    });
+    if(remover.length){
+      db.vistorias = db.vistorias.filter(function(v){return remover.indexOf(v.id)<0;});
+      registrarExclusao(db, 'vistoriasExcluidas', remover);
+    }
   }
 
-  var rotaIdFinal = rotaEmEdicaoId || novoId('rot');
+  var ot = otimizarOrdemRota(db, vists);
+
   var rota = {
     id: rotaIdFinal, nome:nome, data: document.getElementById('rt-data').value.trim(),
-    vistorias: ordenados.map(function(x){return x.v.id;}).concat(semCoord.map(function(v){return v.id;})),
-    distanciaEstimadaKm: dist, ordemOtimizada: true, atualizadoEm: new Date().toISOString()
+    vistorias: concluidasMantidas.concat(ot.ids),
+    distanciaEstimadaKm: ot.dist, ordemOtimizada: true, atualizadoEm: agora
   };
   if(!db.rotas) db.rotas=[];
-  if(rotaEmEdicaoId){
-    // edição: tira o rotaId de quem foi desmarcado/removido, antes de aplicar a lista nova
-    (db.vistorias||[]).forEach(function(v){
-      if(v.rotaId===rotaEmEdicaoId && rota.vistorias.indexOf(v.id)<0) v.rotaId = null;
-    });
-    var idx = db.rotas.findIndex(function(x){return x.id===rotaEmEdicaoId;});
-    if(idx>=0) db.rotas[idx] = rota; else db.rotas.push(rota);
-  } else {
-    db.rotas.push(rota);
-  }
-  rota.vistorias.forEach(function(vid){
-    var idx2 = db.vistorias.findIndex(function(x){return x.id===vid;});
-    if(idx2>=0) db.vistorias[idx2].rotaId = rota.id;
-  });
+  var idx = rotaEmEdicaoId ? db.rotas.findIndex(function(x){return x.id===rotaEmEdicaoId;}) : -1;
+  if(idx>=0) db.rotas[idx] = rota; else db.rotas.push(rota);
   saveDB(db);
   rotaEmEdicaoId = null;
   document.getElementById('modalRota').style.display='none';
   renderRotas();
+  if(qmap) renderQMapaConteudo();
 }
-var rotaAlvoVistId = null;
+
+var rotaAlvoEdifId = null;
 function abrirAdicionarRota(edifId){
   var db = loadDB();
   var e = db.edificacoes.find(function(x){return x.id===edifId;});
   if(!e) return;
-  var pendentes = (db.vistorias||[]).filter(function(v){return v.edificacaoId===edifId && !v.concluida;});
-  var vistSemRota = pendentes.find(function(v){return !v.rotaId;});
-  if(!vistSemRota){
-    if(pendentes.length){ alert('A(s) vistoria(s) pendente(s) dessa edificação já estão em alguma rota.'); }
-    else { alert('Essa edificação não tem vistoria pendente cadastrada ainda. Planeje uma vistoria primeiro.'); }
-    return;
-  }
-  rotaAlvoVistId = vistSemRota.id;
+  rotaAlvoEdifId = edifId; // qualquer edificação pode entrar numa rota — a vistoria é criada na hora
   document.getElementById('arEdifNome').textContent = (e.re||'Sem RE')+' — '+(e.nome||'');
   var rotas = db.rotas||[];
   document.getElementById('arRotaExistente').innerHTML = '<option value="">— escolha uma rota —</option>'+
-    rotas.map(function(r){return '<option value="'+r.id+'">'+r.nome+' ('+r.vistorias.length+' vistorias)</option>';}).join('');
+    rotas.map(function(r){return '<option value="'+r.id+'">'+r.nome+' ('+r.vistorias.length+' paradas)</option>';}).join('');
   document.getElementById('arNomeNova').value = '';
   document.getElementById('modalAdicionarRota').style.display='flex';
+}
+// pega a vistoria planejada solta da edificação, ou cria uma de Funcionamento (tipo padrão)
+function vistoriaParaRota(db, edifId){
+  var v = (db.vistorias||[]).find(function(x){return x.edificacaoId===edifId && !x.concluida && !x.rotaId;});
+  if(v) return v;
+  var agora = new Date().toISOString();
+  v = {id:novoId('vis'), edificacaoId:edifId, tipo:'funcionamento', motivo:'', checklist:{}, situacaoHS:'', obs:'',
+       concluida:false, concluidaEm:null, trajetoriaId:null, rotaId:null, criadoEm:agora, atualizadoEm:agora, criadaPelaRota:true};
+  db.vistorias.push(v);
+  return v;
 }
 function confirmarAdicionarRotaExistente(){
   var rotaId = document.getElementById('arRotaExistente').value;
   if(!rotaId){ alert('Escolha uma rota.'); return; }
   var db = loadDB();
   var r = (db.rotas||[]).find(function(x){return x.id===rotaId;});
-  var v = (db.vistorias||[]).find(function(x){return x.id===rotaAlvoVistId;});
-  if(!r || !v) return;
+  if(!r || !rotaAlvoEdifId) return;
+  var v = vistoriaParaRota(db, rotaAlvoEdifId);
   r.vistorias.push(v.id);
   v.rotaId = r.id;
   saveDB(db);
   document.getElementById('modalAdicionarRota').style.display='none';
-  renderQMapaConteudo();
+  if(qmap) renderQMapaConteudo();
+  renderRotas();
   alert('Adicionada à rota "'+r.nome+'".');
 }
 function confirmarCriarRotaComEdif(){
   var nome = document.getElementById('arNomeNova').value.trim();
   if(!nome){ alert('Dê um nome pra rota.'); return; }
+  if(!rotaAlvoEdifId) return;
   var db = loadDB();
-  var v = (db.vistorias||[]).find(function(x){return x.id===rotaAlvoVistId;});
-  if(!v) return;
+  var v = vistoriaParaRota(db, rotaAlvoEdifId);
   var hoje = new Date(); var p=function(n){return (n<10?'0':'')+n;};
   var dataHoje = p(hoje.getDate())+'/'+p(hoje.getMonth()+1)+'/'+hoje.getFullYear();
   var novaRota = {id:novoId('rot'), nome:nome, data:dataHoje, vistorias:[v.id], distanciaEstimadaKm:0};
@@ -4814,15 +5357,22 @@ function confirmarCriarRotaComEdif(){
   v.rotaId = novaRota.id;
   saveDB(db);
   document.getElementById('modalAdicionarRota').style.display='none';
-  renderQMapaConteudo();
+  if(qmap) renderQMapaConteudo();
+  renderRotas();
   alert('Rota "'+nome+'" criada com essa edificação.');
 }
 
 function excluirRota(id){
-  if(!confirm('Excluir esta rota? As vistorias voltam a ficar sem rota.')) return;
   var db = loadDB();
+  var apagaveis = (db.vistorias||[]).filter(function(v){return v.rotaId===id && !v.concluida && v.criadaPelaRota;});
+  var msg = 'Excluir esta rota?'+(apagaveis.length ? ' As '+apagaveis.length+' parada(s) ainda não executada(s) serão removidas junto.' : '')+' O que já foi concluído continua no histórico.';
+  if(!confirm(msg)) return;
+  var idsApagar = apagaveis.map(function(v){return v.id;});
   db.rotas = (db.rotas||[]).filter(function(r){return r.id!==id;});
+  db.vistorias = (db.vistorias||[]).filter(function(v){return idsApagar.indexOf(v.id)<0;});
   db.vistorias.forEach(function(v){ if(v.rotaId===id) v.rotaId=null; });
+  registrarExclusao(db, 'rotasExcluidas', [id]);
+  if(idsApagar.length) registrarExclusao(db, 'vistoriasExcluidas', idsApagar);
   saveDB(db);
   renderRotas();
   if(qmap) renderQMapaConteudo();
@@ -5311,10 +5861,24 @@ var CHAVES_CONFIG_AVISOS = [
 // marcador de risco normal enquanto ativa, volta ao normal quando resolvida (mantém histórico)
 // ════════════════════════════════════════
 function multaAtivaDe(e){
-  return (e.multas||[]).find(function(m){ return !m.resolvidaEm; }) || null;
+  // pro marcador do mapa — continua mostrando só MULTA (não AF), já que é o sinal mais grave
+  return (e.cartorio||[]).find(function(m){ return m.tipo==='multa' && !m.resolvidaEm; }) || null;
+}
+function afAtivaDe(e){
+  return (e.cartorio||[]).find(function(m){ return m.tipo==='af' && !m.resolvidaEm; }) || null;
 }
 
 var mtEdifSelecionadaId = null;
+var mtTipoAtual = 'af';
+
+function setMtTipo(tipo){
+  mtTipoAtual = tipo;
+  document.getElementById('mt-tipo-af').classList.toggle('on', tipo==='af');
+  document.getElementById('mt-tipo-multa').classList.toggle('on', tipo==='multa');
+  document.getElementById('mt-lbl-numero').textContent = tipo==='af' ? 'Número da AF (opcional)' : 'Número da multa';
+  document.getElementById('mt-lbl-prazo').textContent = tipo==='af' ? 'Prazo pra regularizar' : 'Prazo (se houver)';
+  document.getElementById('mt-btn-registrar').textContent = tipo==='af' ? '📋 Registrar AF' : '💰 Registrar multa';
+}
 
 function renderMtEdifLista(){
   var db = loadDB();
@@ -5328,9 +5892,11 @@ function renderMtEdifLista(){
   var el = document.getElementById('mt-edif-lista');
   if(!busca){ el.innerHTML=''; return; }
   el.innerHTML = lista.length ? lista.map(function(e){
-    var jaTemMulta = multaAtivaDe(e);
-    return '<div onclick="'+(jaTemMulta?'':'selecionarEdifMulta(\''+e.id+'\')')+'" style="padding:10px;cursor:'+(jaTemMulta?'default':'pointer')+';border-bottom:1px solid var(--border);font-size:13px;'+(jaTemMulta?'opacity:.5':'')+'">'+
-      '<div style="font-weight:700">'+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+(jaTemMulta?' (já tem multa ativa)':'')+'</div>'+
+    // uma edificação pode ter QUALQUER quantidade de AF/Multa — nunca bloqueia a seleção,
+    // só mostra quantos registros pendentes ela já tem, como contexto
+    var pendentes = (e.cartorio||[]).filter(function(m){return !m.resolvidaEm;}).length;
+    return '<div onclick="selecionarEdifMulta(\''+e.id+'\')" style="padding:10px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px">'+
+      '<div style="font-weight:700">'+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+(pendentes?' <span style="color:var(--amar);font-weight:400">('+pendentes+' pendente(s))</span>':'')+'</div>'+
       '<div style="color:var(--sub);font-size:11px">'+(e.municipio||'')+(e.bairro?' · '+e.bairro:'')+'</div>'+
     '</div>';
   }).join('') : '<div class="sub" style="padding:10px">Nenhuma edificação encontrada.</div>';
@@ -5344,6 +5910,7 @@ function selecionarEdifMulta(id){
   document.getElementById('mt-numero').value='';
   document.getElementById('mt-prazo').value='';
   document.getElementById('mt-motivo').value='';
+  setMtTipo('af');
   document.getElementById('mt-form-detalhe').style.display='block';
 }
 function registrarMulta(){
@@ -5351,12 +5918,12 @@ function registrarMulta(){
   var numero = document.getElementById('mt-numero').value.trim();
   var prazo = document.getElementById('mt-prazo').value.trim();
   var motivo = document.getElementById('mt-motivo').value.trim();
-  if(!numero){ alert('Informe o número da multa.'); return; }
+  if(!numero && mtTipoAtual==='multa'){ alert('Informe o número da multa.'); return; }
   var db = loadDB();
   var e = db.edificacoes.find(function(x){return x.id===mtEdifSelecionadaId;});
   if(!e) return;
-  if(!e.multas) e.multas=[];
-  e.multas.push({id:novoId('multa'), numero:numero, motivo:motivo, prazo:prazo, criadaEm:new Date().toISOString(), resolvidaEm:null});
+  if(!e.cartorio) e.cartorio=[];
+  e.cartorio.push({id:novoId('cart'), tipo:mtTipoAtual, numero:numero, motivo:motivo, prazo:prazo, criadaEm:new Date().toISOString(), resolvidaEm:null, cienciaDadaEm:null, avisoEnviadoEm:null, afOrigemId:null});
   saveDB(db);
   mtEdifSelecionadaId = null;
   document.getElementById('mt-edif-busca').value = '';
@@ -5365,29 +5932,267 @@ function registrarMulta(){
   renderMultas();
   if(qmap) renderQMapaConteudo();
 }
-function resolverMulta(edifId, multaId){
-  if(!confirm('Marcar esta multa como resolvida? A edificação volta a mostrar o marcador de risco normal no mapa.')) return;
+// ════════════════════════════════════════
+// CARREGAR AFs — traz número e prazo oficiais das AFs (planilha "Controle SCI" e/ou nomes dos PDFs
+// da pasta SSCI do Drive) pro Cartório. Casa por RE: primeiro o rascunho de AF SEM número mais
+// antigo da edificação (sempre há vistoria antes da AF, então a ordem do tempo casa certo), e as AFs
+// em ordem cronológica de número; se não houver rascunho, cadastra a AF nova (ainda sem ciência —
+// os PDFs na pasta SSCI são justamente os que aguardam ciência). Mostra prévia antes de aplicar.
+// ════════════════════════════════════════
+var cafLinhas = [];
+// no arquivo o "/" do ano vira "-" (nome de arquivo não aceita "/") — padroniza pro formato oficial
+function normalizarNumeroAF(s){
+  return String(s||'').trim().toUpperCase().replace(/\s+/g,'').replace(/-(\d{2})$/,'/$1');
+}
+function dataParaBR(val){
+  if(!val && val!==0) return '';
+  if(val instanceof Date) return isNaN(val) ? '' : esciFormatarData(val);
+  if(typeof val==='number'){ var d = new Date(Date.UTC(1899,11,30)+Math.round(val)*86400000); return ('0'+d.getUTCDate()).slice(-2)+'/'+('0'+(d.getUTCMonth()+1)).slice(-2)+'/'+d.getUTCFullYear(); }
+  var t = String(val).trim();
+  var m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return m[3]+'/'+m[2]+'/'+m[1];
+  return parseDataBR(t) ? t : '';
+}
+// "RE8013000554A - AF8013000037A-26 - Prazo 2026-09-14.pdf" ou "19 - Centro - RE... - AF... - Prazo ...pdf"
+function parseNomeArquivoAF(nome, caminhoRel){
+  var re = (nome.match(/RE\d{8,12}[A-Z]?/i)||[])[0];
+  var doc = (nome.match(/(AF|MUL)\d+[A-Z]?[-\/]\d{2}/i)||[])[0];   // AF = auto de fiscalização · MUL = multa
+  if(!re || !doc) return null;
+  var pz = nome.match(/Prazo\s+(\d{4}-\d{2}-\d{2})/i);
+  var bairro = '', motivo = '';
+  var mb = nome.match(/^\s*\d+\s*-\s*(.+?)\s*-\s*RE\d/i);
+  if(mb) bairro = mb[1].replace(/\s*\(.*\)\s*$/, '').trim();       // "Prefeitura (Garagem, Centro)" -> "Prefeitura"
+  else if(caminhoRel){
+    var partes = caminhoRel.split('/');
+    if(partes.length>=2){
+      var pasta = partes[partes.length-2];
+      if(!/^(ssci|alfredo wagner|leoberto leal|legisla|lixeiro|0 - |9 - )/i.test(pasta)) bairro = pasta;
+    }
+  }
+  var tipo = /^MUL/i.test(doc) ? 'multa' : 'af';
+  var mm = tipo==='multa' ? nome.match(/\((Multa[^)]*)\)/i) : null;     // "(Multa R$ 500)"
+  if(mm) motivo = mm[1].trim();
+  return {tipo:tipo, re:re.toUpperCase(), af:normalizarNumeroAF(doc), prazo: pz ? dataParaBR(pz[1]) : '', bairro:bairro, ciencia:'', motivo:motivo, arquivo:nome, origem:'pdf'};
+}
+function lerLinhasAFDePlanilha(wb, nomeArq){
+  var linhas = [];
+  wb.SheetNames.forEach(function(aba){
+    var rows = XLSX.utils.sheet_to_json(wb.Sheets[aba], {defval:''});
+    rows.forEach(function(row){
+      var re = String(esciAchar(row, ['re'])).trim();
+      var af = normalizarNumeroAF(esciAchar(row, ['número do af','numero do af','nº do af','n° do af','número af','numero af','nº af','af','número (af/multa)','numero (af/multa)','número','numero']));
+      if(!re || !af) return;
+      var tipoCol = String(esciAchar(row, ['tipo'])).toLowerCase();
+      var tipo = (/multa/.test(tipoCol) || /^MUL/.test(af)) ? 'multa' : 'af';
+      linhas.push({tipo:tipo, re:re.toUpperCase(), af:af,
+        prazo: dataParaBR(esciAchar(row, ['prazo af','prazo do af','prazo','vencimento do af'])),
+        bairro: String(esciAchar(row, ['bairro'])).trim(),
+        ciencia: dataParaBR(esciAchar(row, ['ciência','ciencia','data da ciência','data da ciencia','ciente em','data ciência','data ciencia'])),
+        motivo: String(esciAchar(row, ['exigências','exigencias','motivo','descrição','descricao'])).trim(),
+        arquivo: nomeArq+' ('+aba+')', origem:'planilha'});
+    });
+  });
+  return linhas;
+}
+function abrirCarregarAF(){
+  cafLinhas = [];
+  document.getElementById('cafArquivos').value = '';
+  document.getElementById('cafPasta').value = '';
+  document.getElementById('cafPrevia').innerHTML = '';
+  document.getElementById('cafBtnAplicar').style.display = 'none';
+  document.getElementById('modalCarregarAF').style.display = 'flex';
+}
+function lerArquivosCarregarAF(fileList){
+  var arquivos = Array.from(fileList||[]);
+  if(!arquivos.length) return;
+  var linhas = [], planilhas = [], ignorados = 0;
+  arquivos.forEach(function(f){
+    var nome = f.name, ext = (nome.split('.').pop()||'').toLowerCase();
+    if(ext==='pdf'){
+      var l = parseNomeArquivoAF(nome, f.webkitRelativePath||'');
+      if(l) linhas.push(l); else ignorados++;
+    } else if(ext==='xlsx' || ext==='xls' || ext==='csv'){
+      planilhas.push(f);
+    }
+  });
+  function terminar(){
+    cafLinhas = linhas;
+    var plano = planejarCarregarAF(loadDB(), cafLinhas);
+    renderPreviaCarregarAF(plano, ignorados, planilhas.length);
+  }
+  if(!planilhas.length){ terminar(); return; }
+  if(typeof XLSX==='undefined'){
+    alert('O leitor de planilhas não carregou (precisa de internet na primeira vez). Dá pra usar os PDFs sem ele — ou tente de novo com internet.');
+    if(!linhas.length) return;
+    terminar(); return;
+  }
+  var restantes = planilhas.length;
+  planilhas.forEach(function(f){
+    var reader = new FileReader();
+    reader.onload = function(e){
+      try{
+        var wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:true});
+        linhas = linhas.concat(lerLinhasAFDePlanilha(wb, f.name));
+      } catch(err){ alert('Não consegui ler a planilha "'+f.name+'".'); }
+      if(--restantes===0) terminar();
+    };
+    reader.readAsArrayBuffer(f);
+  });
+}
+function planejarCarregarAF(db, linhas){
+  // junta a mesma AF vinda de mais de uma fonte (planilha + PDF), completando o que faltar
+  var mapa = {};
+  linhas.forEach(function(l){
+    var k = l.tipo+'|'+l.re+'|'+l.af;
+    if(!mapa[k]) mapa[k] = Object.assign({}, l);
+    else { var m = mapa[k]; ['prazo','bairro','ciencia','motivo'].forEach(function(c){ if(!m[c] && l[c]) m[c] = l[c]; }); }
+  });
+  var seq = function(af){ var m = af.match(/(\d+)[A-Z]?\/(\d{2})$/); return m ? Number(m[2])*1e12 + Number(m[1]) : 0; };
+  var unicas = Object.keys(mapa).map(function(k){return mapa[k];}).sort(function(a,b){ return seq(a.af)-seq(b.af); });
+  var plano = {completar:[], criar:[], existentes:[], semRE:[], total:unicas.length};
+  var usados = {};
+  unicas.forEach(function(l){
+    var e = (db.edificacoes||[]).find(function(x){ return (x.re||'').trim().toUpperCase()===l.re; });
+    if(!e){ plano.semRE.push(l); return; }
+    var cart = e.cartorio || [];
+    var jaTem = cart.find(function(m){ return m.tipo===l.tipo && normalizarNumeroAF(m.numero)===l.af; });
+    if(jaTem){ plano.existentes.push({e:e, item:jaTem, l:l}); return; }
+    var rascunho = cart.filter(function(m){ return m.tipo===l.tipo && !m.numero && !m.resolvidaEm && !usados[m.id]; })
+      .sort(function(a,b){ return new Date(a.criadaEm||0)-new Date(b.criadaEm||0); })[0];
+    if(rascunho){ usados[rascunho.id] = true; plano.completar.push({e:e, item:rascunho, l:l}); }
+    else plano.criar.push({e:e, l:l});
+  });
+  return plano;
+}
+function renderPreviaCarregarAF(plano, ignorados, nPlanilhas){
+  var el = document.getElementById('cafPrevia');
+  var h = '';
+  if(!plano.total){
+    h = '<div class="sub">Nenhuma AF encontrada'+(nPlanilhas?' (a planilha precisa ter as colunas <b>RE</b> e <b>Número do AF</b> — ou <b>Número (AF/multa)</b> — preenchidas)':'')+(ignorados?' — '+ignorados+' PDF(s) com nome fora do padrão foram ignorados':'')+'.</div>';
+    el.innerHTML = h; document.getElementById('cafBtnAplicar').style.display = 'none'; return;
+  }
+  var lista = function(itens, fn){ return '<div class="sub" style="margin:2px 0 8px 14px;max-height:120px;overflow-y:auto">'+itens.slice(0,40).map(fn).join('<br>')+(itens.length>40?'<br>… e mais '+(itens.length-40):'')+'</div>'; };
+  h += '<div style="font-size:13px;margin-bottom:8px"><b>'+plano.total+'</b> AF/multa(s) lidas'+(ignorados?' · '+ignorados+' PDF(s) fora do padrão ignorados':'')+'</div>';
+  if(plano.completar.length) h += '<div style="font-size:13px">✅ <b>'+plano.completar.length+'</b> rascunho(s) completado(s) com o número e o prazo oficiais</div>'+
+    lista(plano.completar, function(p){ return p.e.re+' — '+(p.e.nome||'')+' → '+p.l.af+(p.l.prazo?' · prazo '+p.l.prazo:''); });
+  if(plano.criar.length) h += '<div style="font-size:13px">🆕 <b>'+plano.criar.length+'</b> AF/multa(s) nova(s) cadastrada(s) no Cartório (aguardando ciência)</div>'+
+    lista(plano.criar, function(p){ return p.e.re+' — '+(p.e.nome||'')+' → '+p.l.af+(p.l.prazo?' · prazo '+p.l.prazo:''); });
+  if(plano.existentes.length) h += '<div style="font-size:13px">↔ <b>'+plano.existentes.length+'</b> já estavam no app (nada a fazer, só completa prazo/bairro se faltar)</div>';
+  if(plano.semRE.length) h += '<div style="font-size:13px;color:var(--amar)">⚠️ <b>'+plano.semRE.length+'</b> sem edificação cadastrada (importe do e-SCI primeiro):</div>'+
+    lista(plano.semRE, function(l){ return l.re+' → '+l.af; });
+  el.innerHTML = h;
+  document.getElementById('cafBtnAplicar').style.display = (plano.completar.length+plano.criar.length+plano.existentes.length) ? '' : 'none';
+}
+function aplicarCarregarAF(){
+  var db = loadDB();
+  var plano = planejarCarregarAF(db, cafLinhas); // refaz sobre o banco atual
+  var agora = new Date().toISOString();
+  var res = {completadas:0, criadas:0, atualizadas:0, bairros:0};
+  var achar = function(id){ return db.edificacoes.find(function(x){return x.id===id;}); };
+  var bairro = function(e, l){ if(l.bairro && !e.bairro){ e.bairro = l.bairro; res.bairros++; } };
+  plano.completar.forEach(function(p){
+    var e = achar(p.e.id); var item = e && (e.cartorio||[]).find(function(x){return x.id===p.item.id;});
+    if(!item) return;
+    item.numero = p.l.af;
+    if(p.l.prazo) item.prazo = p.l.prazo;             // o prazo oficial vale mais que o sugerido
+    if(p.l.ciencia && !item.cienciaDadaEm) item.cienciaDadaEm = new Date(parseDataBR(p.l.ciencia)).toISOString();
+    bairro(e, p.l); res.completadas++;
+  });
+  plano.criar.forEach(function(p){
+    var e = achar(p.e.id); if(!e) return;
+    if(!e.cartorio) e.cartorio = [];
+    e.cartorio.push({id:novoId('cart'), tipo:p.l.tipo||'af', numero:p.l.af, motivo:p.l.motivo||'', prazo:p.l.prazo||'',
+      criadaEm:agora, resolvidaEm:null, avisoEnviadoEm:null, afOrigemId:null,
+      cienciaDadaEm: p.l.ciencia ? new Date(parseDataBR(p.l.ciencia)).toISOString() : null,
+      itensPendencia: p.l.motivo ? [{texto:p.l.motivo, resolvidoEm:null}] : [],
+      importadaEm:agora, arquivoOrigem:p.l.arquivo||''});
+    bairro(e, p.l); res.criadas++;
+  });
+  plano.existentes.forEach(function(p){
+    var e = achar(p.e.id); var item = e && (e.cartorio||[]).find(function(x){return x.id===p.item.id;});
+    if(!item) return;
+    if(!item.prazo && p.l.prazo){ item.prazo = p.l.prazo; res.atualizadas++; }
+    bairro(e, p.l);
+  });
+  saveDB(db);
+  document.getElementById('modalCarregarAF').style.display = 'none';
+  renderMultas();
+  alert('Pronto: '+res.completadas+' rascunho(s) completado(s), '+res.criadas+' AF/multa(s) nova(s)'+(res.atualizadas?', '+res.atualizadas+' prazo(s) preenchido(s)':'')+(res.bairros?', '+res.bairros+' bairro(s) preenchido(s) nas edificações':'')+'.');
+}
+
+function informarNumeroCartorio(edifId, itemId){
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===edifId;});
+  var m = e && (e.cartorio||[]).find(function(x){return x.id===itemId;});
+  if(!m) return;
+  var n = window.prompt('Número da '+(m.tipo==='af'?'AF':'multa')+' (como ficou no e-SCI):', m.numero||'');
+  if(n===null) return;
+  m.numero = n.trim();
+  saveDB(db);
+  renderMultas();
+}
+function darCienciaCartorio(edifId, itemId){
   var db = loadDB();
   var e = db.edificacoes.find(function(x){return x.id===edifId;});
   if(!e) return;
-  var m = (e.multas||[]).find(function(x){return x.id===multaId;});
+  var m = (e.cartorio||[]).find(function(x){return x.id===itemId;});
+  if(!m) return;
+  m.cienciaDadaEm = new Date().toISOString();
+  saveDB(db);
+  renderMultas();
+}
+function gerarMultaDeAF(edifId, afId){
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===edifId;});
+  if(!e) return;
+  var af = (e.cartorio||[]).find(function(x){return x.id===afId;});
+  if(!af) return;
+  gmaEdifIdAtual = edifId; gmaAfIdAtual = afId;
+  var itens = normalizarItensPendencia(af.itensPendencia && af.itensPendencia.length ? af.itensPendencia : [af.motivo||'(sem detalhamento)']);
+  // só pré-marca quem AINDA está pendente — o que já foi resolvido (ciência dada, baixado na
+  // AF) não precisa virar multa, já otimiza a seleção sozinho
+  document.getElementById('gmaItensLista').innerHTML = itens.map(function(it, i){
+    var resolvidoTxt = it.resolvidoEm ? ' <span style="color:var(--verde);font-weight:700">(resolvido em '+new Date(it.resolvidoEm).toLocaleDateString('pt-BR')+')</span>' : '';
+    return '<label style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;font-size:13px'+(it.resolvidoEm?';opacity:.6':'')+'">'+
+      '<input type="checkbox" class="gma-item" value="'+i+'" '+(it.resolvidoEm?'':'checked')+' style="margin-top:3px;width:auto">'+
+      ' <span>'+it.texto.replace(/</g,'&lt;')+resolvidoTxt+'</span>'+
+    '</label>';
+  }).join('');
+  document.getElementById('gma-numero').value = '';
+  document.getElementById('modalGerarMultaDeAF').style.display='flex';
+}
+function resolverMulta(edifId, multaId){
+  if(!confirm('Marcar este registro como resolvido?')) return;
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===edifId;});
+  if(!e) return;
+  var m = (e.cartorio||[]).find(function(x){return x.id===multaId;});
   if(m) m.resolvidaEm = new Date().toISOString();
   saveDB(db);
   renderMultas();
   if(qmap) renderQMapaConteudo();
 }
 function excluirRegistroMulta(edifId, multaId){
-  if(!confirm('Excluir este registro de multa permanentemente? Não vai mais aparecer no histórico nem no relatório.')) return;
+  if(!confirm('Excluir este registro permanentemente? Não vai mais aparecer no histórico nem no relatório.')) return;
   var db = loadDB();
   var e = db.edificacoes.find(function(x){return x.id===edifId;});
   if(!e) return;
-  e.multas = (e.multas||[]).filter(function(x){return x.id!==multaId;});
+  e.cartorio = (e.cartorio||[]).filter(function(x){return x.id!==multaId;});
   saveDB(db);
   renderMultas();
   if(qmap) renderQMapaConteudo();
 }
 
+function diasAteOuDesde(dataStr){
+  var d = parseDataBR(dataStr);
+  if(!d) return null;
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  d.setHours(0,0,0,0);
+  return Math.round((d-hoje)/(86400*1000));
+}
+
 function renderMultas(){
+  aplicarCartorioPendentes();
   document.getElementById('mt-edif-lista').innerHTML = '';
   document.getElementById('mt-edif-busca').value = '';
   document.getElementById('mt-form-detalhe').style.display='none';
@@ -5396,12 +6201,19 @@ function renderMultas(){
   var db = loadDB();
   var ativas = [], resolvidas = [];
   (db.edificacoes||[]).forEach(function(e){
-    (e.multas||[]).forEach(function(m){
+    (e.cartorio||[]).forEach(function(m){
       if(m.resolvidaEm) resolvidas.push({e:e, m:m});
       else ativas.push({e:e, m:m});
     });
   });
-  ativas.sort(function(a,b){ return new Date(a.m.criadaEm)-new Date(b.m.criadaEm); });
+  // pendentes: prazo mais próximo (ou já vencido) primeiro
+  ativas.sort(function(a,b){
+    var da = diasAteOuDesde(a.m.prazo), db2 = diasAteOuDesde(b.m.prazo);
+    if(da==null && db2==null) return new Date(a.m.criadaEm)-new Date(b.m.criadaEm);
+    if(da==null) return 1;
+    if(db2==null) return -1;
+    return da-db2;
+  });
   resolvidas.sort(function(a,b){ return new Date(b.m.resolvidaEm)-new Date(a.m.resolvidaEm); });
 
   var badge = document.getElementById('badgeMultas');
@@ -5410,55 +6222,88 @@ function renderMultas(){
 
   var elAtivas = document.getElementById('multasAtivasLista');
   elAtivas.innerHTML = ativas.length ? ativas.map(function(x){
-    var btnAvisoStyle = x.m.avisoEnviadoEm ? 'background:var(--card2);border:1px solid var(--amar);color:var(--amar)' : 'background:var(--red2);color:#fff';
-    var btnAvisoTexto = x.m.avisoEnviadoEm ? '✅ Enviado em '+new Date(x.m.avisoEnviadoEm).toLocaleDateString('pt-BR')+' — Reenviar' : '📱 Avisar via WhatsApp';
+    var m = x.m, e = x.e;
+    var tipoLabel = m.tipo==='af' ? '📋 AF' : '💰 Multa';
+    var dias = diasAteOuDesde(m.prazo);
+    var prazoHtml = '';
+    if(m.prazo){
+      if(dias==null) prazoHtml = ' · prazo '+m.prazo;
+      else if(dias<0) prazoHtml = ' · <span style="color:var(--red2);font-weight:700">prazo venceu há '+Math.abs(dias)+' dia(s) ('+m.prazo+')</span>';
+      else if(dias===0) prazoHtml = ' · <span style="color:var(--amar);font-weight:700">prazo vence HOJE</span>';
+      else prazoHtml = ' · prazo em '+dias+' dia(s) ('+m.prazo+')';
+    }
+    var btnAvisoStyle = m.avisoEnviadoEm ? 'background:var(--card2);border:1px solid var(--amar);color:var(--amar)' : 'background:var(--red2);color:#fff';
+    var btnAvisoTexto = m.avisoEnviadoEm ? '✅ Avisado em '+new Date(m.avisoEnviadoEm).toLocaleDateString('pt-BR')+' — Reenviar' : '📱 Avisar via WhatsApp';
+    var btnCienciaHtml = m.cienciaDadaEm
+      ? '<span class="sub" style="padding:8px 4px">✅ Ciência dada em '+new Date(m.cienciaDadaEm).toLocaleDateString('pt-BR')+'</span>'
+      : '<button class="btn" onclick="darCienciaCartorio(\''+e.id+'\',\''+m.id+'\')">✍️ Dar ciência</button>';
+    var btnGerarMultaHtml = (m.tipo==='af' && dias!=null && dias<0)
+      ? '<button class="btn" style="background:var(--red2);color:#fff" onclick="gerarMultaDeAF(\''+e.id+'\',\''+m.id+'\')">➡️ Gerar multa</button>' : '';
+    var itensNorm = normalizarItensPendencia(m.itensPendencia);
+    // AF com itens detalhados: mostra cada item com controle individual de resolvido (dar
+    // ciência já baixa a pendência item a item, sem esperar resolver tudo de uma vez) —
+    // demais casos (multa, ou AF sem itens detalhados) mostram só o texto corrido de sempre
+    var motivoHtml = (m.tipo==='af' && itensNorm.length)
+      ? '<div style="margin-top:6px">'+itensNorm.map(function(it, i){
+          return '<div style="display:flex;align-items:flex-start;gap:6px;padding:3px 0;font-size:12px'+(it.resolvidoEm?';opacity:.65':'')+'">'+
+            '<button class="btn" style="width:auto;padding:2px 8px;font-size:11px;'+(it.resolvidoEm?'background:var(--verde);color:#fff':'')+'" onclick="toggleItemResolvidoAF(\''+e.id+'\',\''+m.id+'\','+i+')">'+(it.resolvidoEm?'✓':'○')+'</button>'+
+            '<span>'+it.texto+(it.resolvidoEm?' <span style="color:var(--verde)">— resolvido em '+new Date(it.resolvidoEm).toLocaleDateString('pt-BR')+'</span>':'')+'</span>'+
+          '</div>';
+        }).join('')+'</div>'
+      : (m.motivo?'<div class="sub" style="margin-top:4px">'+m.motivo+'</div>':'');
     return '<div class="elist-item" style="margin-bottom:10px;border-color:var(--red2)">'+
       '<div class="elist-row"><div>'+
-        '<div class="elist-t">⚠️ '+(x.e.re||'Sem RE')+' — '+(x.e.nome||'Sem nome')+'</div>'+
-        '<div class="elist-s">Multa nº '+x.m.numero+(x.m.prazo?' · prazo '+x.m.prazo:'')+'</div>'+
-        (x.m.motivo?'<div class="sub" style="margin-top:4px">'+x.m.motivo+'</div>':'')+
+        '<div class="elist-t">'+tipoLabel+' · '+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+'</div>'+
+        '<div class="elist-s">'+(m.numero?'Nº '+m.numero:'(sem número ainda)')+prazoHtml+'</div>'+
+        motivoHtml+
+        (m.afOrigemId?'<div class="sub" style="margin-top:2px;font-style:italic">Gerada a partir de uma AF</div>':'')+
       '</div></div>'+
-      '<div class="btnrow" style="margin-top:8px;gap:8px">'+
-        '<button class="btn" style="'+btnAvisoStyle+'" onclick="enviarAvisoMulta(\''+x.e.id+'\',\''+x.m.id+'\')">'+btnAvisoTexto+'</button>'+
-        '<button class="btn primary" style="flex:1" onclick="resolverMulta(\''+x.e.id+'\',\''+x.m.id+'\')">✓ Multa resolvida</button>'+
-        '<button class="btn" onclick="excluirRegistroMulta(\''+x.e.id+'\',\''+x.m.id+'\')">Excluir</button>'+
+      '<div class="btnrow" style="margin-top:8px;gap:8px;flex-wrap:wrap">'+
+        '<button class="btn" style="'+btnAvisoStyle+'" onclick="enviarAvisoMulta(\''+e.id+'\',\''+m.id+'\')">'+btnAvisoTexto+'</button>'+
+        (m.numero ? '' : '<button class="btn" style="background:var(--amar);color:#000" onclick="informarNumeroCartorio(\''+e.id+'\',\''+m.id+'\')">🔢 Informar número</button>')+
+        btnCienciaHtml+
+        btnGerarMultaHtml+
+        '<button class="btn primary" style="flex:1" onclick="resolverMulta(\''+e.id+'\',\''+m.id+'\')">✓ Resolvido</button>'+
+        '<button class="btn" onclick="excluirRegistroMulta(\''+e.id+'\',\''+m.id+'\')">Excluir</button>'+
       '</div>'+
     '</div>';
-  }).join('') : '<div class="empty"><div class="ico">✅</div>Nenhuma edificação com multa ativa no momento.</div>';
+  }).join('') : '<div class="empty"><div class="ico">✅</div>Nenhum registro pendente no momento.</div>';
 
   var elRes = document.getElementById('multasResolvidasLista');
   elRes.innerHTML = resolvidas.length ? resolvidas.map(function(x){
+    var tipoLabel = x.m.tipo==='af' ? 'AF' : 'Multa';
     return '<div class="elist-item" style="margin-bottom:8px"><div class="elist-row">'+
       '<div><div class="elist-t">'+(x.e.re||'Sem RE')+' — '+(x.e.nome||'Sem nome')+'</div>'+
-      '<div class="elist-s">Multa nº '+x.m.numero+' · resolvida em '+new Date(x.m.resolvidaEm).toLocaleDateString('pt-BR')+'</div></div>'+
+      '<div class="elist-s">'+tipoLabel+' nº '+(x.m.numero||'—')+' · resolvida em '+new Date(x.m.resolvidaEm).toLocaleDateString('pt-BR')+'</div></div>'+
       '<button class="btn" style="width:auto;padding:6px 10px;font-size:12px" onclick="excluirRegistroMulta(\''+x.e.id+'\',\''+x.m.id+'\')">Excluir</button>'+
     '</div></div>';
-  }).join('') : '<div class="sub">Nenhuma multa resolvida ainda.</div>';
+  }).join('') : '<div class="sub">Nenhum registro resolvido ainda.</div>';
 }
 
 function copiarRelatorioMultas(){
   var db = loadDB();
   var ativas = [];
   (db.edificacoes||[]).forEach(function(e){
-    (e.multas||[]).forEach(function(m){ if(!m.resolvidaEm) ativas.push({e:e, m:m}); });
+    (e.cartorio||[]).forEach(function(m){ if(!m.resolvidaEm) ativas.push({e:e, m:m}); });
   });
   ativas.sort(function(a,b){ return new Date(a.m.criadaEm)-new Date(b.m.criadaEm); });
 
   var linhas = [];
-  linhas.push('RELATÓRIO DE EDIFICAÇÕES COM MULTA ATIVA');
+  linhas.push('RELATÓRIO DO CARTÓRIO — AF E MULTAS PENDENTES');
   linhas.push('Gerado em '+new Date().toLocaleString('pt-BR'));
   linhas.push('');
   if(!ativas.length){
-    linhas.push('Nenhuma edificação com multa ativa no momento.');
+    linhas.push('Nenhum registro pendente no momento.');
   } else {
     linhas.push('Total: '+ativas.length);
     linhas.push('');
     ativas.forEach(function(x, i){
-      linhas.push((i+1)+'. '+(x.e.re||'Sem RE')+' — '+(x.e.nome||'Sem nome'));
-      linhas.push('   Multa nº: '+x.m.numero);
+      linhas.push((i+1)+'. ['+((x.m.tipo==='af')?'AF':'MULTA')+'] '+(x.e.re||'Sem RE')+' — '+(x.e.nome||'Sem nome'));
+      linhas.push('   Número: '+(x.m.numero||'—'));
       linhas.push('   Motivo: '+(x.m.motivo||'—'));
       linhas.push('   Prazo: '+(x.m.prazo||'—'));
-      linhas.push('   Registrada em: '+new Date(x.m.criadaEm).toLocaleDateString('pt-BR'));
+      linhas.push('   Ciência: '+(x.m.cienciaDadaEm ? new Date(x.m.cienciaDadaEm).toLocaleDateString('pt-BR') : 'ainda não dada'));
+      linhas.push('   Registrado em: '+new Date(x.m.criadaEm).toLocaleDateString('pt-BR'));
       linhas.push('');
     });
   }
@@ -5527,6 +6372,7 @@ function exportarParaCampo(){
     edificacoes: db.edificacoes||[],
     vistorias: (db.vistorias||[]).filter(function(v){return !v.concluida;}), // só as pendentes, pro campo executar
     rotas: db.rotas||[],
+    rotasExcluidas: db.rotasExcluidas||[], vistoriasExcluidas: db.vistoriasExcluidas||[], // o Campo remove o que foi excluído aqui
     pontos: [], trajetorias: []
   };
   baixarPacote(pacote);
@@ -5613,6 +6459,11 @@ function importarArquivo(input){
     catch(err){ alert('Arquivo inválido ou corrompido.'); return; }
 
     var db = loadDB();
+    var tumVist = db.vistoriasExcluidas || [], tumRota = db.rotasExcluidas || [];
+    if(pacote.vistorias && tumVist.length) pacote.vistorias = pacote.vistorias.filter(function(vv){ return tumVist.indexOf(vv.id)<0; });
+    if(pacote.rotas && tumRota.length) pacote.rotas = pacote.rotas.filter(function(rr){ return tumRota.indexOf(rr.id)<0; });
+    var cartorioAntes = {}; // o Cartório mora no Quartel — a cópia do Campo pode estar desatualizada
+    (db.edificacoes||[]).forEach(function(ed){ cartorioAntes[ed.id] = ed.cartorio || []; });
     var resumo = {};
     ['edificacoes','vistorias','trajetorias','pontos','rotas'].forEach(function(tipo){
       if(!pacote[tipo] || !pacote[tipo].length) return;
@@ -5620,6 +6471,15 @@ function importarArquivo(input){
       db[tipo] = mergeArray(db[tipo], pacote[tipo], c);
       resumo[tipo]=c;
     });
+    (db.edificacoes||[]).forEach(function(ed){
+      var antes = cartorioAntes[ed.id];
+      if(!antes) return;
+      var idsAntes = {}; antes.forEach(function(i){ idsAntes[i.id] = true; });
+      var extras = (ed.cartorio||[]).filter(function(i){ return !idsAntes[i.id]; });
+      ed.cartorio = antes.concat(extras);
+    });
+    (db.vistorias||[]).forEach(function(vv){ aplicarCartorioDaVistoria(db, vv); }); // visitas de Cartório feitas no Campo
+    (db.vistorias||[]).forEach(function(vv){ if(vv.rotaId && tumRota.indexOf(vv.rotaId)>=0) vv.rotaId = null; }); // rota excluída: concluídas ficam como histórico
     saveDB(db);
 
     var labels = {edificacoes:'edificações', vistorias:'vistorias', trajetorias:'trajetórias', pontos:'pontos', rotas:'rotas'};

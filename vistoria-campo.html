@@ -104,7 +104,11 @@
   /* Mapa */
   #mapWrap{position:relative;height:calc(100vh - 172px);height:calc(100dvh - 172px);
     margin:0 -16px;border-radius:0;overflow:hidden;}
-  #map{width:100%;height:100%;background:#1c1c1e;}
+  #map{width:100%;height:100%;background:#1c1c1e;transition:transform .15s linear;}
+  /* modo bússola: o mapa fica bem maior que a tela e centralizado, pra girar sem mostrar
+     canto em branco (o overflow:hidden do #mapWrap corta o excedente) */
+  #mapWrap.bussola-ativa #map{width:200%;height:200%;position:absolute;left:-50%;top:-50%;}
+  .map-fab.on{background:var(--red2);color:#fff;border-color:var(--red2);}
   .map-fab{position:absolute;right:14px;bottom:14px;width:46px;height:46px;border-radius:50%;
     background:var(--card);border:1px solid var(--border);color:var(--txt);font-size:19px;
     box-shadow:0 4px 14px rgba(0,0,0,.4);z-index:800;}
@@ -213,7 +217,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v51</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v56</div>
   </header>
 
   <main>
@@ -222,7 +226,7 @@
       <div id="mapWrap">
         <div id="map"></div>
         <div style="position:absolute;top:10px;left:10px;right:10px;z-index:500;display:flex;gap:6px;flex-direction:column">
-          <div style="display:flex;gap:6px">
+          <div id="mapBuscaReRow" style="display:flex;gap:6px">
             <input type="text" id="mapBuscaRe" placeholder="🔎 Buscar por RE..." style="flex:1;box-shadow:0 2px 8px rgba(0,0,0,.4)" onkeydown="if(event.key==='Enter') buscarEdifNoMapaCampo()">
             <button class="btn primary" style="width:auto;padding:0 16px" onclick="buscarEdifNoMapaCampo()">Ir</button>
           </div>
@@ -233,9 +237,10 @@
           <div id="mapFiltroReBanner"></div>
         </div>
         <button class="map-fab" id="btnLocalizacao" onclick="centralizarNaMinhaLocalizacao()">📍</button>
-        <button class="map-fab" style="bottom:74px" onclick="abrirCamadas()">🗂️</button>
-        <button class="map-fab" style="bottom:138px" onclick="abrirMapasOffline()">⬇️</button>
-        <button class="map-fab" id="btnFonteMapa" style="bottom:202px" onclick="trocarFonteMapa()">🛰️</button>
+        <button class="map-fab" id="btnBussola" style="bottom:74px" onclick="alternarModoBussola()">🧭</button>
+        <button class="map-fab" style="bottom:138px" onclick="abrirCamadas()">🗂️</button>
+        <button class="map-fab" style="bottom:202px" onclick="abrirMapasOffline()">⬇️</button>
+        <button class="map-fab" id="btnFonteMapa" style="bottom:266px" onclick="trocarFonteMapa()">🛰️</button>
       </div>
     </div>
 
@@ -742,7 +747,55 @@ var PREV_GRUPOS = {
 // ════════════════════════════════════════
 // EXECUÇÃO DA VISTORIA — Fase 8/9 (checklist técnico, sem perder nenhum critério)
 // ════════════════════════════════════════
-function getCL(tipo){ return tipo==='funcionamento' ? CL_FN : CL_HS; }
+// Tipos de vistoria: Habite-se, Funcionamento (padrão), Ex-ofício (mesmo checklist do Funcionamento)
+// e Cartório (sem checklist técnico — visita pra registrar/dar ciência de AF ou multa).
+var TIPOS_VISTORIA = [
+  {id:'habite-se', l:'Habite-se'},
+  {id:'funcionamento', l:'Funcionamento'},
+  {id:'ex-oficio', l:'Ex-ofício'},
+  {id:'cartorio', l:'Cartório'}
+];
+var SISTEMAS_AF = [
+  {id:'ext', l:'Extintores'},
+  {id:'ilu', l:'Iluminação de emergência'},
+  {id:'sal', l:'Sinalização de abandono'},
+  {id:'glp', l:'GLP'},
+  {id:'outros', l:'Outros'}
+];
+function getCL(tipo){
+  if(tipo==='cartorio') return {};
+  return (tipo==='funcionamento' || tipo==='ex-oficio') ? CL_FN : CL_HS;
+}
+function rotuloVistoria(v){
+  var t = TIPOS_VISTORIA.find(function(x){return x.id===v.tipo;});
+  var rot = t ? t.l : 'Habite-se';
+  if(v.tipo==='cartorio' && v.cartorioSubtipo){
+    var sub = {multa:'Multa', af:'AF', ciencia:'Ciência'}[v.cartorioSubtipo];
+    if(v.cartorioSubtipo==='ciencia' && v.cienciaDe) sub += ' de '+(v.cienciaDe==='af'?'AF':'Multa');
+    rot += ' · '+sub;
+  }
+  return rot;
+}
+// prazo padrão da AF: 30 dias (90 se citar obra), sempre empurrado pra dia útil
+function ajustarPrazoDiaUtil(dias){
+  var d = new Date(); d.setDate(d.getDate()+dias);
+  while(d.getDay()===0 || d.getDay()===6) d.setDate(d.getDate()+1);
+  return d;
+}
+function formatarDataBR(d){
+  var f = function(n){return (n<10?'0':'')+n;};
+  return f(d.getDate())+'/'+f(d.getMonth()+1)+'/'+d.getFullYear();
+}
+function prazoPadraoCartorioCampo(v){
+  var obra = /\bobra\b|constru[çc][ãa]o|projeto aprovado|edifica[çc][ãa]o irregular/i.test(v.cartorioMotivo||'');
+  return formatarDataBR(ajustarPrazoDiaUtil(obra ? 90 : 30));
+}
+function normalizarItensPendencia(itens){
+  return (itens||[]).map(function(it){
+    return typeof it==='string' ? {texto:it, resolvidoEm:null} : {texto:it.texto, resolvidoEm:it.resolvidoEm||null};
+  });
+}
+
 
 // Grupos do checklist que aparecem sempre, independente de quais sistemas preventivos estão ativos
 var GRUPOS_FIXOS = ['Documentação', 'Características Gerais do Bloco', 'Características Gerais'];
@@ -866,7 +919,8 @@ function renderVistoriasCampo(){
     var nc = todos.filter(function(it){return v.checklist[it.id] && v.checklist[it.id].status==='nao';}).length;
 
     var statusCls = 'pend', statusTxt = '⏳ Pendente';
-    if(v.concluida){
+    if(v.concluida && v.tipo==='cartorio'){ statusCls='def'; statusTxt='✅ Registrado'; }
+    else if(v.concluida){
       if(nc===0){ statusCls='def'; statusTxt='✅ Deferido'; }
       else { statusCls='indef'; statusTxt='⚠️ '+nc+' não conf.'; }
     }
@@ -875,10 +929,10 @@ function renderVistoriasCampo(){
     var rotaTag = rota ? ' · 🧭 '+rota.nome : '';
     var temLocal = e && e.lat && e.lng;
 
-    return '<div class="vist-card" onclick="abrirExecucao(\''+v.edificacaoId+'\')">'+
+    return '<div class="vist-card" onclick="abrirExecucao(\''+v.edificacaoId+'\',\''+v.id+'\')">'+
       '<div class="vtop">'+
         '<div><div class="vnome">'+(e?e.nome:'Edificação removida')+'</div>'+
-        '<div class="vsub">'+(e?e.re:'')+' · '+(v.tipo==='funcionamento'?'Funcionamento':v.tipo==='habite-se'?'Habite-se':'Sem tipo escolhido')+(v.motivo?' · '+v.motivo:'')+rotaTag+(e&&e.endereco?'<br>'+e.endereco+(e.bairro?' — '+e.bairro:''):'')+'</div></div>'+
+        '<div class="vsub">'+(e?e.re:'')+' · '+(v.tipo ? rotuloVistoria(v) : 'Sem tipo escolhido')+(v.motivo?' · '+v.motivo:'')+rotaTag+(e&&e.endereco?'<br>'+e.endereco+(e.bairro?' — '+e.bairro:''):'')+'</div></div>'+
         '<span class="vist-status '+statusCls+'">'+statusTxt+'</span>'+
       '</div>'+
       '<div class="vsub">'+(v.concluida ? 'Concluída em '+new Date(v.concluidaEm).toLocaleString('pt-BR') : 'Toque pra continuar')+'</div>'+
@@ -905,7 +959,7 @@ function navegarRotaInteira(rotaId){
   window.open(url, '_blank');
 }
 
-function abrirExecucao(edificacaoId){
+function abrirExecucao(edificacaoId, vistoriaId){
   execEdificacaoId = edificacaoId;
   blocosExpandidosCampo = {};
   pavimentosExpandidosCampo = {};
@@ -919,13 +973,17 @@ function abrirExecucao(edificacaoId){
   // reaproveita vistoria não concluída mais recente pra essa edificação, se existir
   var pendente = (db.vistorias||[]).filter(function(v){return v.edificacaoId===edificacaoId && !v.concluida;})
     .sort(function(a,b){return new Date(b.criadoEm||0)-new Date(a.criadoEm||0);})[0];
+  // tocou numa parada específica da lista (ex: a edificação tem duas paradas em rotas diferentes)?
+  // abre exatamente essa — mesmo concluída, aí só pra consulta
+  var alvo = vistoriaId ? (db.vistorias||[]).find(function(v){return v.id===vistoriaId && v.edificacaoId===edificacaoId;}) : null;
+  if(alvo) pendente = alvo;
 
   if(pendente){
     execVistoriaId = pendente.id;
     execTipo = pendente.tipo;
   } else {
     execVistoriaId = null;
-    execTipo = null;
+    execTipo = 'funcionamento'; // padrão: o mais comum (a vistoria só é criada na primeira interação)
   }
 
   document.getElementById('modalEdif').style.display='none';
@@ -1101,6 +1159,134 @@ function salvarVistoria(v){
   var idx = db.vistorias.findIndex(function(x){return x.id===v.id;});
   if(idx>=0) db.vistorias[idx]=v; else db.vistorias.push(v);
   saveDB(db);
+}
+
+// ════════════════════════════════════════
+// VISITA DE CARTÓRIO no Campo — guarda o que foi feito na própria vistoria. O lançamento em
+// e.cartorio acontece no Quartel (ao importar), que é onde mora o Cartório — assim não há
+// edição concorrente do mesmo registro nos dois aparelhos.
+// ════════════════════════════════════════
+function aplicarCampoCartorioCampo(st, campo, valor){
+  if(campo==='cartorioSubtipo'){
+    st.cartorioSubtipo = valor;
+    if(valor!=='ciencia') st.cienciaDe = null;
+    st.cienciaItemId = null; st.cienciaBaixas = [];
+  } else if(campo==='cienciaDe'){
+    st.cienciaDe = valor; st.cienciaItemId = null; st.cienciaBaixas = [];
+  } else if(campo==='toggleSistema'){
+    st.afSistemas = st.afSistemas || [];
+    var i = st.afSistemas.indexOf(valor);
+    if(i>=0) st.afSistemas.splice(i,1); else st.afSistemas.push(valor);
+  }
+}
+function htmlCartorioCampo(e, v, db){
+  var h = '<div class="sec-title" style="margin-top:0">Visita de Cartório</div>';
+  if(v.concluida){
+    return h + '<div class="sub">'+rotuloVistoria(v)+' — ✅ concluída. Será lançada no Cartório quando importar no Vistoria Quartel.</div>';
+  }
+  var sub = v.cartorioSubtipo;
+  function btn(campo, valor, rot, ativo){
+    return '<button type="button" class="btn" style="width:auto;padding:8px 14px;'+(ativo?'background:var(--red2);color:#fff':'')+'" onclick="setCartorioCampo(\''+campo+'\',\''+valor+'\')">'+rot+'</button>';
+  }
+  h += '<div class="btnrow" style="gap:6px;margin-bottom:8px;flex-wrap:wrap">'+
+    btn('cartorioSubtipo','multa','💰 Multa',sub==='multa')+btn('cartorioSubtipo','af','📋 AF',sub==='af')+btn('cartorioSubtipo','ciencia','✍️ Ciência',sub==='ciencia')+'</div>';
+  if(sub==='ciencia'){
+    h += '<div class="sub" style="margin-bottom:4px">Ciência de:</div><div class="btnrow" style="gap:6px;margin-bottom:8px">'+
+      btn('cienciaDe','multa','Multa',v.cienciaDe==='multa')+btn('cienciaDe','af','AF',v.cienciaDe==='af')+'</div>';
+  }
+  if(sub==='af'){
+    var marc = v.afSistemas || [];
+    h += '<div class="sub" style="margin-bottom:4px">Sistemas da AF (marque quantos precisar):</div><div class="btnrow" style="gap:6px;margin-bottom:8px;flex-wrap:wrap">'+
+      SISTEMAS_AF.map(function(x){ var on = marc.indexOf(x.id)>=0; return btn('toggleSistema', x.id, (on?'☑ ':'☐ ')+x.l, on); }).join('')+'</div>';
+  }
+  function campoTxt(lbl, campo, ph, valor){
+    var val = (valor!=null) ? valor : (v[campo]||'');
+    return '<label class="lbl">'+lbl+'</label><input type="text" value="'+String(val).replace(/"/g,'&quot;')+'" placeholder="'+ph+'" style="margin-bottom:10px" onchange="setCartorioTextoCampo(\''+campo+'\',this.value)">';
+  }
+  if(sub==='af' || sub==='multa'){
+    h += campoTxt(sub==='af' ? 'Detalhe da AF (opcional — além dos sistemas)' : 'Motivo da multa', 'cartorioMotivo', 'Ex: extintor sem carga no 2º pavimento');
+    h += campoTxt(sub==='af' ? 'Número da AF (opcional)' : 'Número da multa', 'cartorioNumero', 'Ex: 2026/00123');
+    h += campoTxt('Prazo (DD/MM/AAAA)', 'cartorioPrazo', 'DD/MM/AAAA', v.cartorioPrazo!=null ? v.cartorioPrazo : (sub==='af' ? prazoPadraoCartorioCampo(v) : ''));
+  } else if(sub==='ciencia'){
+    if(!v.cienciaDe){ h += '<div class="sub">Escolha acima se é ciência de Multa ou de AF.</div>'; }
+    else {
+      // não oferece de novo o que já recebeu ciência em outra visita deste aparelho (ainda não importada no Quartel)
+      var jaCiente = {};
+      (db.vistorias||[]).forEach(function(x){ if(x.id!==v.id && x.tipo==='cartorio' && x.concluida && x.cienciaItemId) jaCiente[x.cienciaItemId] = true; });
+      var cand = (e.cartorio||[]).filter(function(m){ return m.tipo===v.cienciaDe && !m.resolvidaEm && !m.cienciaDadaEm && !jaCiente[m.id]; });
+      if(!cand.length){
+        h += '<div class="sub">Nenhuma '+(v.cienciaDe==='af'?'AF':'multa')+' pendente de ciência nesta edificação (confira se o Quartel já exportou o Cartório pra cá).</div>';
+      } else {
+        h += '<div class="sub" style="margin:8px 0 4px">Qual '+(v.cienciaDe==='af'?'AF':'multa')+'?</div>';
+        cand.forEach(function(m){
+          h += '<label style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;font-size:13px"><input type="radio" name="ciencia-item" style="width:auto;margin-top:3px" '+(v.cienciaItemId===m.id?'checked':'')+' onchange="selecionarItemCienciaCampo(\''+m.id+'\')"> <span>'+(m.tipo==='af'?'AF':'Multa')+' nº '+(m.numero||'(sem número)')+(m.prazo?' · prazo '+m.prazo:'')+(m.motivo?'<br><span class="sub">'+m.motivo.replace(/</g,'&lt;').replace(/\n/g,' · ')+'</span>':'')+'</span></label>';
+        });
+        var sel = cand.find(function(m){return m.id===v.cienciaItemId;});
+        if(sel && sel.tipo==='af'){
+          var itens = normalizarItensPendencia(sel.itensPendencia);
+          if(itens.length){
+            h += '<div class="sub" style="margin:10px 0 4px">Marque os itens já regularizados (baixa):</div>';
+            itens.forEach(function(it, i){
+              var marcado = !!it.resolvidoEm || (v.cienciaBaixas||[]).indexOf(i)>=0;
+              h += '<label style="display:flex;gap:8px;align-items:flex-start;padding:4px 0;font-size:13px"><input type="checkbox" style="width:auto;margin-top:3px" '+(marcado?'checked':'')+(it.resolvidoEm?' disabled':'')+' onchange="toggleBaixaCienciaCampo('+i+')"> <span>'+it.texto.replace(/</g,'&lt;')+(it.resolvidoEm?' <span style="color:var(--verde)">(resolvido em '+new Date(it.resolvidoEm).toLocaleDateString('pt-BR')+')</span>':'')+'</span></label>';
+            });
+          }
+        }
+      }
+    }
+  } else {
+    h += '<div class="sub">Escolha acima o que vai ser feito nesta visita.</div>';
+  }
+  return h;
+}
+function setCartorioCampo(campo, valor){
+  var v = garantirVistoria();
+  aplicarCampoCartorioCampo(v, campo, valor);
+  salvarVistoria(v);
+  renderExecucao();
+}
+function setCartorioTextoCampo(campo, val){
+  var v = garantirVistoria();
+  v[campo] = val;
+  salvarVistoria(v);
+}
+function selecionarItemCienciaCampo(itemId){
+  var v = garantirVistoria();
+  v.cienciaItemId = itemId; v.cienciaBaixas = [];
+  salvarVistoria(v);
+  renderExecucao();
+}
+function toggleBaixaCienciaCampo(idx){
+  var v = garantirVistoria();
+  v.cienciaBaixas = v.cienciaBaixas || [];
+  var i = v.cienciaBaixas.indexOf(idx);
+  if(i>=0) v.cienciaBaixas.splice(i,1); else v.cienciaBaixas.push(idx);
+  salvarVistoria(v);
+  renderExecucao();
+}
+function concluirCartorioCampo(){
+  var v = garantirVistoria();
+  var sub = v.cartorioSubtipo;
+  if(!sub){ alert('Escolha se a visita é de Multa, AF ou Ciência.'); return; }
+  if(sub==='af' && !(v.afSistemas||[]).length && !(v.cartorioMotivo||'').trim()){ alert('Marque ao menos um sistema da AF ou escreva o detalhe.'); return; }
+  if(sub==='multa' && !(v.cartorioNumero||'').trim()){ alert('Informe o número da multa.'); return; }
+  if(sub==='ciencia' && (!v.cienciaDe || !v.cienciaItemId)){ alert('Escolha qual '+(v.cienciaDe==='af'?'AF':'multa')+' recebeu a ciência.'); return; }
+  if(!confirm('Concluir esta visita de Cartório?')) return;
+  if(sub==='af' && (v.cartorioPrazo==null || v.cartorioPrazo==='')) v.cartorioPrazo = prazoPadraoCartorioCampo(v);
+  v.concluida = true;
+  v.concluidaEm = new Date().toISOString();
+  salvarVistoria(v);
+  renderExecucao();
+}
+
+function setOcupacaoVistoria(val){
+  var v = garantirVistoria();
+  v.ocupacao = val;
+  salvarVistoria(v);
+  // lembra na edificação — a próxima vistoria desse local já abre com essa ocupação preenchida
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===execEdificacaoId;});
+  if(e){ e.ocupacao = val; saveDB(db); }
 }
 
 function escolherTipo(tipo){
@@ -1309,8 +1495,9 @@ function renderExecucao(){
 
   // Seletor de tipo
   html += '<div class="tipo-row">'+
-    '<button class="tipo-btn '+(execTipo==='habite-se'?'on':'')+'" onclick="escolherTipo(\'habite-se\')">Habite-se</button>'+
-    '<button class="tipo-btn '+(execTipo==='funcionamento'?'on':'')+'" onclick="escolherTipo(\'funcionamento\')">Funcionamento</button>'+
+    TIPOS_VISTORIA.map(function(t){
+      return '<button class="tipo-btn '+(execTipo===t.id?'on':'')+'" onclick="escolherTipo(\''+t.id+'\')">'+t.l+'</button>';
+    }).join('')+
   '</div>';
 
   if(!execTipo){
@@ -1318,6 +1505,23 @@ function renderExecucao(){
     body.innerHTML = html;
     return;
   }
+
+  if(execTipo==='cartorio'){
+    var vCart = db.vistorias.find(function(x){return x.id===execVistoriaId;}) || {};
+    html += htmlCartorioCampo(e, vCart, db);
+    html += '<div class="exec-footer"><div class="btnrow">'+
+      (vCart.concluida ? '<button class="btn" disabled>✅ Concluída</button>' : '<button class="btn primary" onclick="concluirCartorioCampo()">✅ Concluir visita de Cartório</button>')+
+    '</div></div>';
+    body.innerHTML = html;
+    return;
+  }
+
+  // Ocupação do local — texto livre, vai pro relatório. Se esta vistoria ainda não tem nada
+  // escrito, já vem preenchido com a última ocupação registrada pra essa edificação.
+  var vOcup = db.vistorias.find(function(x){return x.id===execVistoriaId;});
+  var ocupacaoAtual = (vOcup && vOcup.ocupacao!=null) ? vOcup.ocupacao : (e.ocupacao||'');
+  html += '<label class="lbl">Ocupação do local</label>'+
+    '<input type="text" value="'+ocupacaoAtual.replace(/"/g,'&quot;')+'" placeholder="Ex: Comércio de roupas (F-6), loja térrea + depósito" style="margin-bottom:14px" onchange="setOcupacaoVistoria(this.value)">';
 
   // Sistemas preventivos ativos — chips controlam quais grupos do checklist aparecem
   html += '<div style="font-size:12px;color:var(--sub);margin-bottom:6px">Sistemas preventivos ativos nesta edificação:</div>';
@@ -2619,6 +2823,8 @@ var mapInited = false;
 var lyrEdif=null, lyrPontos=null, lyrTrajAtual=null, lyrTrajAnt=null, lyrForaComp=null, lyrDirecao=null;
 var meuMarcador = null;
 var meuPosicaoAtual = null; // [lat,lng] — última posição conhecida do GPS, pro indicador de direção
+var meuHeadingAtual = null; // graus (0-360) — pra onde a pessoa está se deslocando, calculado pelo
+                             // movimento entre duas leituras de GPS (não é bússola do aparelho)
 var mapFiltroRe = null; // id da edificação, quando o usuário busca/filtra por uma RE única no mapa
 var centroSelecionadoPacote = null; // {lat,lng} durante fluxo de download
 var modoEscolherCentro = false;
@@ -2987,6 +3193,60 @@ function initMap(){
 var mapWatchId = null;
 var seguindoMinhaLocalizacao = false;
 
+// ════════════════════════════════════════
+// MODO BÚSSOLA — gira o próprio MAPA (não uma seta separada) conforme a orientação real do
+// celular, igual apps de navegação: "frente" fica sempre pra cima da tela, e o prédio aparece
+// na posição visual certa (esquerda/direita/à frente) sem precisar de instrução de texto —
+// evita o problema de "vire à esquerda" sem ter rota de rua pra confirmar que dá.
+// ════════════════════════════════════════
+var modoBussolaAtivo = false;
+function alternarModoBussola(){
+  if(modoBussolaAtivo){ desativarModoBussola(); return; }
+  if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
+    // iOS 13+ exige permissão explícita do usuário pra ler o sensor de orientação
+    DeviceOrientationEvent.requestPermission().then(function(resp){
+      if(resp==='granted') ativarModoBussola();
+      else alert('Permissão de orientação negada — sem ela não dá pra girar o mapa. Pode ativar depois nas configurações do navegador.');
+    }).catch(function(){ alert('Não foi possível pedir permissão de orientação neste aparelho.'); });
+  } else if(typeof DeviceOrientationEvent !== 'undefined'){
+    ativarModoBussola();
+  } else {
+    alert('Este aparelho/navegador não tem sensor de orientação disponível.');
+  }
+}
+function ativarModoBussola(){
+  modoBussolaAtivo = true;
+  window.addEventListener('deviceorientationabsolute', onOrientacaoDispositivo, true);
+  window.addEventListener('deviceorientation', onOrientacaoDispositivo, true);
+  document.getElementById('btnBussola').classList.add('on');
+  document.getElementById('mapWrap').classList.add('bussola-ativa');
+  setTimeout(function(){ if(map) map.invalidateSize(); }, 200);
+  if(mapFiltroRe) renderMapFiltroReBanner();
+}
+function desativarModoBussola(){
+  modoBussolaAtivo = false;
+  window.removeEventListener('deviceorientationabsolute', onOrientacaoDispositivo, true);
+  window.removeEventListener('deviceorientation', onOrientacaoDispositivo, true);
+  document.getElementById('btnBussola').classList.remove('on');
+  document.getElementById('mapWrap').classList.remove('bussola-ativa');
+  document.getElementById('map').style.transform = '';
+  setTimeout(function(){ if(map) map.invalidateSize(); }, 200);
+  if(mapFiltroRe) renderMapFiltroReBanner();
+}
+function onOrientacaoDispositivo(ev){
+  var heading = null;
+  if(typeof ev.webkitCompassHeading === 'number'){
+    heading = ev.webkitCompassHeading; // iOS Safari: já entrega o heading real da bússola
+  } else if(ev.alpha != null){
+    // Android: com 'absolute' true, alpha=0 é o norte e cresce sentido anti-horário —
+    // o heading da bússola (sentido horário a partir do norte) é 360-alpha
+    heading = (360 - ev.alpha) % 360;
+  }
+  if(heading==null || !modoBussolaAtivo) return;
+  document.getElementById('map').style.transform = 'rotate(' + (-heading) + 'deg)';
+  if(mapFiltroRe) renderMapFiltroReBanner();
+}
+
 function centralizarNaMinhaLocalizacao(){
   if(!map) return;
   if(!navigator.geolocation){ alert('GPS não disponível.'); return; }
@@ -3016,6 +3276,14 @@ function centralizarNaMinhaLocalizacao(){
 
 function atualizarMeuMarcador(ll){
   if(!map) return;
+  // só recalcula o heading se andou mais de ~5m desde a última leitura — abaixo disso o GPS tem
+  // ruído suficiente pra fazer a seta "tremer" sem a pessoa ter de fato mudado de direção
+  if(meuPosicaoAtual){
+    var deslocamentoKm = haversineKm(meuPosicaoAtual[0], meuPosicaoAtual[1], ll[0], ll[1]);
+    if(deslocamentoKm*1000 > 5){
+      meuHeadingAtual = calcularBearing(meuPosicaoAtual[0], meuPosicaoAtual[1], ll[0], ll[1]);
+    }
+  }
   meuPosicaoAtual = ll;
   if(meuMarcador) map.removeLayer(meuMarcador);
   meuMarcador = L.circleMarker(ll, {radius:8, fillColor:'#0A84FF', color:'#fff', weight:2, fillOpacity:1}).addTo(map);
@@ -3069,13 +3337,22 @@ function bearingParaCardinal(deg){
   var dirs = ['N','NE','L','SE','S','SO','O','NO'];
   return dirs[Math.round(deg/45)%8];
 }
+var mapDistanciaAnteriorAlvo = null;
 function renderMapFiltroReBanner(){
   var el = document.getElementById('mapFiltroReBanner');
+  var buscaRow = document.getElementById('mapBuscaReRow');
   if(!el) return;
-  if(!mapFiltroRe){ el.innerHTML=''; if(lyrDirecao) lyrDirecao.clearLayers(); return; }
+  if(!mapFiltroRe){
+    el.innerHTML='';
+    if(buscaRow) buscaRow.style.display='flex';
+    if(lyrDirecao) lyrDirecao.clearLayers();
+    mapDistanciaAnteriorAlvo = null;
+    return;
+  }
+  if(buscaRow) buscaRow.style.display='none'; // evita sobrepor/poluir — some enquanto filtrado
   var db = loadDB();
   var e = (db.edificacoes||[]).find(function(x){return x.id===mapFiltroRe;});
-  if(!e){ mapFiltroRe=null; el.innerHTML=''; return; }
+  if(!e){ mapFiltroRe=null; el.innerHTML=''; if(buscaRow) buscaRow.style.display='flex'; return; }
 
   var direcaoHtml = '';
   if(lyrDirecao) lyrDirecao.clearLayers();
@@ -3083,10 +3360,29 @@ function renderMapFiltroReBanner(){
     var dist = haversineKm(meuPosicaoAtual[0], meuPosicaoAtual[1], e.lat, e.lng);
     var bear = calcularBearing(meuPosicaoAtual[0], meuPosicaoAtual[1], e.lat, e.lng);
     var distTxt = dist<1 ? Math.round(dist*1000)+' m' : dist.toFixed(1)+' km';
-    direcaoHtml = '<div style="display:flex;align-items:center;gap:6px;margin-top:4px">'+
-      '<span style="display:inline-block;font-size:20px;transform:rotate('+bear+'deg)">⬆️</span>'+
-      '<span>'+distTxt+' ao '+bearingParaCardinal(bear)+'</span>'+
-    '</div>';
+
+    var aproxHtml = '';
+    if(mapDistanciaAnteriorAlvo!=null){
+      if(dist < mapDistanciaAnteriorAlvo-0.003) aproxHtml = '<span style="color:#30D158">🟢 Aproximando</span>';
+      else if(dist > mapDistanciaAnteriorAlvo+0.003) aproxHtml = '<span style="color:#FF453A">🔴 Afastando</span>';
+    }
+    mapDistanciaAnteriorAlvo = dist;
+
+    if(modoBussolaAtivo){
+      // com a bússola ativa, o PRÓPRIO MAPA já gira mostrando a direção real (o prédio aparece
+      // na posição certa em relação à frente do celular) — aqui só reforça distância/aproximando
+      direcaoHtml = '<div style="display:flex;align-items:center;gap:8px;margin-top:4px">'+
+        '<span style="display:inline-block;font-size:22px">🧭</span>'+
+        '<span>'+distTxt+(aproxHtml?' · '+aproxHtml:'')+'</span>'+
+      '</div>';
+    } else {
+      // sem bússola: seta com rumo absoluto (ponto cardeal), só isso — nenhuma instrução de
+      // "vire à esquerda/direita", já que não há rota de rua pra confirmar se dá pra seguir reto
+      direcaoHtml = '<div style="display:flex;align-items:center;gap:6px;margin-top:4px">'+
+        '<span style="display:inline-block;font-size:20px;transform:rotate('+bear+'deg)">⬆️</span>'+
+        '<span>'+distTxt+' ao '+bearingParaCardinal(bear)+(aproxHtml?' · '+aproxHtml:'')+'</span>'+
+      '</div>';
+    }
     if(lyrDirecao && map){
       L.polyline([meuPosicaoAtual, [e.lat,e.lng]], {color:'#0A84FF', weight:3, dashArray:'6,8'}).addTo(lyrDirecao);
     }
@@ -3101,6 +3397,9 @@ function renderMapFiltroReBanner(){
     '</div>'+
     direcaoHtml+
   '</div>';
+
+  // mapa "segue" a pessoa enquanto está navegando até uma RE filtrada — resolve o "mapa é fixo"
+  if(meuPosicaoAtual && map) map.panTo(meuPosicaoAtual, {animate:true});
 }
 
 var mapFiltroRota = '';
@@ -3395,13 +3694,24 @@ function importarArquivoCampo(input){
       db[tipo] = mergeArray(db[tipo], pacote[tipo], c);
       resumo[tipo]=c;
     });
+    // o que foi excluído no Quartel (rota apagada e suas paradas ainda não executadas) some daqui também;
+    // vistoria já concluída nunca é apagada, só deixa de apontar pra rota que não existe mais
+    var rotasEx = pacote.rotasExcluidas || [], vistEx = pacote.vistoriasExcluidas || [], removidas = 0;
+    if(rotasEx.length) db.rotas = (db.rotas||[]).filter(function(r){ return rotasEx.indexOf(r.id)<0; });
+    if(vistEx.length){
+      var antes = (db.vistorias||[]).length;
+      db.vistorias = (db.vistorias||[]).filter(function(v){ return v.concluida || vistEx.indexOf(v.id)<0; });
+      removidas = antes - db.vistorias.length;
+    }
+    (db.vistorias||[]).forEach(function(v){ if(v.rotaId && rotasEx.indexOf(v.rotaId)>=0) v.rotaId = null; });
+    if(removidas) resumo.vistorias = Object.assign({novos:0, atualizados:0, conflitos:0}, resumo.vistorias, {removidas:removidas});
     saveDB(db);
 
     var labels = {edificacoes:'edificações', vistorias:'vistorias', trajetorias:'trajetórias', pontos:'pontos', rotas:'rotas'};
     var html = '<div class="card"><div style="font-weight:700;margin-bottom:8px">Importação concluída</div>';
     Object.keys(resumo).forEach(function(tipo){
       var c = resumo[tipo];
-      html += '<div style="font-size:13px;padding:4px 0">+ '+c.novos+' '+labels[tipo]+' novas · ↻ '+c.atualizados+' atualizadas'+(c.conflitos?' · ⚠ '+c.conflitos+' conflito(s) (versão local mais recente, mantida)':'')+'</div>';
+      html += '<div style="font-size:13px;padding:4px 0">+ '+c.novos+' '+labels[tipo]+' novas · ↻ '+c.atualizados+' atualizadas'+(c.removidas?' · 🗑 '+c.removidas+' removida(s) (excluídas no Quartel)':'')+(c.conflitos?' · ⚠ '+c.conflitos+' conflito(s) (versão local mais recente, mantida)':'')+'</div>';
     });
     if(!Object.keys(resumo).length) html += '<div class="sub">Arquivo não continha dados reconhecidos.</div>';
     html += '</div>';
