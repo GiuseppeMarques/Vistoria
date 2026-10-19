@@ -170,7 +170,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v93</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v99</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -249,7 +249,11 @@
     <div class="view" id="v-rotas">
       <h2>Rotas</h2><div class="lead">Monte o roteiro direto das edificações, escolha o tipo de cada parada, execute e depois exclua a rota. O que foi feito fica no Histórico.</div>
 
-      <div class="sec-title" style="margin-top:0">Rotas fixas (recorrentes)</div>
+      <div class="sec-title" style="margin-top:0">📅 Calendário de vencimentos</div>
+      <div style="font-size:11px;color:var(--sub);margin:-4px 0 10px">Já organizado por mês, cidade e bairro a partir do vencimento do Funcionamento. Expanda, marque o que quer vistoriar e confirme: a rota é criada e otimizada.</div>
+      <div id="calRotas" style="margin-bottom:22px"></div>
+
+      <div class="sec-title">Rotas fixas (recorrentes)</div>
       <div style="font-size:11px;color:var(--sub);margin:-4px 0 10px">Modelos salvos por critério (ex: "risco 4-5 anual") — a qualquer momento, cria uma rota (já ordenada) com as edificações que se encaixam e ainda não foram vistoriadas dentro do ciclo.</div>
       <div id="rotasFixasList" style="margin-bottom:10px"></div>
       <button class="btn" style="margin-bottom:20px" onclick="abrirFormRotaFixa()">+ Novo modelo de rota fixa</button>
@@ -572,6 +576,10 @@
           <button class="btn primary" id="mt-btn-registrar" onclick="registrarMulta()">📋 Registrar AF</button>
         </div>
       </div>
+
+      <div class="sec-title">📅 Calendário de prazos (AFs e multas)</div>
+      <div style="font-size:11px;color:var(--sub);margin:-4px 0 10px">Por mês, cidade e bairro, pelo prazo de cada AF ou multa em aberto. Marque o que quer visitar e confirme pra gerar a rota.</div>
+      <div id="ccCalendario" style="margin-bottom:22px"></div>
 
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px">
         <div class="sec-title" style="margin:0">Pendentes</div>
@@ -1169,7 +1177,23 @@ function rotuloVistoria(v){
     if(v.cartorioSubtipo==='ciencia' && v.cienciaDe) sub += ' de '+(v.cienciaDe==='af'?'AF':'Multa');
     rot += ' · '+sub;
   }
+  if(v.origemCartorioId) rot += ' · junto com Cartório';
   return rot;
+}
+
+// última vistoria concluída da edificação (Habite-se, Funcionamento ou Ex-ofício; visita de
+// Cartório não conta como vistoria) — "dd/mm/aaaa · Funcionamento · há 8 meses"
+function ultimaVistoriaDaEdif(db, edifId){
+  return (db.vistorias||[]).filter(function(v){ return v.edificacaoId===edifId && v.concluida && v.tipo!=='cartorio'; })
+    .sort(function(a,b){ return new Date(b.concluidaEm||0)-new Date(a.concluidaEm||0); })[0] || null;
+}
+function textoUltimaVistoria(db, edifId, comRotulo){
+  var v = ultimaVistoriaDaEdif(db, edifId);
+  if(!v) return 'nunca vistoriada';
+  var d = new Date(v.concluidaEm||v.criadoEm||0);
+  var meses = Math.max(0, Math.round((Date.now()-d.getTime())/(30.44*86400000)));
+  var ha = meses<1 ? 'este mês' : (meses<24 ? 'há '+meses+(meses===1?' mês':' meses') : 'há '+Math.floor(meses/12)+' anos');
+  return d.toLocaleDateString('pt-BR')+(comRotulo ? ' · '+rotuloVistoria(v) : '')+' · '+ha;
 }
 
 // Grupos do checklist que aparecem sempre, independente de quais sistemas preventivos estão ativos
@@ -1453,6 +1477,7 @@ function renderEdificacoes(){
     el.innerHTML = '<div class="empty"><div class="ico">🏢</div>'+(todas.length?'Nenhuma edificação encontrada com esses filtros.':'Nenhuma edificação cadastrada ainda.')+'</div>';
     return;
   }
+  var dbLista = loadDB();
   el.innerHTML = lista.map(function(e){
     var venc = (e.vigenciaFuncionamento && e.vigenciaFuncionamento.vencimento) || '';
     var hsMap = {possui:['✅','Possui HS'], andamento:['⏳','HS andamento'], nao_possui:['❌','Sem HS']};
@@ -1463,12 +1488,14 @@ function renderEdificacoes(){
     var riscoMostrar = riscoEfetivo(e);
     var badge = e.competencia==='fora' ? '<div class="elist-badge" style="background:#6b6b70">🚫</div>' : '<div class="elist-badge" style="background:'+corRisco(riscoMostrar)+'">'+(riscoMostrar||'—')+'</div>';
     var telWaEdif = e.competencia!=='fora' ? telefoneParaWhatsapp(e.responsavel && e.responsavel.tel) : null;
+    var ultTxt = e.competencia!=='fora' ? '<div class="elist-s" style="margin-top:2px">🕑 Última vistoria: '+textoUltimaVistoria(dbLista, e.id, true)+'</div>' : '';
     return '<div class="elist-item" onclick="abrirFormEdif(\''+e.id+'\')">'+
       '<div class="elist-row">'+
         badge+
         '<div style="flex:1;min-width:0">'+
           '<div class="elist-t">'+(e.nome||'Sem nome')+origemTag+foraCompTag+desocupadaTag+'</div>'+
           '<div class="elist-s">'+(e.competencia==='fora' ? (e.competenciaMotivo||'Sem motivo informado') : (e.re||'Sem RE')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(venc?' · vence '+venc:'')+' · '+hsInfo[0]+' '+hsInfo[1])+'</div>'+
+          ultTxt+
         '</div>'+
       '</div>'+
       (telWaEdif ? '<button class="btn" style="width:100%;margin-top:8px;background:#25D366;color:#fff" onclick="event.stopPropagation();enviarMensagemGenericaEdificacao(\''+e.id+'\')">💬 Mensagem para o responsável</button>' : '')+
@@ -2645,6 +2672,7 @@ function renderVistoriaCard(v, db){
     if(abaixo50 || (qsist.length && v.qtv.ano==='depois2013')) qtvIndef = true;
     else if(qsist.length && v.qtv.ano==='antes2013') qtvInfr = true;
   }
+  var resCard = e ? calcularResumoPendenciasVistoria(e, v) : null;
   var pendBloco = 0;
   if(e && e.blocos && e.blocos.length){
     e.blocos.forEach(function(bloco, bi){
@@ -2676,13 +2704,17 @@ function renderVistoriaCard(v, db){
       if(reprovados>0) pendBloco++;
     });
   }
-  if(pendBloco>0) qtvIndef = true;
+  if(resCard ? resCard.indeferido : pendBloco>0) qtvIndef = true;
   var statusCls, statusTxt;
   var ehCart = v.tipo==='cartorio';
   if(ehCart && v.concluida){ statusCls='def'; statusTxt='✅ Registrado no Cartório'; }
+  else if(v.concluida && v.decisaoResultado){
+    if(v.decisaoResultado==='indeferido'){ statusCls='indef'; statusTxt='⚠️ Indeferido (decisão manual)'; }
+    else { statusCls='def'; statusTxt=DECISOES_RESULTADO[v.decisaoResultado]; }
+  }
   else if(v.concluida){
     if(qtvIndef || nc>0){ statusCls='indef'; statusTxt='⚠️ '+(nc>0?nc+' não conf.':(pendBloco>0?pendBloco+' preventivo(s) c/ pendência':'Indeferido (quantitativo)')); }
-    else if(qtvInfr){ statusCls='pend'; statusTxt='⚠️ Aprovado c/ Auto de Infração'; }
+    else if(qtvInfr || (resCard && resCard.deferidoComAF)){ statusCls='def'; statusTxt='✅ Deferido c/ Auto de Infração'; }
     else { statusCls='def'; statusTxt='✅ Deferido'; }
   } else if(v.rotaId){ statusCls='rota'; statusTxt='🧭 Em rota'; }
   else { statusCls='pend'; statusTxt='⏳ Pendente'; }
@@ -2854,6 +2886,88 @@ function montarMensagemConfirmarVisita(e, v, data, periodo){
 // lança isso em e.cartorio (idempotente — v.cartorioAplicadoEm). Assim vistorias de Cartório
 // feitas no Campo e importadas no Quartel entram no Cartório sem conflito de edição.
 // ════════════════════════════════════════
+
+// ════════════════════════════════════════
+// CARTÓRIO + VISTORIA COMPLETA NA MESMA IDA — numa visita de Cartório dá pra marcar "só o
+// Cartório" ou "aproveitei e fiz a vistoria completa". No segundo caso nasce uma vistoria
+// (Funcionamento por padrão) ligada à visita (`origemCartorioId`), na mesma rota, com checklist e
+// relatório próprios; a visita guarda `vistoriaCompletaId` e o escopo fica registrado.
+// ════════════════════════════════════════
+function vcTemProgresso(c){
+  return !!(c.concluida || Object.keys(c.checklist||{}).length || (c.obs||'').trim() || (c.qtv && Object.keys(c.qtv).length) || Object.keys(c.qtvPrevBloco||{}).length);
+}
+function vcCriar(db, vc, tipo){
+  var agora = new Date().toISOString();
+  var comp = {id:novoId('vis'), edificacaoId:vc.edificacaoId, tipo:tipo||'funcionamento', motivo:'', checklist:{}, situacaoHS:'', obs:'',
+    concluida:false, concluidaEm:null, trajetoriaId:null, rotaId:vc.rotaId||null, criadoEm:agora, atualizadoEm:agora,
+    criadaPelaRota:true, origemCartorioId:vc.id};
+  db.vistorias.push(comp);
+  vc.vistoriaCompletaId = comp.id; vc.atualizadoEm = agora;
+  if(vc.rotaId){
+    var r = (db.rotas||[]).find(function(x){return x.id===vc.rotaId;});
+    if(r && r.vistorias.indexOf(comp.id)<0) r.vistorias.push(comp.id);
+  }
+  return comp;
+}
+function vcRemover(db, vc){
+  var comp = (db.vistorias||[]).find(function(x){return x.id===vc.vistoriaCompletaId;});
+  vc.vistoriaCompletaId = null; vc.atualizadoEm = new Date().toISOString();
+  if(!comp) return true;
+  if(vcTemProgresso(comp)) return false;
+  db.vistorias = db.vistorias.filter(function(x){return x.id!==comp.id;});
+  (db.rotas||[]).forEach(function(r){ r.vistorias = (r.vistorias||[]).filter(function(id){return id!==comp.id;}); });
+  if(typeof registrarExclusao==='function') registrarExclusao(db, 'vistoriasExcluidas', [comp.id]);
+  return true;
+}
+function htmlEscopoCartorio(db, v, P){
+  var comp = v.vistoriaCompletaId ? (db.vistorias||[]).find(function(x){return x.id===v.vistoriaCompletaId;}) : null;
+  var h = '<div class="sec-title" style="margin-top:16px">O que foi feito nesta ida?</div>';
+  if(v.concluida){
+    return h + '<div class="sub">'+(comp ? '✅ Cartório + vistoria completa ('+rotuloVistoria(comp)+')'+(comp.concluida?' — concluída':' — ainda pendente') : 'Só o Cartório')+'</div>';
+  }
+  function b(modo, rot, ativo){ return '<button type="button" class="btn" style="flex:1;padding:10px 8px;'+(ativo?'background:var(--red2);color:#fff':'')+'" onclick="'+P.set+'(\''+modo+'\')">'+rot+'</button>'; }
+  h += '<div class="btnrow" style="gap:6px;margin-bottom:8px">'+b('so','✍️ Só o Cartório',!comp)+b('completa','📋 Cartório + vistoria completa',!!comp)+'</div>';
+  if(comp){
+    var trava = vcTemProgresso(comp);
+    h += '<div class="sub" style="margin-bottom:4px">Tipo da vistoria completa:</div>'+
+      '<select style="margin-bottom:8px"'+(trava?' disabled':'')+' onchange="'+P.tipo+'(this.value)">'+
+      TIPOS_VISTORIA.filter(function(t){return t.id!=='cartorio';}).map(function(t){ return '<option value="'+t.id+'" '+(comp.tipo===t.id?'selected':'')+'>'+t.l+'</option>'; }).join('')+'</select>'+
+      '<div class="sub" style="margin-bottom:8px">'+(comp.concluida ? '✅ Vistoria completa concluída' : (trava ? '⏳ Vistoria completa em andamento' : '⏳ Vistoria completa ainda não iniciada'))+'</div>'+
+      '<button type="button" class="btn primary" style="width:100%" onclick="'+P.abrir+'()">'+(comp.concluida?'Ver':'Fazer')+' a vistoria completa →</button>';
+  } else {
+    h += '<div class="sub">Se aproveitar a ida pra vistoriar o local, marque a segunda opção: o relatório da vistoria sai junto e fica registrado que foi completa.</div>';
+  }
+  return h;
+}
+
+function quVcSet(modo){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v) return;
+  if(modo==='completa'){ if(!v.vistoriaCompletaId) vcCriar(db, v, 'funcionamento'); }
+  else if(v.vistoriaCompletaId && !vcRemover(db, v)){ alert('A vistoria completa já tem preenchimento ou foi concluída; não dá pra desfazer. Termine ou exclua ela pelo Histórico.'); return; }
+  saveDB(db); renderExecucaoQuartel();
+}
+function quVcTipo(tipo){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  var comp = v && db.vistorias.find(function(x){return x.id===v.vistoriaCompletaId;});
+  if(!comp || vcTemProgresso(comp)) return;
+  comp.tipo = tipo; comp.atualizadoEm = new Date().toISOString();
+  saveDB(db); renderExecucaoQuartel();
+}
+function quVcAbrir(){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v || !v.vistoriaCompletaId) return;
+  abrirExecucaoQuartel(v.vistoriaCompletaId);
+}
+function quVoltarAoCartorio(){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(v && v.origemCartorioId) abrirExecucaoQuartel(v.origemCartorioId);
+}
+
 function aplicarCampoCartorio(st, campo, valor){
   if(campo==='cartorioSubtipo'){
     st.cartorioSubtipo = valor;
@@ -2939,7 +3053,7 @@ function quHtmlCartorio(e, v){
   var h = '<div class="sec-title" style="margin-top:14px">Visita de Cartório</div>';
   var sub = v.cartorioSubtipo;
   if(v.concluida){
-    return h + '<div class="sub">'+rotuloVistoria(v)+' — ✅ concluída e registrada no Cartório.</div>';
+    return h + '<div class="sub">'+rotuloVistoria(v)+' — ✅ concluída e registrada no Cartório.</div>'+htmlEscopoCartorio(loadDB(), v, {});
   }
   h += htmlSeletorCartorio(v, 'quSetCartorio');
   function campoTxt(lbl, campo, ph, valor){
@@ -2977,6 +3091,7 @@ function quHtmlCartorio(e, v){
   } else {
     h += '<div class="sub">Escolha acima o que vai ser feito nesta visita.</div>';
   }
+  h += htmlEscopoCartorio(loadDB(), v, {set:'quVcSet', tipo:'quVcTipo', abrir:'quVcAbrir'});
   return h;
 }
 function quSetCartorio(campo, valor){
@@ -3023,12 +3138,17 @@ function quConcluirCartorio(){
   if(sub==='af' && !(v.afSistemas||[]).length && !(v.cartorioMotivo||'').trim()){ alert('Marque ao menos um sistema da AF ou escreva o detalhe.'); return; }
   if(sub==='multa' && !(v.cartorioNumero||'').trim()){ alert('Informe o número da multa.'); return; }
   if(sub==='ciencia' && (!v.cienciaDe || !v.cienciaItemId)){ alert('Escolha qual '+(v.cienciaDe==='af'?'AF':'multa')+' recebeu a ciência.'); return; }
+  var compPend = v.vistoriaCompletaId && db.vistorias.find(function(x){return x.id===v.vistoriaCompletaId && !x.concluida;});
+  if(compPend && !confirm('A vistoria completa marcada nesta visita ainda NÃO foi concluída. Registrar o Cartório agora e deixá-la pendente na rota?')) return;
   if(!confirm('Concluir esta visita e registrar no Cartório?')) return;
+  v.escopoCartorio = v.vistoriaCompletaId ? 'com_vistoria' : 'so_cartorio';
   v.concluida = true;
   v.concluidaEm = new Date().toISOString();
   aplicarCartorioDaVistoria(db, v);
+  encerrarRotasConcluidas(db);
   saveDB(db);
   renderExecucaoQuartel();
+  if(typeof renderVistorias==='function') renderVistorias();
 }
 function abrirRelatorioCartorio(v, e, vistId){
   var L = [];
@@ -3052,6 +3172,12 @@ function abrirRelatorioCartorio(v, e, vistId){
       v.cienciaBaixas.forEach(function(i){ if(baixados[i]) L.push('- '+baixados[i].texto); });
     }
   }
+  var compR = v.vistoriaCompletaId ? (loadDB().vistorias||[]).find(function(x){return x.id===v.vistoriaCompletaId;}) : null;
+  L.push('');
+  if(compR){
+    L.push('Escopo: Cartório + vistoria completa ('+rotuloVistoria(compR)+')');
+    L.push(compR.concluida ? 'Vistoria completa realizada em '+new Date(compR.concluidaEm).toLocaleDateString('pt-BR')+' — relatório próprio da vistoria.' : 'Vistoria completa ainda pendente.');
+  } else { L.push('Escopo: somente Cartório (sem vistoria completa nesta ida).'); }
   var texto = L.join('\n');
   window._relatorioTextoAtual = texto;
   window._relatorioVistIdAtual = vistId;
@@ -3551,6 +3677,25 @@ function quSetObsPrevBloco(chave, val){
   v.qtvPrevBloco[chave].obs = val;
   saveDB(db);
 }
+
+var DECISOES_RESULTADO = {deferido:'✅ Deferido', deferido_af:'✅ Deferido com AF', indeferido:'⚠️ Indeferido'};
+function htmlSeletorDecisao(sugerido, atual, fn, concluida){
+  var h = '<div style="margin:8px 0 16px"><div class="sub" style="margin-bottom:6px">Decisão final (o sistema sugere: <b>'+DECISOES_RESULTADO[sugerido]+'</b>)</div><div class="btnrow" style="gap:6px;flex-wrap:wrap">';
+  ['deferido','deferido_af','indeferido'].forEach(function(k){
+    var sel = (atual||sugerido)===k;
+    h += '<button class="btn '+(sel?'primary':'')+'" style="flex:1;min-width:30%" onclick="'+fn+'(\''+(k===sugerido&&!atual?'':k)+'\')">'+DECISOES_RESULTADO[k]+(k===sugerido?' ·sug.':'')+'</button>';
+  });
+  return h + '</div></div>';
+}
+function quSetDecisao(k){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v) return;
+  if(k) v.decisaoResultado = k; else delete v.decisaoResultado;
+  v.atualizadoEm = new Date().toISOString();
+  saveDB(db);
+  renderExecucaoQuartel();
+}
 function quSetQtvAno(ano){
   var db = loadDB();
   var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
@@ -3567,8 +3712,10 @@ function quConcluirExecucao(){
   if(!v) return;
   v.concluida = true;
   v.concluidaEm = new Date().toISOString();
+  encerrarRotasConcluidas(db);
   saveDB(db);
   renderExecucaoQuartel();
+  if(typeof renderVistorias==='function') renderVistorias();
 }
 
 function renderExecucaoQuartel(){
@@ -3579,6 +3726,7 @@ function renderExecucaoQuartel(){
   if(!e){ document.getElementById('execucaoBody').innerHTML='<div class="sub">Edificação não encontrada.</div>'; return; }
 
   var html = '<h3>'+(e.nome||'Sem nome')+'</h3><div class="sub">'+(e.re||'Sem RE')+' · '+rotuloVistoria(v)+'</div>';
+  if(v.origemCartorioId) html += '<div style="margin:8px 0"><button class="btn" onclick="quVoltarAoCartorio()">← Voltar à visita de Cartório</button></div>';
 
   if(v.tipo==='cartorio'){
     html += quHtmlCartorio(e, v);
@@ -3735,21 +3883,24 @@ function renderExecucaoQuartel(){
       });
     });
   }
+  // pré-2013 com amostragem >= 50%: faltas de ext/ilu/sal/ala viram AF; só as dos demais sistemas indeferem
+  var resExec = calcularResumoPendenciasVistoria(e, v);
+  if(qtvInfracaoPorAno) pendenciasBloco = resExec.pendOutros>0 ? 1 : 0;
 
   var qtvForcaIndeferido = qtvAbaixo50 || qtvIndeferePorAno || pendenciasBloco>0;
   var deferido = nao===0 && !qtvForcaIndeferido;
   var motivoQtv = qtvAbaixo50 ? ' — quantidade abaixo de 50% do exigido (amostragem)' : (qtvIndeferePorAno ? ' — construção 2013+ exige atendimento pleno na amostragem' : (pendenciasBloco>0 ? ' — '+pendenciasBloco+' sistema(s) por bloco/andar abaixo do esperado ou não contados' : ''));
 
-  if(qtvForcaIndeferido){
-    html += '<div class="resultado-banner indef">'+(v.concluida?'':'(parcial) ')+'⚠️ Indeferido'+motivoQtv+'</div>';
-  } else if(qtvInfracaoPorAno){
-    html += '<div class="resultado-banner" style="background:rgba(255,159,10,.15);color:var(--amar);border:1px solid rgba(255,159,10,.4)">'+
-      (v.concluida?'':'(parcial) ')+'⚠️ Aprovado com Auto de Infração (F) — construção anterior a 2013</div>';
+  var sugeridoRes = (qtvForcaIndeferido || nao>0) ? 'indeferido' : ((qtvInfracaoPorAno || false) ? 'deferido_af' : 'deferido');
+  var finalRes = v.decisaoResultado || sugeridoRes;
+  if(finalRes==='indeferido'){
+    html += '<div class="resultado-banner indef">'+(v.concluida?'':'(parcial) ')+'⚠️ Indeferido'+(v.decisaoResultado?' (decisão manual)':(qtvForcaIndeferido?motivoQtv:' — '+nao+' não conformidade(s)'))+'</div>';
+  } else if(finalRes==='deferido_af'){
+    html += '<div class="resultado-banner def">'+(v.concluida?'':'(parcial) ')+'✅ Deferido com Auto de Infração (AF)'+(v.decisaoResultado?' (decisão manual)':' — construção anterior a 2013')+'</div>';
   } else {
-    html += '<div class="resultado-banner '+(deferido?'def':'indef')+'">'+
-      (v.concluida?'':'(parcial) ')+(deferido?'✅ Deferido':'⚠️ Indeferido — '+nao+' não conformidade(s)')+
-    '</div>';
+    html += '<div class="resultado-banner def">'+(v.concluida?'':'(parcial) ')+'✅ Deferido'+(v.decisaoResultado?' (decisão manual)':'')+'</div>';
   }
+  html += htmlSeletorDecisao(sugeridoRes, v.decisaoResultado, 'quSetDecisao');
 
   var GRUPOS_ANTIGOS = ['Documentação','Características Gerais do Bloco','Características Gerais'];
   grupos.forEach(function(g){
@@ -4097,7 +4248,7 @@ function salvarModeloResultadoVistoria(){
 function montarMensagemResultadoVistoria(e, v){
   var obm = carregarDadosObm();
   var res = calcularResumoPendenciasVistoria(e, v);
-  var resultado = res.totalErrados===0 ? 'DEFERIDO' : 'INDEFERIDO';
+  var resultado = res.indeferido ? 'INDEFERIDO' : (res.deferidoComAF ? 'DEFERIDO (com Auto de Infração)' : 'DEFERIDO');
   var detalhe = res.totalErrados>0
     ? 'Foram identificados os seguintes itens que precisam de regularização:\n'+
       res.alteracoes.map(function(a){return '- '+a;}).join('\n')+'\n\n'+
@@ -4688,7 +4839,8 @@ function calcularResumoPendenciasVistoria(e, v){
       }
     });
   });
-  var totalPendBloco = 0;
+  var totalPendBloco = 0, pendOutros = 0;
+  var totQtv = {}; // sid -> {esp, apr, contado} (amostragem, só ext/ilu/sal/ala)
   var porSistema = {}; // sid -> {label, qtd} — pra agregar entre várias edificações depois (relatório de rota)
   function checarSistema(esperado, chave, label, sid){
     var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
@@ -4698,7 +4850,13 @@ function calcularResumoPendenciasVistoria(e, v){
     var totalContado = (aprovados||0) + reprovadosTotal;
     var s = SIST.find(function(x){return x.id===sid;});
     var labelSistema = s ? s.l : sid;
+    if(['ext','ilu','sal','ala'].indexOf(sid)>=0){
+      var tq = totQtv[sid] || (totQtv[sid] = {esp:0, apr:0, contado:false});
+      tq.esp += esperado; tq.apr += (aprovados||0);
+      if(aprovados!=null || motivos.length) tq.contado = true;
+    }
     function somarSistema(qtd){
+      if(['ext','ilu','sal','ala'].indexOf(sid)<0) pendOutros += qtd;
       if(!porSistema[sid]) porSistema[sid] = {label: labelSistema, qtd: 0};
       porSistema[sid].qtd += qtd;
     }
@@ -4734,7 +4892,18 @@ function calcularResumoPendenciasVistoria(e, v){
       checarSistema(e.preventivos[s.id].qty||0, '_'+s.id, s.l, s.id);
     });
   }
-  return {alteracoes: alteracoes, totalErrados: reprovadosChecklist + totalPendBloco, porSistema: porSistema};
+  // Regra da amostragem: construção anterior a 2013 com pelo menos 50% atendido e todos os sistemas
+  // contados é DEFERIDO com Auto de Infração (as faltas de ext/ilu/sal/ala viram AF, não indeferem)
+  var tqs = Object.keys(totQtv).map(function(k){return totQtv[k];});
+  var tqAbaixo50 = tqs.some(function(t){return t.contado && t.apr < t.esp*0.5;});
+  var tqTodos = tqs.every(function(t){return t.contado;});
+  var preAF = !!(tqs.length && !tqAbaixo50 && tqTodos && v.qtv && v.qtv.ano==='antes2013');
+  var indeferido = reprovadosChecklist>0 || (preAF ? pendOutros>0 : totalPendBloco>0);
+  var sugerido = indeferido ? 'indeferido' : (totalPendBloco>0 ? 'deferido_af' : 'deferido');
+  var finalR = v.decisaoResultado || sugerido;
+  indeferido = finalR==='indeferido';
+  return {alteracoes: alteracoes, totalErrados: reprovadosChecklist + totalPendBloco, porSistema: porSistema,
+          sugerido: sugerido, final: finalR, indeferido: indeferido, pendOutros: pendOutros, deferidoComAF: finalR==='deferido_af'};
 }
 
 // ════════════════════════════════════════
@@ -4875,10 +5044,10 @@ function copiarRelatorioRotaTexto(rotaId){
     var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
     var res = calcularResumoPendenciasVistoria(e, v);
     totalGeralErrados += res.totalErrados;
-    if(res.totalErrados===0) deferidas++; else comPendencia++;
+    if(!res.indeferido) deferidas++; else comPendencia++;
     linhas.push((i+1)+'. '+(e?(e.re||'Sem RE')+' — '+(e.nome||'Sem nome'):'Edificação removida'));
     linhas.push('   '+rotuloVistoria(v)+' · concluída em '+new Date(v.concluidaEm).toLocaleDateString('pt-BR'));
-    linhas.push('   Status: '+(res.totalErrados===0 ? '✅ Deferido' : '⚠️ Indeferido — '+res.totalErrados+' item(ns) com problema'));
+    linhas.push('   Status: '+(res.deferidoComAF ? '✅ Deferido com Auto de Infração — '+res.totalErrados+' item(ns) a regularizar' : (!res.indeferido ? '✅ Deferido' : '⚠️ Indeferido — '+res.totalErrados+' item(ns) com problema')));
     if(res.alteracoes.length){
       linhas.push('   Alterações encontradas:');
       res.alteracoes.forEach(function(a){ linhas.push('     - '+a); });
@@ -5054,6 +5223,8 @@ function abrirGerarRotasAuto(){
 
 function renderRotas(){
   var db = loadDB();
+  if(encerrarRotasConcluidas(db)) saveDB(db);
+  renderCalendarioRotas();
   var lista = (db.rotas||[]).sort(function(a,b){ return new Date(b.data||0)-new Date(a.data||0); });
   var el = document.getElementById('rotasList');
   if(!lista.length){
@@ -5080,6 +5251,261 @@ function renderRotas(){
     '</div>'+paradasHtml+'</div>';
   }).join('');
 }
+
+// ════════════════════════════════════════
+// CALENDÁRIO DE VENCIMENTOS — mês > cidade > bairro > edificações que vencem, com o risco.
+// Calculado na hora a partir de vigenciaFuncionamento.vencimento (sempre "pronto"). Marcar e
+// confirmar cria as vistorias de Funcionamento e a rota já otimizada.
+// ════════════════════════════════════════
+var MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+var calAno = new Date().getFullYear();
+var calRiscoMin = 0;
+var calSel = {};
+var calAberto = {['m'+new Date().getMonth()]:true};
+function calMudarAno(d){ calAno += d; calAberto = {}; renderCalendarioRotas(); }
+function calSetRisco(v){ calRiscoMin = Number(v)||0; renderCalendarioRotas(); }
+function calToggle(k){ calAberto[k] = !calAberto[k]; renderCalendarioRotas(); }
+function calMarcar(id){ if(calSel[id]) delete calSel[id]; else calSel[id]=true; renderCalendarioRotas(); }
+function calMarcarGrupo(ids, marcar){ ids.forEach(function(id){ if(marcar) calSel[id]=true; else delete calSel[id]; }); renderCalendarioRotas(); }
+function calLimpar(){ calSel = {}; renderCalendarioRotas(); }
+function calRiscoCor(r){ return r>=4 ? 'var(--red2)' : (r===3 ? 'var(--amar)' : 'var(--verde)'); }
+
+function calAgrupar(db){
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  var meses = {}; for(var i=0;i<12;i++) meses[i] = {};
+  var anteriores = {};
+  var rotaDe = {};
+  (db.vistorias||[]).forEach(function(v){
+    if(v.concluida || !v.rotaId) return;
+    var r = (db.rotas||[]).find(function(x){return x.id===v.rotaId;});
+    if(r) rotaDe[v.edificacaoId] = r.nome;
+  });
+  (db.edificacoes||[]).forEach(function(e){
+    if(e.competencia==='fora') return;
+    var d = parseDataBR(e.vigenciaFuncionamento && e.vigenciaFuncionamento.vencimento);
+    if(!d) return;
+    var risco = riscoEfetivo(e) || 0;
+    if(calRiscoMin && risco < calRiscoMin) return;
+    var item = {e:e, d:d, risco:risco, vencida:d<hoje, rota:rotaDe[e.id]||null, ult:textoUltimaVistoria(db, e.id, true)};
+    var alvo = null;
+    if(d.getFullYear()===calAno) alvo = meses[d.getMonth()];
+    else if(d.getFullYear()<calAno) alvo = anteriores;
+    if(!alvo) return;
+    var mun = e.municipio||'Sem município', bai = e.bairro||'Sem bairro';
+    if(!alvo[mun]) alvo[mun] = {};
+    if(!alvo[mun][bai]) alvo[mun][bai] = [];
+    alvo[mun][bai].push(item);
+  });
+  return {meses:meses, anteriores:anteriores};
+}
+function calContar(grupo){
+  var n=0, b=0;
+  Object.keys(grupo).forEach(function(m){ Object.keys(grupo[m]).forEach(function(k){ n+=grupo[m][k].length; b++; }); });
+  return {n:n, b:b};
+}
+var CTX_CAL = {aberto:function(){return calAberto;}, sel:function(){return calSel;}, tog:'calToggle', marca:'calMarcar', grupo:'calMarcarGrupo',
+  chave:function(it){return it.e.id;}, linha:function(it){
+    var e = it.e;
+    return '<div style="font-weight:700">'+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+'</div>'+
+      '<div class="sub">Vence '+String(it.d.getDate()).padStart(2,'0')+'/'+String(it.d.getMonth()+1).padStart(2,'0')+'/'+it.d.getFullYear()+(it.vencida?' · <span style="color:var(--red2)">vencida</span>':'')+(it.rota?' · já na rota "'+it.rota+'"':'')+'</div>'+
+      '<div class="sub">🕑 Última vistoria: '+it.ult+'</div>';
+  }};
+function calHtmlGrupo(chave, titulo, grupo, ctx){
+  ctx = ctx || CTX_CAL;
+  var ab = ctx.aberto(), selMap = ctx.sel();
+  var c = calContar(grupo);
+  var aberto = !!ab[chave];
+  var h = '<div class="vist-item" style="margin-bottom:8px;padding:10px 12px"><div onclick="'+ctx.tog+'(\''+chave+'\')" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center">'+
+    '<div style="font-weight:700">'+(aberto?'▼':'▶')+' '+titulo+'</div>'+
+    '<div class="sub">'+(c.n ? c.n+' ite'+(c.n===1?'m':'ns')+' · '+c.b+' bairro(s)' : 'nada vencendo')+'</div></div>';
+  if(aberto && c.n){
+    Object.keys(grupo).sort().forEach(function(mun){
+      var kM = chave+'|'+mun;
+      var nMun = 0; Object.keys(grupo[mun]).forEach(function(b){ nMun += grupo[mun][b].length; });
+      var abM = !!ab[kM];
+      h += '<div style="margin:8px 0 0 8px"><div onclick="'+ctx.tog+'(\''+kM.replace(/'/g,"\\'")+'\')" style="cursor:pointer;display:flex;justify-content:space-between;font-weight:600;font-size:13px">'+
+        '<span>'+(abM?'▼':'▶')+' 🏙️ '+mun+'</span><span class="sub">'+nMun+'</span></div>';
+      if(abM){
+        Object.keys(grupo[mun]).sort().forEach(function(bai){
+          var kB = kM+'|'+bai, itens = grupo[mun][bai];
+          itens.sort(function(a,b){ return (b.risco-a.risco) || (a.d-b.d); });
+          var abB = !!ab[kB];
+          var livres = itens.filter(function(it){return !it.rota;}).map(ctx.chave);
+          var todosSel = livres.length && livres.every(function(id){return selMap[id];});
+          h += '<div style="margin:6px 0 0 14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'+
+            '<span onclick="'+ctx.tog+'(\''+kB.replace(/'/g,"\\'")+'\')" style="cursor:pointer;flex:1;font-size:13px">'+(abB?'▼':'▶')+' 📍 '+bai+' <span class="sub">· '+itens.length+'</span></span>'+
+            (livres.length ? '<button class="btn" style="width:auto;padding:3px 10px;font-size:11px" onclick=\''+ctx.grupo+'('+JSON.stringify(livres)+','+(todosSel?'false':'true')+')\'>'+(todosSel?'Desmarcar bairro':'Marcar bairro')+'</button>' : '')+
+          '</div>';
+          if(abB){
+            h += itens.map(function(it){
+              var id = ctx.chave(it), sel = !!selMap[id];
+              return '<div '+(it.rota?'':'onclick="'+ctx.marca+'(\''+id+'\')"')+' style="display:flex;gap:8px;align-items:center;padding:7px 8px;margin-top:4px;border-radius:8px;border:1px solid var(--border);font-size:12px;'+(it.rota?'opacity:.55;':'cursor:pointer;')+(sel?'background:rgba(192,39,45,.15)':'')+'">'+
+                '<span style="font-size:15px">'+(it.rota?'🧭':(sel?'☑️':'⬜'))+'</span>'+
+                '<div style="flex:1;min-width:0">'+ctx.linha(it)+'</div>'+
+                '<span style="font-weight:700;color:'+calRiscoCor(it.risco)+';white-space:nowrap">'+(it.risco?'Risco '+it.risco:'Sem risco')+'</span></div>';
+            }).join('');
+          }
+          h += '</div>';
+        });
+      }
+      h += '</div>';
+    });
+  }
+  return h + '</div>';
+}
+function renderCalendarioRotas(){
+  var el = document.getElementById('calRotas');
+  if(!el) return;
+  var db = loadDB();
+  var g = calAgrupar(db);
+  var nSel = Object.keys(calSel).length;
+  var h = '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">'+
+    '<button class="btn" style="width:auto;padding:4px 12px" onclick="calMudarAno(-1)">‹</button>'+
+    '<b style="font-size:16px">'+calAno+'</b>'+
+    '<button class="btn" style="width:auto;padding:4px 12px" onclick="calMudarAno(1)">›</button>'+
+    '<select style="width:auto;flex:1" onchange="calSetRisco(this.value)">'+
+      [0,2,3,4,5].map(function(r){ return '<option value="'+r+'" '+(calRiscoMin===r?'selected':'')+'>'+(r?'Risco '+r+' ou mais':'Todos os riscos')+'</option>'; }).join('')+
+    '</select></div>';
+  if(nSel){
+    h += '<div style="position:sticky;top:0;z-index:5;background:var(--bg,#111);padding:8px 0"><div class="btnrow" style="gap:8px">'+
+      '<button class="btn primary" style="flex:1" onclick="calConfirmar()">✅ Criar rota com '+nSel+' selecionada(s)</button>'+
+      '<button class="btn" onclick="calLimpar()">Limpar</button></div></div>';
+  }
+  if(calContar(g.anteriores).n) h += calHtmlGrupo('ant', '⚠️ Vencidas antes de '+calAno, g.anteriores);
+  for(var m=0;m<12;m++) h += calHtmlGrupo('m'+m, MESES_PT[m], g.meses[m]);
+  el.innerHTML = h;
+}
+function calConfirmar(){
+  var ids = Object.keys(calSel);
+  if(!ids.length) return;
+  var db = loadDB();
+  var edifs = ids.map(function(id){return db.edificacoes.find(function(e){return e.id===id;});}).filter(Boolean);
+  var bairros = []; edifs.forEach(function(e){ var b=e.bairro||'Sem bairro'; if(bairros.indexOf(b)<0) bairros.push(b); });
+  var sugestao = 'Funcionamento '+(bairros.length<=2 ? bairros.join(' e ') : bairros.length+' bairros')+' · '+edifs.length+' edif.';
+  var nome = prompt('Nome da rota ('+edifs.length+' edificação(ões), '+bairros.length+' bairro(s)):', sugestao);
+  if(nome===null) return;
+  nome = nome.trim() || sugestao;
+  var rotaId = novoId('rot'), agora = new Date().toISOString();
+  var vists = edifs.map(function(e){
+    var v = vistoriaParaRota(db, e.id);
+    v.tipo = 'funcionamento'; v.rotaId = rotaId; v.atualizadoEm = agora;
+    return v;
+  });
+  var ot = otimizarOrdemRota(db, vists);
+  var hoje = new Date(), p = function(n){return (n<10?'0':'')+n;};
+  if(!db.rotas) db.rotas = [];
+  db.rotas.push({id:rotaId, nome:nome, data:p(hoje.getDate())+'/'+p(hoje.getMonth()+1)+'/'+hoje.getFullYear(),
+    vistorias:ot.ids, distanciaEstimadaKm:ot.dist, ordemOtimizada:true, atualizadoEm:agora});
+  saveDB(db);
+  calSel = {};
+  renderRotas();
+  if(typeof qmap!=='undefined' && qmap) renderQMapaConteudo();
+  alert('Rota "'+nome+'" criada com '+vists.length+' parada(s), já ordenada.');
+}
+
+
+// ════════════════════════════════════════
+// CALENDÁRIO DO CARTÓRIO — mesma ideia do calendário de vencimentos, mas pelo prazo das AFs e
+// multas ainda abertas (mês > cidade > bairro). Item aguardando ciência vira parada de Ciência;
+// item já com ciência vira vistoria de Funcionamento de verificação (dá pra trocar o tipo depois).
+// ════════════════════════════════════════
+var ccAno = new Date().getFullYear();
+var ccFiltro = 'todos';
+var ccSel = {};
+var ccAberto = {['m'+new Date().getMonth()]:true};
+function ccMudarAno(d){ ccAno += d; ccAberto = {}; renderCalendarioCartorio(); }
+function ccSetFiltro(v){ ccFiltro = v; renderCalendarioCartorio(); }
+function ccToggle(k){ ccAberto[k] = !ccAberto[k]; renderCalendarioCartorio(); }
+function ccMarcar(id){ if(ccSel[id]) delete ccSel[id]; else ccSel[id]=true; renderCalendarioCartorio(); }
+function ccMarcarGrupo(ids, marcar){ ids.forEach(function(id){ if(marcar) ccSel[id]=true; else delete ccSel[id]; }); renderCalendarioCartorio(); }
+function ccLimpar(){ ccSel = {}; renderCalendarioCartorio(); }
+var CTX_CC = {aberto:function(){return ccAberto;}, sel:function(){return ccSel;}, tog:'ccToggle', marca:'ccMarcar', grupo:'ccMarcarGrupo',
+  chave:function(it){return it.id;}, linha:function(it){
+    var e = it.e, m = it.m;
+    var estadoTxt = m.cienciaDadaEm ? '✍️ Ciência em '+new Date(m.cienciaDadaEm).toLocaleDateString('pt-BR') : '⏳ Aguardando ciência';
+    return '<div style="font-weight:700">'+(m.tipo==='af'?'📋 AF':'💰 Multa')+' '+(m.numero||'(sem número)')+' · '+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+'</div>'+
+      '<div class="sub">'+(it.semPrazo ? 'Sem prazo · criada em '+it.d.toLocaleDateString('pt-BR') : 'Prazo '+it.d.toLocaleDateString('pt-BR')+(it.vencida?' · <span style="color:var(--red2)">vencido</span>':''))+' · '+estadoTxt+(it.rota?' · já na rota "'+it.rota+'"':'')+'</div>'+
+      '<div class="sub">🕑 Última vistoria: '+it.ult+'</div>';
+  }};
+function ccAgrupar(db){
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  var meses = {}; for(var i=0;i<12;i++) meses[i] = {};
+  var anteriores = {};
+  var rotaDe = {};
+  (db.vistorias||[]).forEach(function(v){
+    if(v.concluida || !v.rotaId) return;
+    var id = v.cienciaItemId || v.cartorioItemRef;
+    var r = (db.rotas||[]).find(function(x){return x.id===v.rotaId;});
+    if(id && r) rotaDe[id] = r.nome;
+  });
+  (db.edificacoes||[]).forEach(function(e){
+    if(e.competencia==='fora') return;
+    (e.cartorio||[]).forEach(function(m){
+      if(m.resolvidaEm) return;
+      if(ccFiltro==='aguardando' && m.cienciaDadaEm) return;
+      if(ccFiltro==='ciente' && !m.cienciaDadaEm) return;
+      if(ccFiltro==='af' && m.tipo!=='af') return;
+      if(ccFiltro==='multa' && m.tipo!=='multa') return;
+      var dp = parseDataBR(m.prazo);
+      var d = dp || new Date(m.criadaEm||Date.now());
+      var item = {e:e, m:m, id:m.id, d:d, semPrazo:!dp, risco:riscoEfetivo(e)||0, vencida:!!dp && d<hoje, rota:rotaDe[m.id]||null, ult:textoUltimaVistoria(db, e.id, true)};
+      var alvo = d.getFullYear()===ccAno ? meses[d.getMonth()] : (d.getFullYear()<ccAno ? anteriores : null);
+      if(!alvo) return;
+      var mun = e.municipio||'Sem município', bai = e.bairro||'Sem bairro';
+      if(!alvo[mun]) alvo[mun] = {};
+      if(!alvo[mun][bai]) alvo[mun][bai] = [];
+      alvo[mun][bai].push(item);
+    });
+  });
+  return {meses:meses, anteriores:anteriores};
+}
+function renderCalendarioCartorio(){
+  var el = document.getElementById('ccCalendario');
+  if(!el) return;
+  var db = loadDB(), g = ccAgrupar(db), nSel = Object.keys(ccSel).length;
+  var h = '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">'+
+    '<button class="btn" style="width:auto;padding:4px 12px" onclick="ccMudarAno(-1)">‹</button><b style="font-size:16px">'+ccAno+'</b>'+
+    '<button class="btn" style="width:auto;padding:4px 12px" onclick="ccMudarAno(1)">›</button>'+
+    '<select style="width:auto;flex:1" onchange="ccSetFiltro(this.value)">'+
+      [['todos','Tudo em aberto'],['aguardando','Aguardando ciência'],['ciente','Com ciência (prazo correndo)'],['af','Só AF'],['multa','Só multa']].map(function(o){ return '<option value="'+o[0]+'" '+(ccFiltro===o[0]?'selected':'')+'>'+o[1]+'</option>'; }).join('')+
+    '</select></div>';
+  if(nSel) h += '<div style="position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0"><div class="btnrow" style="gap:8px">'+
+    '<button class="btn primary" style="flex:1" onclick="ccConfirmar()">✅ Criar rota com '+nSel+' selecionado(s)</button><button class="btn" onclick="ccLimpar()">Limpar</button></div></div>';
+  if(calContar(g.anteriores).n) h += calHtmlGrupo('ant', '⚠️ Prazos anteriores a '+ccAno, g.anteriores, CTX_CC);
+  for(var m=0;m<12;m++) h += calHtmlGrupo('m'+m, MESES_PT[m], g.meses[m], CTX_CC);
+  el.innerHTML = h;
+}
+function ccConfirmar(){
+  var ids = Object.keys(ccSel);
+  if(!ids.length) return;
+  var db = loadDB(), alvos = [];
+  (db.edificacoes||[]).forEach(function(e){ (e.cartorio||[]).forEach(function(m){ if(ccSel[m.id]) alvos.push({e:e, m:m}); }); });
+  if(!alvos.length) return;
+  var bairros = []; alvos.forEach(function(a){ var b=a.e.bairro||'Sem bairro'; if(bairros.indexOf(b)<0) bairros.push(b); });
+  var sugestao = 'Cartório '+(bairros.length<=2 ? bairros.join(' e ') : bairros.length+' bairros')+' · '+alvos.length+' item(ns)';
+  var nome = prompt('Nome da rota ('+alvos.length+' item(ns), '+bairros.length+' bairro(s)):', sugestao);
+  if(nome===null) return;
+  nome = nome.trim() || sugestao;
+  var rotaId = novoId('rot'), agora = new Date().toISOString();
+  var vists = alvos.map(function(a){
+    var ciente = !!a.m.cienciaDadaEm;
+    var v = {id:novoId('vis'), edificacaoId:a.e.id, tipo: ciente ? 'funcionamento' : 'cartorio', motivo: ciente ? 'Verificar '+(a.m.tipo==='af'?'AF':'multa')+' nº '+(a.m.numero||'(sem número)') : '',
+      checklist:{}, situacaoHS:'', obs:'', concluida:false, concluidaEm:null, trajetoriaId:null, rotaId:rotaId, criadoEm:agora, atualizadoEm:agora, criadaPelaRota:true,
+      cartorioItemRef:a.m.id};
+    if(!ciente){ v.cartorioSubtipo='ciencia'; v.cienciaDe=a.m.tipo; v.cienciaItemId=a.m.id; v.afSistemas=[]; v.cienciaBaixas=[]; }
+    db.vistorias.push(v);
+    return v;
+  });
+  var ot = otimizarOrdemRota(db, vists);
+  var hoje = new Date(), p = function(n){return (n<10?'0':'')+n;};
+  if(!db.rotas) db.rotas = [];
+  db.rotas.push({id:rotaId, nome:nome, data:p(hoje.getDate())+'/'+p(hoje.getMonth()+1)+'/'+hoje.getFullYear(), vistorias:ot.ids, distanciaEstimadaKm:ot.dist, ordemOtimizada:true, atualizadoEm:agora});
+  saveDB(db);
+  ccSel = {};
+  renderCalendarioCartorio();
+  alert('Rota "'+nome+'" criada com '+vists.length+' parada(s), já ordenada. Ela aparece na aba Rotas.');
+}
+
 var rotasPainelAberto = {};
 function toggleRotaPainel(id){ rotasPainelAberto[id] = !rotasPainelAberto[id]; renderRotas(); }
 
@@ -5090,6 +5516,23 @@ function toggleRotaPainel(id){ rotasPainelAberto[id] = !rotasPainelAberto[id]; r
 // confirmação e relatórios continuam funcionando. Excluir a rota leva junto o que não foi
 // executado; o que já foi concluído fica no histórico.
 // ════════════════════════════════════════
+
+// Rotas avulsas são temporárias: quando todas as paradas estão concluídas, a rota some por
+// completo (com lápide, pro Campo apagar também) e sobram só as vistorias feitas no histórico.
+function encerrarRotasConcluidas(db){
+  var removidas = [];
+  db.rotas = (db.rotas||[]).filter(function(r){
+    var vs = (r.vistorias||[]).map(function(id){ return (db.vistorias||[]).find(function(x){return x.id===id;}); }).filter(Boolean);
+    if(!vs.length || !vs.every(function(v){return v.concluida;})) return true;
+    removidas.push(r.id);
+    return false;
+  });
+  if(removidas.length){
+    (db.vistorias||[]).forEach(function(v){ if(v.rotaId && removidas.indexOf(v.rotaId)>=0){ v.rotaId = null; v.atualizadoEm = new Date().toISOString(); } });
+    registrarExclusao(db, 'rotasExcluidas', removidas);
+  }
+  return removidas.length;
+}
 var rotaEmEdicaoId = null;
 var rtParadas = [];
 var rtPadrao = {cartorioSubtipo:null, cienciaDe:null, afSistemas:[]};
@@ -5167,6 +5610,7 @@ function renderRtEdifLista(){
     return '<div onclick="rtAlternarEdif(\''+e.id+'\')" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;'+(sel?'background:rgba(192,39,45,.15)':'')+'">'+
       '<div style="font-weight:700">'+(sel?'✓ ':'')+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+(planejada?' <span style="color:var(--amar);font-weight:400">(já tem vistoria planejada)</span>':'')+'</div>'+
       '<div style="color:var(--sub);font-size:11px">'+(e.municipio||'')+(e.bairro?' · '+e.bairro:'')+(e.endereco?' · '+e.endereco:'')+'</div>'+
+      '<div style="color:var(--sub);font-size:11px">🕑 Última vistoria: '+textoUltimaVistoria(db, e.id, true)+'</div>'+
     '</div>';
   }).join('');
   if(todas.length>LIM) html += '<div class="sub" style="padding:8px 10px">Mostrando '+LIM+' de '+todas.length+' — refine a busca (RE, nome ou bairro).</div>';
@@ -5228,6 +5672,7 @@ function renderRtParadas(){
         TIPOS_VISTORIA.map(function(t){ return '<option value="'+t.id+'" '+(pr.tipo===t.id?'selected':'')+'>'+t.l+'</option>'; }).join('')+
       '</select>'+
       (pr.tipo==='cartorio' ? htmlSeletorCartorio(pr, 'rtSetCartorioParada.bind(null,'+i+')') : '')+
+      (e ? '<div class="sub" style="margin-bottom:4px">🕑 Última vistoria: '+textoUltimaVistoria(db, e.id, true)+'</div>' : '')+
       (item ? '<div class="sub">'+(item.tipo==='af'?'AF':'Multa')+' nº '+(item.numero||'(sem número)')+(item.prazo?' · prazo '+item.prazo:'')+'</div>' : '')+
       (pr.adotada ? '<div class="sub">Usa uma vistoria já planejada pra essa edificação.</div>' : '')+
     '</div>';
@@ -6193,6 +6638,7 @@ function diasAteOuDesde(dataStr){
 
 function renderMultas(){
   aplicarCartorioPendentes();
+  renderCalendarioCartorio();
   document.getElementById('mt-edif-lista').innerHTML = '';
   document.getElementById('mt-edif-busca').value = '';
   document.getElementById('mt-form-detalhe').style.display='none';
@@ -6480,6 +6926,7 @@ function importarArquivo(input){
     });
     (db.vistorias||[]).forEach(function(vv){ aplicarCartorioDaVistoria(db, vv); }); // visitas de Cartório feitas no Campo
     (db.vistorias||[]).forEach(function(vv){ if(vv.rotaId && tumRota.indexOf(vv.rotaId)>=0) vv.rotaId = null; }); // rota excluída: concluídas ficam como histórico
+    encerrarRotasConcluidas(db);
     saveDB(db);
 
     var labels = {edificacoes:'edificações', vistorias:'vistorias', trajetorias:'trajetórias', pontos:'pontos', rotas:'rotas'};
