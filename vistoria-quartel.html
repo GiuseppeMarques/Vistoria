@@ -170,7 +170,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v99</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v100</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -195,6 +195,7 @@
         <input type="file" id="xlsxImportInput" accept=".xlsx,.xls" style="display:none" onchange="importarExcelEdificacoes(this)">
         <button class="btn" onclick="document.getElementById('xlsxImportInput').click()">📊 Importar Excel</button>
         <button class="btn" style="background:var(--red2)" onclick="abrirImportarESCI()">📥 Importar do e-SCI</button>
+        <button class="btn" style="background:var(--red2)" onclick="abrirImportarNotificacao()">📍 Importar notificação</button>
         <button class="btn primary" onclick="abrirFormEdif(null)">+ Nova edificação</button>
       </div>
       <div class="toolbar" style="margin-top:-6px">
@@ -315,6 +316,20 @@
         <div class="modal-actions">
           <button class="btn" onclick="document.getElementById('modalImportarESCI').style.display='none'">Fechar</button>
           <button class="btn primary" onclick="processarImportarESCI()">Importar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modalImportarNotificacao" class="modal-overlay" style="display:none">
+      <div class="modal lg">
+        <h3>Importar notificação</h3>
+        <div class="sub">Traz endereço, localização, risco, blocos e andares. O que você já cadastrou à mão <b>nunca é sobrescrito</b>: o importado só preenche o que está vazio e fica marcado "a conferir". Divergências aparecem na prévia.</div>
+        <label class="lbl" style="margin-top:12px">Arquivo (.xlsx, .csv ou .json)</label>
+        <input type="file" id="ntfArquivo" accept=".xlsx,.xls,.csv,.json" onchange="ntfLerArquivo(this)" style="margin-bottom:12px">
+        <div id="ntfPrevia" style="margin:8px 0 12px"></div>
+        <div class="modal-actions">
+          <button class="btn" onclick="document.getElementById('modalImportarNotificacao').style.display='none'">Fechar</button>
+          <button class="btn primary" id="ntfBtnAplicar" style="display:none" onclick="ntfAplicar()">Gravar na base</button>
         </div>
       </div>
     </div>
@@ -718,6 +733,7 @@
     <datalist id="dlMunicipios"></datalist>
     <datalist id="dlBairros"></datalist>
     <h3 id="edifFormTitulo">Nova edificação</h3>
+    <div id="ef-origem"></div>
     <div class="sub">Cadastro completo, sistemas preventivos e pavimentos.</div>
 
     <div class="card2-box" style="margin-bottom:16px;padding:12px 16px">
@@ -1493,7 +1509,7 @@ function renderEdificacoes(){
       '<div class="elist-row">'+
         badge+
         '<div style="flex:1;min-width:0">'+
-          '<div class="elist-t">'+(e.nome||'Sem nome')+origemTag+foraCompTag+desocupadaTag+'</div>'+
+          '<div class="elist-t">'+(e.nome||'Sem nome')+tagConferir(e)+origemTag+foraCompTag+desocupadaTag+'</div>'+
           '<div class="elist-s">'+(e.competencia==='fora' ? (e.competenciaMotivo||'Sem motivo informado') : (e.re||'Sem RE')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(venc?' · vence '+venc:'')+' · '+hsInfo[0]+' '+hsInfo[1])+'</div>'+
           ultTxt+
         '</div>'+
@@ -1918,6 +1934,235 @@ function abrirImportarESCI(){
 
 // acha o valor de uma coluna aceitando várias grafias de cabeçalho, sem diferenciar
 // maiúsculo/minúsculo/espaço nas pontas
+// ════════════════════════════════════════
+// ORIGEM DOS DADOS — o que foi digitado à mão sempre vale mais. Campo importado só preenche o que
+// estava vazio e fica em e.origemDados[campo]='importado' (segunda opção); ao editar o campo à
+// mão a marca some. e.aConferir marca edificação nova/alterada no Campo, pra revisar no Quartel.
+// ════════════════════════════════════════
+var CAMPOS_RASTREADOS = ['nome','endereco','bairro','municipio','grauRisco','area','altura','lat','lng','blocos'];
+var ROTULOS_CAMPOS = {nome:'nome', endereco:'endereço', bairro:'bairro', municipio:'município', grauRisco:'risco', area:'área', altura:'altura', lat:'localização', lng:'localização', blocos:'blocos/andares'};
+function normalizarValorOrigem(v){ return JSON.stringify(v==null ? '' : v); }
+function camposAlteradosMao(antes, depois){
+  var lista = [];
+  CAMPOS_RASTREADOS.forEach(function(c){
+    if(normalizarValorOrigem(antes ? antes[c] : undefined) !== normalizarValorOrigem(depois[c])) lista.push(c);
+  });
+  return lista;
+}
+function aplicarOrigemMao(antes, depois){
+  var od = Object.assign({}, (antes && antes.origemDados) || {});
+  camposAlteradosMao(antes, depois).forEach(function(c){ delete od[c]; });
+  depois.origemDados = od;
+  return od;
+}
+function resumoPendenciasOrigem(e){
+  var partes = [];
+  var od = e.origemDados || {};
+  var rot = []; Object.keys(od).forEach(function(c){ var r = ROTULOS_CAMPOS[c]||c; if(rot.indexOf(r)<0) rot.push(r); });
+  if(rot.length) partes.push('📥 Importado e ainda não conferido: '+rot.join(', '));
+  if(e.aConferir) partes.push('👀 '+(e.aConferir.motivo==='nova'?'Edificação nova cadastrada no Campo':'Alterada no Campo')+(e.aConferir.em?' em '+new Date(e.aConferir.em).toLocaleDateString('pt-BR'):'')+', a conferir');
+  return partes;
+}
+function tagConferir(e){
+  var pend = resumoPendenciasOrigem(e);
+  return pend.length ? ' <span style="font-size:10px;font-weight:700;color:#FF9F0A;border:1px solid #FF9F0A;border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle">👀 a conferir</span>' : '';
+}
+function htmlBannerConferir(e, fn){
+  var pend = e ? resumoPendenciasOrigem(e) : [];
+  if(!pend.length) return '';
+  return '<div style="background:rgba(255,159,10,.12);border:1px solid rgba(255,159,10,.4);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12px">'+
+    pend.join('<br>')+'<div style="margin-top:8px"><button type="button" class="btn" style="width:auto;padding:6px 12px" onclick="'+fn+'()">✔ Conferi, está certo</button></div></div>';
+}
+
+
+// ════════════════════════════════════════
+// IMPORTAR NOTIFICAÇÃO (endereço, localização, risco, blocos, andares) — planilha/CSV/JSON.
+// Só PREENCHE o que está vazio e marca como importado (segunda opção); o que foi cadastrado à mão
+// nunca é sobrescrito, só aparece na prévia como divergência. Cabeçalhos reconhecidos por
+// sinônimos; ajustável quando eu vir o arquivo real.
+// ════════════════════════════════════════
+function ntfNorm(t){ return (t==null?'':String(t)).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); }
+var NTF_SINONIMOS = {
+  re:['re','registro','n re','numero re','codigo edificacao','cod edificacao'],
+  nome:['nome edificacao','nome da edificacao','nome','razao social','nome fantasia','estabelecimento','empresa','edificacao'],
+  logradouro:['logradouro','rua','endereco','endereco completo','via'],
+  numero:['numero','numero endereco','n','num','nro'],
+  bairro:['bairro','distrito','localidade'],
+  municipio:['municipio','cidade'],
+  lat:['latitude','lat'], lng:['longitude','lng','lon','long'],
+  coord:['coordenadas','coordenada','localizacao','geolocalizacao','posicao','geo','gps','mapa','link mapa','google maps'],
+  risco:['grau de risco','risco','classificacao de risco','grau risco','nivel de risco'],
+  blocos:['numero de blocos','n de blocos','n blocos','quantidade de blocos','qtd blocos','blocos'],
+  pavs:['numero de pavimentos','n de pavimentos','n pavimentos','quantidade de pavimentos','pavimentos','numero de andares','n de andares','andares','qtd andares','n andares'],
+  area:['area','area construida','area total','area m2','area solicitacao'],
+  altura:['altura','altura m','altura edificacao'],
+  tel:['telefone','celular','celular responsavel','contato','telefone responsavel']
+};
+function ntfCampo(row, chave){
+  var mapa = {}; Object.keys(row).forEach(function(k){ mapa[ntfNorm(k)] = row[k]; });
+  var sins = NTF_SINONIMOS[chave];
+  for(var i=0;i<sins.length;i++){ var v = mapa[sins[i]]; if(v!=null && String(v).trim()!=='') return v; }
+  return '';
+}
+function ntfNum(v){ var m = String(v==null?'':v).replace(',', '.').match(/-?\d+(\.\d+)?/); return m ? parseFloat(m[0]) : null; }
+function ntfCoordenadas(row){
+  var lat = ntfNum(ntfCampo(row,'lat')), lng = ntfNum(ntfCampo(row,'lng'));
+  if(lat==null || lng==null){
+    var txt = String(ntfCampo(row,'coord')||'') || String(ntfCampo(row,'lat')||'');   // às vezes o par vem junto numa coluna só
+    var m = txt.match(/(-?\d{1,3}[.,]\d+)\s*[,;\s/]+\s*(-?\d{1,3}[.,]\d+)/);
+    if(m){ lat = parseFloat(m[1].replace(',','.')); lng = parseFloat(m[2].replace(',','.')); }
+  }
+  if(lat==null || lng==null || Math.abs(lat)>90 || Math.abs(lng)>180 || (lat===0 && lng===0)) return null;
+  return {lat:lat, lng:lng};
+}
+function ntfExtrair(row){
+  var mapaPref = carregarPrefixosMunicipio();
+  var re = String(ntfCampo(row,'re')||'').trim();
+  var logr = String(ntfCampo(row,'logradouro')||'').trim(), num = String(ntfCampo(row,'numero')||'').trim();
+  var c = ntfCoordenadas(row);
+  var riscoNum = ntfNum(ntfCampo(row,'risco'));
+  var pref = re.length>=6 ? re.substring(2,6) : '';
+  return {
+    re:re, nome:String(ntfCampo(row,'nome')||'').trim(),
+    endereco: logr ? logr + (num && num!=='-' && logr.indexOf(num)<0 ? ', '+num : '') : '',
+    bairro:String(ntfCampo(row,'bairro')||'').trim(),
+    municipio:String(ntfCampo(row,'municipio')||'').trim() || mapaPref[pref] || '',
+    lat:c?c.lat:null, lng:c?c.lng:null,
+    grauRisco: (riscoNum>=1 && riscoNum<=5) ? String(Math.round(riscoNum)) : null,
+    nBlocos: ntfNum(ntfCampo(row,'blocos')), nPav: ntfNum(ntfCampo(row,'pavs')),
+    area:String(ntfCampo(row,'area')||'').trim(), altura:String(ntfCampo(row,'altura')||'').trim(),
+    tel:String(ntfCampo(row,'tel')||'').trim()
+  };
+}
+// nPav = total de pavimentos incluindo o térreo (ex: 3 → Térreo, 1º, 2º); se vier mais de um bloco,
+// repete a mesma contagem em cada um. Tudo fica marcado "importado" pra você conferir.
+function ntfGerarBlocos(nBlocos, nPav, risco){
+  var nb = Math.max(1, Math.round(nBlocos||1)), np = Math.max(0, Math.round(nPav||0)), blocos = [];
+  for(var b=0;b<nb;b++){
+    var pavs = [];
+    for(var i=0;i<np;i++) pavs.push({label: i===0 ? 'Térreo' : i+'º pavimento', sist:{}});
+    blocos.push({nome:'Bloco '+String.fromCharCode(65+b), grauRisco:risco||null, nPavimentos:Math.max(0,np-1), terreoCfg:'sim', pavimentos:pavs});
+  }
+  return blocos;
+}
+function ntfDistM(a,b,c,d){ return haversineKm(a,b,c,d)*1000; }
+function ntfPlanejar(db, linhas){
+  var plano = {criar:[], atualizar:[], semMudanca:0, semId:0};
+  linhas.forEach(function(row){
+    var d = ntfExtrair(row);
+    if(!d.re && !d.nome){ plano.semId++; return; }
+    var e = d.re ? (db.edificacoes||[]).find(function(x){return x.re && x.re.trim().toUpperCase()===d.re.toUpperCase();}) : null;
+    if(!e && !d.re) e = (db.edificacoes||[]).find(function(x){ return ntfNorm(x.nome)===ntfNorm(d.nome) && (!d.municipio || !x.municipio || ntfNorm(x.municipio)===ntfNorm(d.municipio)); });
+    if(!e){ plano.criar.push(d); return; }
+    var od = e.origemDados || {}, preencher = [], divergencias = [];
+    ['nome','endereco','bairro','municipio','grauRisco','area','altura'].forEach(function(c){
+      var imp = d[c]; if(imp==null || imp==='') return;
+      var atual = e[c];
+      if(atual==null || atual==='') preencher.push(c);
+      else if(String(atual).trim()!==String(imp).trim()){
+        if(od[c]==='importado') preencher.push(c); else divergencias.push({campo:ROTULOS_CAMPOS[c], atual:atual, importado:imp});
+      }
+    });
+    if(d.lat!=null){
+      if(!e.lat || !e.lng) preencher.push('lat');
+      else if(ntfDistM(e.lat,e.lng,d.lat,d.lng)>30){
+        if(od.lat==='importado') preencher.push('lat'); else divergencias.push({campo:'localização', atual:e.lat.toFixed(5)+', '+e.lng.toFixed(5), importado:d.lat.toFixed(5)+', '+d.lng.toFixed(5)});
+      }
+    }
+    var temInfoBlocos = d.nBlocos || d.nPav;
+    if(temInfoBlocos){
+      if(!(e.blocos && e.blocos.length)) preencher.push('blocos');
+      else if(od.blocos==='importado') preencher.push('blocos');
+      else if(d.nBlocos && e.blocos.length!==Math.round(d.nBlocos)) divergencias.push({campo:'blocos', atual:e.blocos.length+' bloco(s)', importado:Math.round(d.nBlocos)+' bloco(s)'});
+    }
+    if(d.tel && !(e.responsavel && e.responsavel.tel)) preencher.push('tel');
+    if(preencher.length || divergencias.length) plano.atualizar.push({e:e, d:d, preencher:preencher, divergencias:divergencias});
+    else plano.semMudanca++;
+  });
+  return plano;
+}
+var ntfLinhas = [];
+function abrirImportarNotificacao(){
+  ntfLinhas = [];
+  document.getElementById('ntfArquivo').value = '';
+  document.getElementById('ntfPrevia').innerHTML = '<div class="sub">Escolha o arquivo (.xlsx, .csv ou .json) pra ver a prévia antes de gravar.</div>';
+  document.getElementById('ntfBtnAplicar').style.display = 'none';
+  document.getElementById('modalImportarNotificacao').style.display = 'flex';
+}
+function ntfLerArquivo(input){
+  var file = input.files && input.files[0]; if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    try{
+      var linhas = [];
+      if(/\.json$/i.test(file.name)){
+        var j = JSON.parse(ev.target.result);
+        linhas = Array.isArray(j) ? j : (j.edificacoes || j.notificacoes || j.itens || j.data || []);
+      } else {
+        var wb = XLSX.read(new Uint8Array(ev.target.result), {type:'array', cellDates:true});
+        wb.SheetNames.forEach(function(n){ linhas = linhas.concat(XLSX.utils.sheet_to_json(wb.Sheets[n], {defval:''})); });
+      }
+      ntfLinhas = linhas;
+      ntfMostrarPrevia();
+    } catch(err){ document.getElementById('ntfPrevia').innerHTML = '<div class="sub" style="color:var(--red2)">Não consegui ler esse arquivo. Confirme o formato (.xlsx, .csv ou .json).</div>'; }
+  };
+  if(/\.json$/i.test(file.name)) reader.readAsText(file); else reader.readAsArrayBuffer(file);
+}
+function ntfMostrarPrevia(){
+  var db = loadDB(), plano = ntfPlanejar(db, ntfLinhas);
+  var nomeCampo = function(c){ return ROTULOS_CAMPOS[c] || (c==='tel'?'telefone':c); };
+  var h = '<div style="font-size:13px;margin-bottom:8px"><b>'+ntfLinhas.length+'</b> linha(s) lida(s)'+(plano.semId?' · '+plano.semId+' sem RE nem nome (ignoradas)':'')+'</div>';
+  if(plano.criar.length) h += '<div style="font-size:13px">🆕 <b>'+plano.criar.length+'</b> edificação(ões) nova(s)</div><div class="sub" style="margin:2px 0 8px 14px;max-height:110px;overflow-y:auto">'+
+    plano.criar.slice(0,30).map(function(d){ return (d.re||'sem RE')+' — '+(d.nome||'sem nome')+(d.endereco?' · '+d.endereco:'')+(d.lat!=null?' · 📍':'')+(d.grauRisco?' · risco '+d.grauRisco:'')+((d.nBlocos||d.nPav)?' · '+(d.nBlocos||1)+' bloco(s)/'+(d.nPav||'?')+' pav.':''); }).join('<br>')+(plano.criar.length>30?'<br>… e mais '+(plano.criar.length-30):'')+'</div>';
+  var comPreench = plano.atualizar.filter(function(a){return a.preencher.length;});
+  if(comPreench.length) h += '<div style="font-size:13px">✅ <b>'+comPreench.length+'</b> existente(s) com campo vazio preenchido</div><div class="sub" style="margin:2px 0 8px 14px;max-height:110px;overflow-y:auto">'+
+    comPreench.slice(0,30).map(function(a){ var r=[]; a.preencher.forEach(function(c){ var t=nomeCampo(c); if(r.indexOf(t)<0) r.push(t); }); return (a.e.re||'sem RE')+' — '+(a.e.nome||'')+': '+r.join(', '); }).join('<br>')+'</div>';
+  var comDiv = plano.atualizar.filter(function(a){return a.divergencias.length;});
+  if(comDiv.length) h += '<div style="font-size:13px;color:var(--amar)">↔ <b>'+comDiv.length+'</b> com divergência (o que você cadastrou <b>continua valendo</b>; o importado não entra):</div><div class="sub" style="margin:2px 0 8px 14px;max-height:140px;overflow-y:auto">'+
+    comDiv.slice(0,30).map(function(a){ return (a.e.re||'sem RE')+' — '+(a.e.nome||'')+'<br>'+a.divergencias.map(function(x){ return '&nbsp;&nbsp;'+x.campo+': tem “'+x.atual+'”, notificação traz “'+x.importado+'”'; }).join('<br>'); }).join('<br>')+'</div>';
+  if(plano.semMudanca) h += '<div class="sub">'+plano.semMudanca+' já estavam iguais.</div>';
+  document.getElementById('ntfPrevia').innerHTML = h;
+  document.getElementById('ntfBtnAplicar').style.display = (plano.criar.length || comPreench.length) ? '' : 'none';
+}
+function ntfAplicar(){
+  var db = loadDB(), plano = ntfPlanejar(db, ntfLinhas), agora = new Date().toISOString();
+  plano.criar.forEach(function(d){
+    var od = {};
+    var e = {id:novoId('edif'), re:d.re, nome:d.nome||'(sem nome)', endereco:d.endereco, bairro:d.bairro, municipio:d.municipio, area:d.area, altura:d.altura,
+      responsavel:{nome:'', tel:d.tel}, habiteSe:{}, vigenciaFuncionamento:{}, blocos:[], projetos:[], inquilinos:[], preventivos:{},
+      grauRisco:d.grauRisco, origem:'cadastro', criadoEm:agora, atualizadoEm:agora};
+    if(d.lat!=null){ e.lat = d.lat; e.lng = d.lng; }
+    if(d.nBlocos || d.nPav) e.blocos = ntfGerarBlocos(d.nBlocos, d.nPav, d.grauRisco);
+    CAMPOS_RASTREADOS.forEach(function(c){ var v = e[c]; if(v!=null && v!=='' && !(Array.isArray(v) && !v.length)) od[c]='importado'; });
+    e.origemDados = od; e.aConferir = {em:agora, motivo:'importada'};
+    db.edificacoes.push(e);
+  });
+  plano.atualizar.forEach(function(a){
+    var e = a.e, d = a.d; e.origemDados = e.origemDados || {};
+    a.preencher.forEach(function(c){
+      if(c==='lat'){ e.lat = d.lat; e.lng = d.lng; e.origemDados.lat = 'importado'; e.origemDados.lng = 'importado'; }
+      else if(c==='blocos'){ e.blocos = ntfGerarBlocos(d.nBlocos, d.nPav, d.grauRisco); e.origemDados.blocos = 'importado'; }
+      else if(c==='tel'){ e.responsavel = e.responsavel || {nome:'',tel:''}; e.responsavel.tel = d.tel; }
+      else { e[c] = d[c]; e.origemDados[c] = 'importado'; }
+    });
+    e.atualizadoEm = agora;
+  });
+  saveDB(db);
+  document.getElementById('modalImportarNotificacao').style.display = 'none';
+  renderEdificacoes();
+  alert('Importação concluída: '+plano.criar.length+' nova(s) e '+plano.atualizar.filter(function(a){return a.preencher.length;}).length+' completada(s). Tudo que veio da notificação aparece como "a conferir".');
+}
+function conferirEdifQuartel(){
+  if(!edifEmEdicaoId) return;
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===edifEmEdicaoId;});
+  if(!e) return;
+  e.origemDados = {}; e.aConferir = null; e.atualizadoEm = new Date().toISOString();
+  saveDB(db);
+  document.getElementById('ef-origem').innerHTML = '';
+  renderEdificacoes();
+}
+
 function esciAchar(row, opcoes){
   var chaves = Object.keys(row);
   for(var i=0;i<opcoes.length;i++){
@@ -2207,6 +2452,7 @@ function abrirFormEdif(id){
   }
   document.getElementById('edifFormTitulo').textContent = e ? 'Editar edificação' : 'Nova edificação';
   document.getElementById('ef-btn-excluir').style.display = e ? 'inline-block' : 'none';
+  document.getElementById('ef-origem').innerHTML = e ? htmlBannerConferir(e, 'conferirEdifQuartel') : '';
 
   document.getElementById('ef-re').value = e ? (e.re||'') : '';
   document.getElementById('ef-fora-comp').checked = !!(e && e.competencia==='fora');
@@ -2340,6 +2586,9 @@ function salvarFormEdif(){
 
   if(edifEmEdicaoId){
     var idx = db.edificacoes.findIndex(function(x){return x.id===edifEmEdicaoId;});
+    if(idx>=0){
+      dados.origemDados = aplicarOrigemMao(db.edificacoes[idx], Object.assign({}, db.edificacoes[idx], dados));
+    }
     if(idx>=0) db.edificacoes[idx] = Object.assign({}, db.edificacoes[idx], dados);
   } else {
     dados.id = novoId('edif');

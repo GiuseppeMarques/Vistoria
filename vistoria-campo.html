@@ -222,7 +222,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v61</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v62</div>
   </header>
 
   <main>
@@ -270,6 +270,7 @@
         <button class="chip" data-risco="4" onclick="setEdifsFiltroRisco('4')">Risco 4+</button>
         <button class="chip" data-risco="5" onclick="setEdifsFiltroRisco('5')">Só risco 5</button>
       </div>
+      <button class="btn primary" style="width:100%;margin-bottom:12px" onclick="abrirNovaEdifCampo()">+ Nova edificação (cadastrar no local)</button>
       <div id="edifsLista"></div>
     </div>
 
@@ -400,6 +401,7 @@
         <div class="sheet-handle"></div>
         <div class="sheet-title">Editar edificação</div>
 
+        <div id="ee-origem"></div>
         <button class="btn primary" style="width:100%;margin-bottom:12px" onclick="capturarGPSEdif()" id="btnCapturarGPS">📍 Usar minha localização atual</button>
         <div id="gpsEdifStatus" class="sub" style="margin:-6px 0 12px"></div>
 
@@ -437,8 +439,13 @@
         <div class="sec-title">Sistemas preventivos</div>
         <div class="prev-chips" id="ee-preventivos"></div>
 
+        <div class="sec-title">Blocos e pavimentos</div>
+        <div class="sub" style="margin:-4px 0 8px">Cadastre ou corrija aqui o que encontrou no local. Os sistemas do pavimento vêm dos preventivos marcados acima.</div>
+        <div id="ee-blocos"></div>
+        <button class="btn" style="margin-bottom:12px" onclick="ceAddBloco()">+ Adicionar bloco</button>
+
         <div class="btnrow" style="gap:10px;margin-top:10px">
-          <button class="btn" style="flex:1" onclick="document.getElementById('modalEdifEditarCampo').style.display='none'">Cancelar</button>
+          <button class="btn" style="flex:1" onclick="cancelarEdifEditCampo()">Cancelar</button>
           <button class="btn primary" style="flex:1" onclick="salvarEdifEditCampo()">Salvar</button>
         </div>
       </div>
@@ -2164,7 +2171,7 @@ function renderEdifsCampo(){
       '<div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="abrirEdifEditCampo(\''+e.id+'\')">'+
         '<div style="width:28px;height:28px;border-radius:50%;background:'+cor+';display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex:0 0 auto">'+(risco||'—')+'</div>'+
         '<div style="flex:1;min-width:0">'+
-          '<div style="font-weight:700;font-size:14px">'+(e.nome||'Sem nome')+'</div>'+
+          '<div style="font-weight:700;font-size:14px">'+(e.nome||'Sem nome')+tagConferir(e)+'</div>'+
           '<div style="font-size:11px;color:var(--sub);order:9">🕑 '+textoUltimaVistoria(db, e.id, false)+'</div>'+
           '<div style="font-size:12px;color:var(--sub)">'+(e.re||'Sem RE')+(e.endereco?' · '+e.endereco:'')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(semGPS?' · ⚠️ sem localização':'')+'</div>'+
         '</div>'+
@@ -2261,6 +2268,137 @@ function renderMapFiltroGeoBanner(){
 }
 
 
+
+// ════════════════════════════════════════
+// ORIGEM DOS DADOS — o que foi digitado à mão sempre vale mais. Campo importado só preenche o que
+// estava vazio e fica em e.origemDados[campo]='importado' (segunda opção); ao editar o campo à
+// mão a marca some. e.aConferir marca edificação nova/alterada no Campo, pra revisar no Quartel.
+// ════════════════════════════════════════
+var CAMPOS_RASTREADOS = ['nome','endereco','bairro','municipio','grauRisco','area','altura','lat','lng','blocos'];
+var ROTULOS_CAMPOS = {nome:'nome', endereco:'endereço', bairro:'bairro', municipio:'município', grauRisco:'risco', area:'área', altura:'altura', lat:'localização', lng:'localização', blocos:'blocos/andares'};
+function normalizarValorOrigem(v){ return JSON.stringify(v==null ? '' : v); }
+function camposAlteradosMao(antes, depois){
+  var lista = [];
+  CAMPOS_RASTREADOS.forEach(function(c){
+    if(normalizarValorOrigem(antes ? antes[c] : undefined) !== normalizarValorOrigem(depois[c])) lista.push(c);
+  });
+  return lista;
+}
+function aplicarOrigemMao(antes, depois){
+  var od = Object.assign({}, (antes && antes.origemDados) || {});
+  camposAlteradosMao(antes, depois).forEach(function(c){ delete od[c]; });
+  depois.origemDados = od;
+  return od;
+}
+function resumoPendenciasOrigem(e){
+  var partes = [];
+  var od = e.origemDados || {};
+  var rot = []; Object.keys(od).forEach(function(c){ var r = ROTULOS_CAMPOS[c]||c; if(rot.indexOf(r)<0) rot.push(r); });
+  if(rot.length) partes.push('📥 Importado e ainda não conferido: '+rot.join(', '));
+  if(e.aConferir) partes.push('👀 '+(e.aConferir.motivo==='nova'?'Edificação nova cadastrada no Campo':'Alterada no Campo')+(e.aConferir.em?' em '+new Date(e.aConferir.em).toLocaleDateString('pt-BR'):'')+', a conferir');
+  return partes;
+}
+function tagConferir(e){
+  var pend = resumoPendenciasOrigem(e);
+  return pend.length ? ' <span style="font-size:10px;font-weight:700;color:#FF9F0A;border:1px solid #FF9F0A;border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle">👀 a conferir</span>' : '';
+}
+function htmlBannerConferir(e, fn){
+  var pend = e ? resumoPendenciasOrigem(e) : [];
+  if(!pend.length) return '';
+  return '<div style="background:rgba(255,159,10,.12);border:1px solid rgba(255,159,10,.4);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12px">'+
+    pend.join('<br>')+'<div style="margin-top:8px"><button type="button" class="btn" style="width:auto;padding:6px 12px" onclick="'+fn+'()">✔ Conferi, está certo</button></div></div>';
+}
+
+var edifNovaCampoId = null;
+var ceBlocos = [];
+function ceAddBloco(){
+  ceBlocos.push({nome:'Bloco '+String.fromCharCode(65+ceBlocos.length), grauRisco:null, nPavimentos:0, terreoCfg:'sim', pavimentos:[]});
+  ceRenderBlocos();
+}
+function ceRemoverBloco(bi){ if(!confirm('Remover este bloco e todos os pavimentos dele?')) return; ceBlocos.splice(bi,1); ceRenderBlocos(); }
+function ceSetBlocoNome(bi,v){ ceBlocos[bi].nome = v; }
+function ceSetBlocoRisco(bi,v){ ceBlocos[bi].grauRisco = v || null; }
+function ceGerarPavimentos(bi){
+  var b = ceBlocos[bi];
+  var n = parseInt(document.getElementById('cebloco-npav-'+bi).value,10) || 0;
+  var terreo = document.getElementById('cebloco-terreo-'+bi).value;
+  b.nPavimentos = n; b.terreoCfg = terreo;
+  var labels = []; if(terreo==='sim') labels.push('Térreo');
+  for(var i=1;i<=n;i++) labels.push(i+'º pavimento');
+  var total = Math.max(labels.length, b.pavimentos.length), novos = [];
+  for(var k=0;k<total;k++) novos.push(b.pavimentos[k] || {label:labels[k] || ((k+1)+'º pavimento'), sist:{}});
+  b.pavimentos = novos;   // nunca remove pavimento existente (ex: mezanino)
+  ceRenderBlocos();
+}
+function ceSetPavLabel(bi,pi,v){ ceBlocos[bi].pavimentos[pi].label = v; }
+function ceAddPavAvulso(bi){ ceBlocos[bi].pavimentos.push({label:'Novo pavimento', sist:{}}); ceRenderBlocos(); }
+function ceRemoverPav(bi,pi){ if(!confirm('Remover este pavimento? Os sistemas configurados nele se perdem.')) return; ceBlocos[bi].pavimentos.splice(pi,1); ceRenderBlocos(); }
+function ceMoverPav(bi,pi,d){ var p=ceBlocos[bi].pavimentos, a=pi+d; if(a<0||a>=p.length) return; var t=p[pi]; p[pi]=p[a]; p[a]=t; ceRenderBlocos(); }
+function cePavSist(bi,pi,sid){ var s=ceBlocos[bi].pavimentos[pi].sist; if(!s[sid]) s[sid]={ativo:false,qty:0,info:''}; return s[sid]; }
+function ceSetPavSistAtivo(bi,pi,sid,on){ cePavSist(bi,pi,sid).ativo = on; ceRenderBlocos(); }
+function ceSetPavSistQty(bi,pi,sid,v){ cePavSist(bi,pi,sid).qty = parseInt(v)||0; }
+function ceSetPavSistInfo(bi,pi,sid,v){ cePavSist(bi,pi,sid).info = v; }
+function ceAjustarPavSist(bi,pi,sid,d){ var x=cePavSist(bi,pi,sid); x.qty = Math.max(0,(x.qty||0)+d); ceRenderBlocos(); }
+function ceRenderBlocos(){
+  var box = document.getElementById('ee-blocos'); if(!box) return;
+  var ativos = Object.keys(cePreventivos).filter(function(sid){return cePreventivos[sid].ativo;})
+    .sort(function(a,b){ return (cePreventivos[a].ordem||1000)-(cePreventivos[b].ordem||1000); });
+  if(!ceBlocos.length){ box.innerHTML = '<div class="sub">Nenhum bloco. Se é uma construção só, não precisa criar bloco.</div>'; return; }
+  box.innerHTML = ceBlocos.map(function(b, bi){
+    var pavs = b.pavimentos.map(function(pav, pi){
+      var rows = ativos.length ? ativos.map(function(sid){
+        var s = SIST.find(function(x){return x.id===sid;}); var pd = pav.sist[sid] || {ativo:false,qty:0,info:''};
+        return '<div class="pav-sist-row" style="flex-direction:column;align-items:stretch;gap:4px"><div style="display:flex;align-items:center;gap:8px">'+
+          '<label style="flex:1"><input type="checkbox" '+(pd.ativo?'checked':'')+' onchange="ceSetPavSistAtivo('+bi+','+pi+',\''+sid+'\',this.checked)"> '+s.l+'</label>'+
+          (pd.ativo ? '<div style="display:flex;align-items:center;gap:6px"><button class="btn" style="width:26px;padding:5px 0" onclick="ceAjustarPavSist('+bi+','+pi+',\''+sid+'\',-1)">−</button>'+
+            '<input type="text" class="prev-qty" value="'+(pd.qty||0)+'" onchange="ceSetPavSistQty('+bi+','+pi+',\''+sid+'\',this.value)">'+
+            '<button class="btn" style="width:26px;padding:5px 0" onclick="ceAjustarPavSist('+bi+','+pi+',\''+sid+'\',1)">+</button></div>' : '')+
+          '</div>'+(pd.ativo ? '<input type="text" placeholder="Detalhe (opcional)" value="'+(pd.info||'').replace(/"/g,'&quot;')+'" onchange="ceSetPavSistInfo('+bi+','+pi+',\''+sid+'\',this.value)">' : '')+'</div>';
+      }).join('') : '<div class="sub">Ative sistemas preventivos acima pra detalhar por pavimento.</div>';
+      return '<div class="pav-card" style="margin-left:10px;background:var(--bg)"><div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">'+
+        '<input type="text" value="'+pav.label.replace(/"/g,'&quot;')+'" style="margin-bottom:0;font-weight:700;flex:1" onchange="ceSetPavLabel('+bi+','+pi+',this.value)">'+
+        '<button class="btn" style="width:auto;padding:6px 9px" '+(pi===0?'disabled':'')+' onclick="ceMoverPav('+bi+','+pi+',-1)">▲</button>'+
+        '<button class="btn" style="width:auto;padding:6px 9px" '+(pi===b.pavimentos.length-1?'disabled':'')+' onclick="ceMoverPav('+bi+','+pi+',1)">▼</button>'+
+        '<button class="btn" style="width:auto;padding:6px 9px" onclick="ceRemoverPav('+bi+','+pi+')">✕</button></div>'+rows+'</div>';
+    }).join('') || '<div class="sub" style="margin-left:10px">Nenhum pavimento ainda neste bloco.</div>';
+    return '<div class="pav-card" style="border-color:var(--red);margin-bottom:12px"><div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">'+
+      '<input type="text" value="'+(b.nome||'').replace(/"/g,'&quot;')+'" style="margin-bottom:0;font-weight:700;flex:1" onchange="ceSetBlocoNome('+bi+',this.value)">'+
+      '<select style="width:auto;margin-bottom:0;padding:4px 6px;font-size:12px" onchange="ceSetBlocoRisco('+bi+',this.value)"><option value="">Risco: —</option>'+
+        [1,2,3,4,5].map(function(n){ return '<option value="'+n+'" '+(String(b.grauRisco)===String(n)?'selected':'')+'>Risco '+n+'</option>'; }).join('')+'</select>'+
+      '<button class="btn" style="width:auto;padding:8px 12px" onclick="ceRemoverBloco('+bi+')">✕</button></div>'+
+      '<div class="frow"><div class="fcol"><label class="lbl">Pavimentos acima do térreo</label><input type="text" inputmode="numeric" id="cebloco-npav-'+bi+'" value="'+(b.nPavimentos||'')+'" placeholder="Ex: 3"></div>'+
+      '<div class="fcol"><label class="lbl">Térreo</label><select id="cebloco-terreo-'+bi+'"><option value="sim" '+(b.terreoCfg!=='nao'?'selected':'')+'>Possui térreo</option><option value="nao" '+(b.terreoCfg==='nao'?'selected':'')+'>Sem térreo</option></select></div></div>'+
+      '<div class="btnrow" style="gap:6px;margin-bottom:8px;flex-wrap:wrap"><button class="btn" onclick="ceGerarPavimentos('+bi+')">Gerar / atualizar pavimentos</button><button class="btn" onclick="ceAddPavAvulso('+bi+')">+ Pavimento (ex: mezanino)</button></div>'+pavs+'</div>';
+  }).join('');
+}
+function ceConferi(){
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===edifEmEdicaoCampoId;});
+  if(!e) return;
+  e.origemDados = {}; e.aConferir = null; e.atualizadoEm = new Date().toISOString();
+  saveDB(db);
+  document.getElementById('ee-origem').innerHTML = '';
+  renderEdifsCampo();
+}
+function abrirNovaEdifCampo(){
+  var db = loadDB();
+  var e = {id:novoId('edif'), re:'', nome:'', endereco:'', bairro:'', municipio:'', responsavel:{nome:'',tel:''}, habiteSe:{}, vigenciaFuncionamento:{},
+    blocos:[], projetos:[], inquilinos:[], preventivos:{}, origem:'campo', criadoEm:new Date().toISOString(), atualizadoEm:new Date().toISOString()};
+  db.edificacoes.push(e); saveDB(db);
+  edifNovaCampoId = e.id;
+  abrirEdifEditCampo(e.id);
+  capturarGPSEdif(); // já pega a localização de onde você está
+}
+function cancelarEdifEditCampo(){
+  document.getElementById('modalEdifEditarCampo').style.display='none';
+  if(edifNovaCampoId){   // edificação nova que não chegou a ser salva some de novo
+    var db = loadDB();
+    var e = db.edificacoes.find(function(x){return x.id===edifNovaCampoId;});
+    if(e && !e.nome && !e.re){ db.edificacoes = db.edificacoes.filter(function(x){return x.id!==edifNovaCampoId;}); saveDB(db); }
+    edifNovaCampoId = null; renderEdifsCampo();
+  }
+}
+
 function abrirEdifEditCampo(id){
   var db = loadDB();
   var e = db.edificacoes.find(function(x){return x.id===id;});
@@ -2298,7 +2436,9 @@ function abrirEdifEditCampo(id){
   ceRenderProjetos();
 
   cePreventivos = e.preventivos ? JSON.parse(JSON.stringify(e.preventivos)) : {};
+  ceBlocos = e.blocos ? JSON.parse(JSON.stringify(e.blocos)) : [];
   ceRenderPreventivos();
+  document.getElementById('ee-origem').innerHTML = htmlBannerConferir(e, 'ceConferi');
 
   var gpsStatus = document.getElementById('gpsEdifStatus');
   delete gpsStatus.dataset.lat; delete gpsStatus.dataset.lng;
@@ -2415,6 +2555,7 @@ function ceRenderPreventivos(){
       laudoHtml+
     '</div>';
   }).join('');
+  ceRenderBlocos();
 }
 function ceSetPrevLaudoData(sid,val){ if(cePreventivos[sid]){ cePreventivos[sid].laudoData = val; ceRenderPreventivos(); } }
 function ceSetPrevLaudoPeriodicidade(sid,val){ if(cePreventivos[sid]){ cePreventivos[sid].laudoPeriodicidade = parseInt(val,10); ceRenderPreventivos(); } }
@@ -2463,6 +2604,8 @@ function salvarEdifEditCampo(){
   var db = loadDB();
   var e = db.edificacoes.find(function(x){return x.id===edifEmEdicaoCampoId;});
   if(!e) return;
+  var antesEdit = JSON.parse(JSON.stringify(e));
+  var prevAntes = JSON.stringify(e.preventivos||{});
 
   e.re = document.getElementById('ee-re').value.trim();
   e.grauRisco = document.getElementById('ee-risco').value || null;
@@ -2480,6 +2623,7 @@ function salvarEdifEditCampo(){
 
   e.projetos = ceProjetos;
   e.preventivos = cePreventivos;
+  e.blocos = ceBlocos;
 
   // deriva habiteSe/vigenciaFuncionamento da última linha de protocolo de cada tipo — mesma
   // lógica do Quartel — MUTANDO o objeto existente (não recriando do zero), pra preservar
@@ -2505,6 +2649,11 @@ function salvarEdifEditCampo(){
     delete gpsStatus.dataset.lng;
   }
 
+  // o que você digitou/corrigiu aqui passa a valer mais que o importado; mudou algo → fica "a conferir" no Quartel
+  var mudouAlgo = camposAlteradosMao(antesEdit, e).length>0 || prevAntes!==JSON.stringify(e.preventivos||{}) || (antesEdit.re||'')!==(e.re||'');
+  aplicarOrigemMao(antesEdit, e);
+  if(edifNovaCampoId===e.id){ e.origem = 'campo'; e.aConferir = {em:new Date().toISOString(), motivo:'nova'}; edifNovaCampoId = null; }
+  else if(mudouAlgo){ e.aConferir = {em:new Date().toISOString(), motivo:(e.aConferir && e.aConferir.motivo==='nova')?'nova':'alterada'}; }
   e.atualizadoEm = new Date().toISOString();
   saveDB(db);
   document.getElementById('modalEdifEditarCampo').style.display='none';
