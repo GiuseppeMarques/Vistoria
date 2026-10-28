@@ -222,7 +222,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v63</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v64</div>
   </header>
 
   <main>
@@ -1214,10 +1214,11 @@ function vcTemProgresso(c){
 function vcCriar(db, vc, tipo){
   var agora = new Date().toISOString();
   var comp = {id:novoId('vis'), edificacaoId:vc.edificacaoId, tipo:tipo||'funcionamento', motivo:'', checklist:{}, situacaoHS:'', obs:'',
-    concluida:false, concluidaEm:null, trajetoriaId:null, rotaId:vc.rotaId||null, criadoEm:agora, atualizadoEm:agora,
+    concluida:false, concluidaEm:null, trajetoriaId:null, rotaId:(vc.rotaId && (db.rotas||[]).some(function(r){return r.id===vc.rotaId;})) ? vc.rotaId : null, criadoEm:agora, atualizadoEm:agora,
     criadaPelaRota:true, origemCartorioId:vc.id};
   db.vistorias.push(comp);
   vc.vistoriaCompletaId = comp.id; vc.atualizadoEm = agora;
+  if(vc.concluida) vc.escopoCartorio = 'com_vistoria'; // decidiu depois de concluir o Cartório
   if(vc.rotaId){
     var r = (db.rotas||[]).find(function(x){return x.id===vc.rotaId;});
     if(r && r.vistorias.indexOf(comp.id)<0) r.vistorias.push(comp.id);
@@ -1233,11 +1234,65 @@ function vcRemover(db, vc){
   (db.rotas||[]).forEach(function(r){ r.vistorias = (r.vistorias||[]).filter(function(id){return id!==comp.id;}); });
   return true;
 }
+// ════════════════════════════════════════
+// PARADA DE "CONFERIR CUMPRIMENTO DO AF" (Ex-ofício vindo do e-SCI) — lê o número da AF no motivo
+// da parada e mostra no topo da vistoria o que a AF cobra (preventivos e exigências), pra saber o
+// que olhar. A vistoria em si continua sendo a completa (checklist do Funcionamento).
+// ════════════════════════════════════════
+function afReferidaNoMotivo(db, v){
+  var mm = String(v && v.motivo || '').match(/AF\s*(\d{10}[A-Z])\s*[\/-]?\s*(\d{2})?/i);
+  if(!mm) return null;
+  var base = mm[1].toUpperCase(), ano = mm[2] || '';
+  var edifs = (db.edificacoes||[]).slice().sort(function(a,b){ return (a.id===v.edificacaoId?0:1)-(b.id===v.edificacaoId?0:1); });
+  var achou = null;
+  edifs.some(function(e){
+    var x = (e.cartorio||[]).find(function(c){
+      if(c.tipo!=='af') return false;
+      var n = String(c.numero||'').toUpperCase().replace(/[^0-9A-Z]/g,'').replace(/^AF/,'');
+      return n && (ano ? n===base+ano : n.indexOf(base)===0);
+    });
+    if(x){ achou = {e:e, m:x}; return true; }
+    return false;
+  });
+  return achou || {numero:'AF'+base+(ano?'/'+ano:''), naoCadastrada:true};
+}
+function htmlAFDaParada(db, v){
+  if(!v || v.tipo==='cartorio') return '';
+  var ref = afReferidaNoMotivo(db, v);
+  if(!ref) return '';
+  var h = '<div class="pav-card" style="margin:0 0 14px;border-color:var(--amar)">';
+  if(ref.naoCadastrada){
+    return h+'<div style="font-weight:700">🔍 Conferir cumprimento da '+escHtmlCart(ref.numero)+'</div>'+
+      '<div class="sub">Essa AF ainda não está no Cartório do app. Importe as AFs do e-SCI no Quartel para ver aqui as exigências.</div></div>';
+  }
+  var m = ref.m;
+  h += '<div style="font-weight:700;margin-bottom:4px">🔍 Conferir cumprimento da AF nº '+escHtmlCart(m.numero||'(sem número)')+'</div>'+
+    '<div class="sub">'+(m.prazo?'Prazo: '+escHtmlCart(m.prazo)+' · ':'')+(m.cienciaDadaEm?'ciência em '+new Date(m.cienciaDadaEm).toLocaleDateString('pt-BR'):'ainda sem ciência')+
+    (ref.e.id!==v.edificacaoId?' · AF de outra edificação ('+escHtmlCart(ref.e.re||ref.e.nome||'')+')':'')+'</div>';
+  var sis = sistemasDaAF(m);
+  if(sis.length) h += '<div style="margin-top:6px;font-size:13px"><b>Preventivos a olhar:</b> '+sis.map(function(id){ var x = SISTEMAS_AF.find(function(y){return y.id===id;}); return x?x.l:id; }).join(', ')+'</div>';
+  var itens = normalizarItensPendencia(m.itensPendencia);
+  if(itens.length){
+    h += '<div class="sub" style="margin:8px 0 2px">O que a AF cobra:</div>'+itens.map(function(it){
+      return '<div style="font-size:13px;padding:2px 0">'+(it.resolvidoEm?'✅ ':'• ')+escHtmlCart(it.texto)+(it.resolvidoEm?' <span class="sub">(já regularizado)</span>':'')+'</div>';
+    }).join('');
+  } else if(m.motivo){
+    h += '<div style="margin-top:6px;font-size:13px">'+escHtmlCart(m.motivo).replace(/\n/g,'<br>')+'</div>';
+  } else {
+    h += '<div class="sub" style="margin-top:6px">Exigências não cadastradas no app (importe do e-SCI no Quartel).</div>';
+  }
+  return h + '<div class="sub" style="margin-top:8px">Marque no checklist abaixo o que encontrar errado: fica registrado nesta vistoria.</div></div>';
+}
 function htmlEscopoCartorio(db, v, P){
   var comp = v.vistoriaCompletaId ? (db.vistorias||[]).find(function(x){return x.id===v.vistoriaCompletaId;}) : null;
   var h = '<div class="sec-title" style="margin-top:16px">O que foi feito nesta ida?</div>';
   if(v.concluida){
-    return h + '<div class="sub">'+(comp ? '✅ Cartório + vistoria completa ('+rotuloVistoria(comp)+')'+(comp.concluida?' — concluída':' — ainda pendente') : 'Só o Cartório')+'</div>';
+    // mesmo depois de concluir o Cartório dá pra fazer (ou abrir) a vistoria completa daquele dia
+    h += '<div class="sub" style="margin-bottom:8px">'+(comp ? '✅ Cartório + vistoria completa ('+rotuloVistoria(comp)+')'+(comp.concluida?' — concluída':' — ainda pendente') : 'Só o Cartório')+'</div>';
+    if(comp && P.abrir) h += '<button type="button" class="btn primary" style="width:100%" onclick="'+P.abrir+'()">'+(comp.concluida?'Ver':'Fazer')+' a vistoria completa →</button>';
+    else if(!comp && P.set) h += '<button type="button" class="btn primary" style="width:100%" onclick="'+P.set+'(\'completa\')">📋 Fazer também a vistoria completa agora</button>'+
+      '<div class="sub" style="margin-top:6px">Registra o que você encontrou na edificação hoje (Funcionamento; dá pra trocar o tipo antes de começar).</div>';
+    return h;
   }
   function b(modo, rot, ativo){ return '<button type="button" class="btn" style="flex:1;padding:10px 8px;'+(ativo?'background:var(--red2);color:#fff':'')+'" onclick="'+P.set+'(\''+modo+'\')">'+rot+'</button>'; }
   h += '<div class="btnrow" style="gap:6px;margin-bottom:8px">'+b('so','✍️ Só o Cartório',!comp)+b('completa','📋 Cartório + vistoria completa',!!comp)+'</div>';
@@ -1356,7 +1411,7 @@ function htmlConferenciaCartorio(v, m, fnToggle){
 function htmlCartorioCampo(e, v, db){
   var h = '<div class="sec-title" style="margin-top:0">Visita de Cartório</div>';
   if(v.concluida){
-    return h + '<div class="sub">'+rotuloVistoria(v)+' — ✅ concluída. Será lançada no Cartório quando importar no Vistoria Quartel.</div>'+htmlEscopoCartorio(db, v, {});
+    return h + '<div class="sub">'+rotuloVistoria(v)+' — ✅ concluída. Será lançada no Cartório quando importar no Vistoria Quartel.</div>'+htmlEscopoCartorio(db, v, {set:'vcSetCampo', tipo:'vcTipoCampo', abrir:'vcAbrirCampo'});
   }
   var sub = v.cartorioSubtipo;
   function btn(campo, valor, rot, ativo){
@@ -1716,6 +1771,7 @@ function renderExecucao(){
   html += '<div class="hs-banner '+hs.classe+'" style="margin-bottom:14px">'+hs.icone+' Habite-se: '+hs.texto+(hs.protocolo?' · '+hs.protocolo:'')+
     (e.habiteSe && e.habiteSe.obs ? '<div style="font-weight:400;font-size:12px;margin-top:4px">'+e.habiteSe.obs+'</div>' : '')+
   '</div>';
+  html += htmlAFDaParada(db, vAtualBanner);
 
   // Seletor de tipo
   html += '<div class="tipo-row">'+

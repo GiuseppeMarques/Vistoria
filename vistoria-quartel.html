@@ -170,7 +170,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v101</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v102</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -272,7 +272,7 @@
     <div id="modalGerarRotasAuto" class="modal-overlay" style="display:none">
       <div class="modal">
         <h3>Gerar rotas automáticas</h3>
-        <div class="sub" style="margin-bottom:16px">Junta edificações com Funcionamento vencendo (ou já vencido) em rotas por bairro, priorizando as de maior risco, sem passar do tempo máximo por rota.</div>
+        <div class="sub" style="margin-bottom:16px">Junta edificações com Funcionamento vencendo (ou já vencido) em rotas por bairro, priorizando as de maior risco, sem passar do tempo máximo por rota nem de 5 edificações por rota.</div>
 
         <div class="frow">
           <div class="fcol"><label class="lbl">Considerar vencimento em até (dias)</label><input type="number" id="garJanelaDias" min="1" value="60"></div>
@@ -3161,10 +3161,11 @@ function vcTemProgresso(c){
 function vcCriar(db, vc, tipo){
   var agora = new Date().toISOString();
   var comp = {id:novoId('vis'), edificacaoId:vc.edificacaoId, tipo:tipo||'funcionamento', motivo:'', checklist:{}, situacaoHS:'', obs:'',
-    concluida:false, concluidaEm:null, trajetoriaId:null, rotaId:vc.rotaId||null, criadoEm:agora, atualizadoEm:agora,
+    concluida:false, concluidaEm:null, trajetoriaId:null, rotaId:(vc.rotaId && (db.rotas||[]).some(function(r){return r.id===vc.rotaId;})) ? vc.rotaId : null, criadoEm:agora, atualizadoEm:agora,
     criadaPelaRota:true, origemCartorioId:vc.id};
   db.vistorias.push(comp);
   vc.vistoriaCompletaId = comp.id; vc.atualizadoEm = agora;
+  if(vc.concluida) vc.escopoCartorio = 'com_vistoria'; // decidiu depois de concluir o Cartório
   if(vc.rotaId){
     var r = (db.rotas||[]).find(function(x){return x.id===vc.rotaId;});
     if(r && r.vistorias.indexOf(comp.id)<0) r.vistorias.push(comp.id);
@@ -3181,11 +3182,65 @@ function vcRemover(db, vc){
   if(typeof registrarExclusao==='function') registrarExclusao(db, 'vistoriasExcluidas', [comp.id]);
   return true;
 }
+// ════════════════════════════════════════
+// PARADA DE "CONFERIR CUMPRIMENTO DO AF" (Ex-ofício vindo do e-SCI) — lê o número da AF no motivo
+// da parada e mostra no topo da vistoria o que a AF cobra (preventivos e exigências), pra saber o
+// que olhar. A vistoria em si continua sendo a completa (checklist do Funcionamento).
+// ════════════════════════════════════════
+function afReferidaNoMotivo(db, v){
+  var mm = String(v && v.motivo || '').match(/AF\s*(\d{10}[A-Z])\s*[\/-]?\s*(\d{2})?/i);
+  if(!mm) return null;
+  var base = mm[1].toUpperCase(), ano = mm[2] || '';
+  var edifs = (db.edificacoes||[]).slice().sort(function(a,b){ return (a.id===v.edificacaoId?0:1)-(b.id===v.edificacaoId?0:1); });
+  var achou = null;
+  edifs.some(function(e){
+    var x = (e.cartorio||[]).find(function(c){
+      if(c.tipo!=='af') return false;
+      var n = String(c.numero||'').toUpperCase().replace(/[^0-9A-Z]/g,'').replace(/^AF/,'');
+      return n && (ano ? n===base+ano : n.indexOf(base)===0);
+    });
+    if(x){ achou = {e:e, m:x}; return true; }
+    return false;
+  });
+  return achou || {numero:'AF'+base+(ano?'/'+ano:''), naoCadastrada:true};
+}
+function htmlAFDaParada(db, v){
+  if(!v || v.tipo==='cartorio') return '';
+  var ref = afReferidaNoMotivo(db, v);
+  if(!ref) return '';
+  var h = '<div class="pav-card" style="margin:0 0 14px;border-color:var(--amar)">';
+  if(ref.naoCadastrada){
+    return h+'<div style="font-weight:700">🔍 Conferir cumprimento da '+escHtmlCart(ref.numero)+'</div>'+
+      '<div class="sub">Essa AF ainda não está no Cartório do app. Importe as AFs do e-SCI no Quartel para ver aqui as exigências.</div></div>';
+  }
+  var m = ref.m;
+  h += '<div style="font-weight:700;margin-bottom:4px">🔍 Conferir cumprimento da AF nº '+escHtmlCart(m.numero||'(sem número)')+'</div>'+
+    '<div class="sub">'+(m.prazo?'Prazo: '+escHtmlCart(m.prazo)+' · ':'')+(m.cienciaDadaEm?'ciência em '+new Date(m.cienciaDadaEm).toLocaleDateString('pt-BR'):'ainda sem ciência')+
+    (ref.e.id!==v.edificacaoId?' · AF de outra edificação ('+escHtmlCart(ref.e.re||ref.e.nome||'')+')':'')+'</div>';
+  var sis = sistemasDaAF(m);
+  if(sis.length) h += '<div style="margin-top:6px;font-size:13px"><b>Preventivos a olhar:</b> '+sis.map(function(id){ var x = SISTEMAS_AF.find(function(y){return y.id===id;}); return x?x.l:id; }).join(', ')+'</div>';
+  var itens = normalizarItensPendencia(m.itensPendencia);
+  if(itens.length){
+    h += '<div class="sub" style="margin:8px 0 2px">O que a AF cobra:</div>'+itens.map(function(it){
+      return '<div style="font-size:13px;padding:2px 0">'+(it.resolvidoEm?'✅ ':'• ')+escHtmlCart(it.texto)+(it.resolvidoEm?' <span class="sub">(já regularizado)</span>':'')+'</div>';
+    }).join('');
+  } else if(m.motivo){
+    h += '<div style="margin-top:6px;font-size:13px">'+escHtmlCart(m.motivo).replace(/\n/g,'<br>')+'</div>';
+  } else {
+    h += '<div class="sub" style="margin-top:6px">Exigências não cadastradas no app (importe do e-SCI no Quartel).</div>';
+  }
+  return h + '<div class="sub" style="margin-top:8px">Marque no checklist abaixo o que encontrar errado: fica registrado nesta vistoria.</div></div>';
+}
 function htmlEscopoCartorio(db, v, P){
   var comp = v.vistoriaCompletaId ? (db.vistorias||[]).find(function(x){return x.id===v.vistoriaCompletaId;}) : null;
   var h = '<div class="sec-title" style="margin-top:16px">O que foi feito nesta ida?</div>';
   if(v.concluida){
-    return h + '<div class="sub">'+(comp ? '✅ Cartório + vistoria completa ('+rotuloVistoria(comp)+')'+(comp.concluida?' — concluída':' — ainda pendente') : 'Só o Cartório')+'</div>';
+    // mesmo depois de concluir o Cartório dá pra fazer (ou abrir) a vistoria completa daquele dia
+    h += '<div class="sub" style="margin-bottom:8px">'+(comp ? '✅ Cartório + vistoria completa ('+rotuloVistoria(comp)+')'+(comp.concluida?' — concluída':' — ainda pendente') : 'Só o Cartório')+'</div>';
+    if(comp && P.abrir) h += '<button type="button" class="btn primary" style="width:100%" onclick="'+P.abrir+'()">'+(comp.concluida?'Ver':'Fazer')+' a vistoria completa →</button>';
+    else if(!comp && P.set) h += '<button type="button" class="btn primary" style="width:100%" onclick="'+P.set+'(\'completa\')">📋 Fazer também a vistoria completa agora</button>'+
+      '<div class="sub" style="margin-top:6px">Registra o que você encontrou na edificação hoje (Funcionamento; dá pra trocar o tipo antes de começar).</div>';
+    return h;
   }
   function b(modo, rot, ativo){ return '<button type="button" class="btn" style="flex:1;padding:10px 8px;'+(ativo?'background:var(--red2);color:#fff':'')+'" onclick="'+P.set+'(\''+modo+'\')">'+rot+'</button>'; }
   h += '<div class="btnrow" style="gap:6px;margin-bottom:8px">'+b('so','✍️ Só o Cartório',!comp)+b('completa','📋 Cartório + vistoria completa',!!comp)+'</div>';
@@ -3401,7 +3456,7 @@ function quHtmlCartorio(e, v){
   var h = '<div class="sec-title" style="margin-top:14px">Visita de Cartório</div>';
   var sub = v.cartorioSubtipo;
   if(v.concluida){
-    return h + '<div class="sub">'+rotuloVistoria(v)+' — ✅ concluída e registrada no Cartório.</div>'+htmlEscopoCartorio(loadDB(), v, {});
+    return h + '<div class="sub">'+rotuloVistoria(v)+' — ✅ concluída e registrada no Cartório.</div>'+htmlEscopoCartorio(loadDB(), v, {set:'quVcSet', tipo:'quVcTipo', abrir:'quVcAbrir'});
   }
   h += htmlSeletorCartorio(v, 'quSetCartorio', e);
   function campoTxt(lbl, campo, ph, valor){
@@ -4125,6 +4180,7 @@ function renderExecucaoQuartel(){
 
   var hs = infoHabiteSe(e);
   html += '<div class="hs-banner '+hs.classe+'" style="margin:14px 0">'+hs.icone+' Habite-se: '+hs.texto+(hs.protocolo?' · '+hs.protocolo:'')+'</div>';
+  html += htmlAFDaParada(db, v);
 
   // Ocupação do local — texto livre, vai pro relatório. Se esta vistoria ainda não tem nada
   // escrito, já vem preenchido com a última ocupação registrada pra essa edificação.
@@ -4435,6 +4491,140 @@ function otimizarOrdemRota(db, vists){
   return {ids: ordenados.map(function(x){return x.v.id;}).concat(semCoord.map(function(v){return v.id;})), dist: dist};
 }
 
+// ════════════════════════════════════════
+// LIMITE DA ROTA — no máximo 5 edificações e 3h por rota (pedido de 27/10). Passou, o app avisa;
+// nos geradores (calendário, Cartório, rota fixa) oferece dividir sozinho: agrupa por bairro, e a
+// sobra pequena de um bairro completa a rota do bairro mais próximo (decisão de 24/10).
+// Estimativa: Vistoria 45 min, Cartório › AF (conferir) 30 min, Ciência/Multa 15 min, mais o
+// deslocamento entre as paradas (distância em linha reta × 1,4, a 40 km/h; mínimo 5 min por trecho,
+// 15 min quando a edificação não tem localização). Não conta a ida e a volta do quartel.
+// ════════════════════════════════════════
+var ROTA_MAX_EDIF = 5, ROTA_MAX_MIN = 180;
+function minutosParadaRota(v){
+  if(v.tipo==='cartorio') return v.cartorioSubtipo==='af' ? 30 : 15;
+  return 45;
+}
+function estimarRota(db, vists){
+  var abertas = (vists||[]).filter(function(v){ return v && !v.concluida; });
+  var edifs = {}, min = 0;
+  abertas.forEach(function(v){ edifs[v.edificacaoId] = true; min += minutosParadaRota(v); });
+  // deslocamento: uma "parada" por edificação (Cartório + vistoria completa no mesmo lugar não andam)
+  var porEdif = Object.keys(edifs).map(function(id){ return {id:'e_'+id, edificacaoId:id}; });
+  var ot = otimizarOrdemRota(db, porEdif);
+  var nE = porEdif.length;
+  var semCoord = porEdif.filter(function(p){ var e = db.edificacoes.find(function(x){return x.id===p.edificacaoId;}); return !(e && e.lat && e.lng); }).length;
+  var trechosCoord = Math.max(0, (nE - semCoord) - 1);
+  var trechosSem = nE>1 ? semCoord : 0;
+  var desloc = Math.max(ot.dist*1.4/40*60, trechosCoord*5) + trechosSem*15;
+  min += Math.round(desloc);
+  return {edificacoes:nE, paradas:abertas.length, minutos:min, km:ot.dist,
+    passaEdif: nE>ROTA_MAX_EDIF, passaTempo: min>ROTA_MAX_MIN};
+}
+function fmtMinutosRota(m){ var h = Math.floor(m/60), r = m%60; return h ? h+'h'+(r<10?'0':'')+r : r+' min'; }
+function textoLimiteRota(est){
+  var p = [];
+  if(est.passaEdif) p.push(est.edificacoes+' edificações (máx. '+ROTA_MAX_EDIF+')');
+  if(est.passaTempo) p.push('~'+fmtMinutosRota(est.minutos)+' (máx. '+(ROTA_MAX_MIN/60)+'h)');
+  return p.join(' e ');
+}
+function excedeLimiteRota(est){ return est.passaEdif || est.passaTempo; }
+
+// divide paradas (ainda não salvas) em grupos que respeitam o limite. Mantém juntas as paradas da
+// mesma edificação; não mistura bairros, exceto pra completar uma rota que sobrou pequena com a
+// sobra do bairro mais próximo.
+function normBairroRota(b){ return String(b||'Sem bairro').normalize('NFD').replace(/[̀-ͯ]/g,'').trim().toLowerCase(); }
+function dividirParadasEmRotas(db, vists){
+  var unidades = {}, ordemU = [];
+  vists.forEach(function(v){ if(!unidades[v.edificacaoId]){ unidades[v.edificacaoId] = []; ordemU.push(v.edificacaoId); } unidades[v.edificacaoId].push(v); });
+  var edifDe = function(id){ return db.edificacoes.find(function(x){return x.id===id;}); };
+  var porBairro = {};
+  // chave = município + bairro (nunca junta cidades diferentes)
+  // cidade pelo prefixo do RE (8013 = Alfredo Wagner, 8193 = Leoberto Leal), que não tem erro de
+  // digitação; sem RE, usa o nome do município
+  var munChave = function(e){ var m = String(e && e.re || '').match(/^RE\s*(\d{4})/i); return m ? m[1] : normBairroRota(e && e.municipio); };
+  var munDe = function(v){ return munChave(edifDe(v.edificacaoId)); };
+  ordemU.forEach(function(id){ var e = edifDe(id); var b = munChave(e)+'|'+normBairroRota(e && e.bairro); (porBairro[b] = porBairro[b] || []).push(id); });
+  var cabe = function(lista){ return !excedeLimiteRota(estimarRota(db, lista)); };
+  var grupos = [];
+  Object.keys(porBairro).sort().forEach(function(b){
+    // ordem geográfica dentro do bairro, pra cada rota pegar vizinhos
+    var ot = otimizarOrdemRota(db, porBairro[b].map(function(id){ return {id:id, edificacaoId:id}; }));
+    var atual = null;
+    ot.ids.forEach(function(id){
+      var tent = atual ? atual.concat(unidades[id]) : unidades[id].slice();
+      if(atual && cabe(tent)) atual = tent;
+      else { atual = unidades[id].slice(); grupos.push(atual); }
+      grupos[grupos.length-1] = atual;
+    });
+  });
+  // completa rota pequena com a sobra do bairro mais próximo (repete enquanto der pra juntar)
+  var centro = function(g){
+    var pts = g.map(function(v){ return edifDe(v.edificacaoId); }).filter(function(e){ return e && e.lat && e.lng; });
+    if(!pts.length) return null;
+    return {lat: pts.reduce(function(s,e){return s+e.lat;},0)/pts.length, lng: pts.reduce(function(s,e){return s+e.lng;},0)/pts.length};
+  };
+  var juntou = true;
+  while(juntou && grupos.length>1){
+    juntou = false;
+    grupos.sort(function(a,b){ return estimarRota(db,a).minutos - estimarRota(db,b).minutos; });
+    for(var i=0;i<grupos.length && !juntou;i++){
+      var ci = centro(grupos[i]), melhor = -1, melhorD = Infinity;
+      for(var j=0;j<grupos.length;j++){
+        if(j===i || munDe(grupos[i][0])!==munDe(grupos[j][0]) || !cabe(grupos[i].concat(grupos[j]))) continue;
+        var cj = centro(grupos[j]);
+        var d = (ci && cj) ? haversineKm(ci.lat,ci.lng,cj.lat,cj.lng) : 9999;
+        if(d<melhorD){ melhorD = d; melhor = j; }
+      }
+      if(melhor>=0){
+        grupos[melhor] = grupos[melhor].concat(grupos[i]);
+        grupos.splice(i,1);
+        juntou = true;
+      }
+    }
+  }
+  return grupos;
+}
+// cria uma ou várias rotas com as paradas montadas pelos geradores. Se passar do limite, pergunta:
+// dividir sozinho (recomendado), criar uma só mesmo assim, ou cancelar. Devolve as rotas criadas
+// (vazio = cancelado; aí nada foi salvo).
+function criarRotasRespeitandoLimite(db, vists, nomeBase, extra){
+  var est = estimarRota(db, vists);
+  var grupos = [vists];
+  if(excedeLimiteRota(est)){
+    var div = dividirParadasEmRotas(db, vists);
+    if(div.length>1 && confirm('⚠️ Essa rota passa do limite: '+textoLimiteRota(est)+'.\n\nOK = dividir automaticamente em '+div.length+' rotas (por bairro, sem misturar cidades, até '+ROTA_MAX_EDIF+' edificações e '+(ROTA_MAX_MIN/60)+'h cada).\nCancelar = outras opções.')){
+      grupos = div;
+    } else if(!confirm('Criar UMA rota só, mesmo passando do limite ('+textoLimiteRota(est)+')?\n\nCancelar = não criar nada.')){
+      return [];
+    }
+  }
+  var hoje = new Date(), p = function(n){return (n<10?'0':'')+n;};
+  var agora = hoje.toISOString();
+  if(!db.rotas) db.rotas = [];
+  var criadas = [];
+  grupos.forEach(function(g, i){
+    var rotaId = novoId('rot');
+    g.forEach(function(v){
+      v.rotaId = rotaId;
+      if(db.vistorias.indexOf(v)<0) db.vistorias.push(v);
+    });
+    var ot = otimizarOrdemRota(db, g);
+    var r = {id:rotaId, nome: grupos.length>1 ? nomeBase+' ('+(i+1)+'/'+grupos.length+')' : nomeBase,
+      data:p(hoje.getDate())+'/'+p(hoje.getMonth()+1)+'/'+hoje.getFullYear(), vistorias:ot.ids, distanciaEstimadaKm:ot.dist, ordemOtimizada:true, atualizadoEm:agora};
+    if(extra) Object.keys(extra).forEach(function(k){ r[k] = extra[k]; });
+    db.rotas.push(r);
+    criadas.push(r);
+  });
+  return criadas;
+}
+function resumoRotasCriadas(db, criadas){
+  return criadas.map(function(r){
+    var vs = r.vistorias.map(function(id){ return db.vistorias.find(function(x){return x.id===id;}); }).filter(Boolean);
+    var est = estimarRota(db, vs);
+    return '• '+r.nome+': '+est.edificacoes+' edificação(ões), ~'+fmtMinutosRota(est.minutos)+(excedeLimiteRota(est)?' ⚠️ acima do limite':'');
+  }).join('\n');
+}
+
 // Rota fixa: cria direto uma ROTA com as edificações que estão vencidas no ciclo (cada uma é uma parada)
 function gerarVistoriasRotaFixa(id){
   var db = loadDB();
@@ -4445,19 +4635,15 @@ function gerarVistoriasRotaFixa(id){
   var hoje = new Date(); var pz=function(n){return (n<10?'0':'')+n;};
   var dataHoje = pz(hoje.getDate())+'/'+pz(hoje.getMonth()+1)+'/'+hoje.getFullYear();
   var agora = hoje.toISOString();
-  var rotaId = novoId('rot');
   var vists = elegiveis.map(function(e){
-    var v = {id:novoId('vis'), edificacaoId:e.id, tipo:tpl.tipo, motivo:'Rota fixa: '+tpl.nome,
+    return {id:novoId('vis'), edificacaoId:e.id, tipo:tpl.tipo, motivo:'Rota fixa: '+tpl.nome,
       checklist:{}, situacaoHS:'', obs:'', concluida:false, concluidaEm:null, trajetoriaId:null,
-      rotaId:rotaId, criadoEm:agora, atualizadoEm:agora, criadaPelaRota:true};
-    db.vistorias.push(v);
-    return v;
+      rotaId:null, criadoEm:agora, atualizadoEm:agora, criadaPelaRota:true};
   });
-  var ot = otimizarOrdemRota(db, vists);
-  db.rotas = db.rotas||[];
-  db.rotas.push({id:rotaId, nome:tpl.nome+' — '+dataHoje, data:dataHoje, vistorias:ot.ids, distanciaEstimadaKm:ot.dist, ordemOtimizada:true, atualizadoEm:agora, rotaFixaId:tpl.id});
+  var criadas = criarRotasRespeitandoLimite(db, vists, tpl.nome+' — '+dataHoje, {rotaFixaId:tpl.id});
+  if(!criadas.length) return;
   saveDB(db);
-  alert('Rota "'+tpl.nome+' — '+dataHoje+'" criada com '+vists.length+' parada(s), já na melhor ordem. Veja em "Rotas avulsas" logo abaixo.');
+  alert((criadas.length>1 ? criadas.length+' rotas criadas' : 'Rota criada')+' com '+vists.length+' parada(s), já na melhor ordem. Veja em "Rotas avulsas" logo abaixo.\n\n'+resumoRotasCriadas(db, criadas));
   renderRotasFixas();
   renderRotas();
 }
@@ -5594,7 +5780,7 @@ function montarRotasAuto(){
     var atual = null;
     fila.forEach(function(c){
       var custo = atual && atual.itens.length ? (tempoVistoria+tempoDeslocamento) : tempoVistoria;
-      if(!atual || atual.minutos+custo > maxMinutos){
+      if(!atual || atual.minutos+custo > maxMinutos || atual.itens.length >= ROTA_MAX_EDIF){
         atual = {bairro: bairro, itens: [], minutos: 0};
         rotas.push(atual);
         custo = tempoVistoria; // primeira parada da rota nova, sem deslocamento inicial
@@ -5694,7 +5880,12 @@ function renderRotas(){
     '</div>' : '';
     return '<div class="vist-item"><div class="elist-row">'+
       '<div><div class="elist-t">'+r.nome+'</div>'+
-      '<div class="elist-s">'+(r.data||'')+' · '+r.vistorias.length+' parada(s) ('+concluidas+' concluída(s)) · ~'+(r.distanciaEstimadaKm||0).toFixed(1)+' km</div></div>'+
+      '<div class="elist-s">'+(r.data||'')+' · '+r.vistorias.length+' parada(s) ('+concluidas+' concluída(s)) · ~'+(r.distanciaEstimadaKm||0).toFixed(1)+' km</div>'+
+      (function(){ var est = estimarRota(db, vistsDaRota); if(!est.paradas) return '';
+        return excedeLimiteRota(est)
+          ? '<div class="elist-s" style="color:var(--red2);font-weight:700">⚠️ Acima do limite: '+textoLimiteRota(est)+'</div>'
+          : '<div class="elist-s">'+est.edificacoes+' edificação(ões) a visitar · ~'+fmtMinutosRota(est.minutos)+'</div>'; })()+
+      '</div>'+
     '</div>'+
     '<div class="btnrow" style="margin-top:8px;gap:8px">'+
       '<button class="btn" onclick="toggleRotaPainel(\''+r.id+'\')">'+(aberto?'▲ Esconder paradas':'▼ Ver paradas ('+vistsDaRota.length+')')+'</button>'+
@@ -5838,22 +6029,19 @@ function calConfirmar(){
   var nome = prompt('Nome da rota ('+edifs.length+' edificação(ões), '+bairros.length+' bairro(s)):', sugestao);
   if(nome===null) return;
   nome = nome.trim() || sugestao;
-  var rotaId = novoId('rot'), agora = new Date().toISOString();
+  var agora = new Date().toISOString();
   var vists = edifs.map(function(e){
     var v = vistoriaParaRota(db, e.id);
-    v.tipo = 'funcionamento'; v.rotaId = rotaId; v.atualizadoEm = agora;
+    v.tipo = 'funcionamento'; v.atualizadoEm = agora;
     return v;
   });
-  var ot = otimizarOrdemRota(db, vists);
-  var hoje = new Date(), p = function(n){return (n<10?'0':'')+n;};
-  if(!db.rotas) db.rotas = [];
-  db.rotas.push({id:rotaId, nome:nome, data:p(hoje.getDate())+'/'+p(hoje.getMonth()+1)+'/'+hoje.getFullYear(),
-    vistorias:ot.ids, distanciaEstimadaKm:ot.dist, ordemOtimizada:true, atualizadoEm:agora});
+  var criadas = criarRotasRespeitandoLimite(db, vists, nome);
+  if(!criadas.length) return; // cancelado: nada é salvo
   saveDB(db);
   calSel = {};
   renderRotas();
   if(typeof qmap!=='undefined' && qmap) renderQMapaConteudo();
-  alert('Rota "'+nome+'" criada com '+vists.length+' parada(s), já ordenada.');
+  alert((criadas.length>1 ? criadas.length+' rotas criadas' : 'Rota "'+nome+'" criada')+' com '+vists.length+' parada(s), já ordenada(s).\n\n'+resumoRotasCriadas(db, criadas));
 }
 
 
@@ -5939,26 +6127,23 @@ function ccConfirmar(){
   var nome = prompt('Nome da rota ('+alvos.length+' item(ns), '+bairros.length+' bairro(s)):', sugestao);
   if(nome===null) return;
   nome = nome.trim() || sugestao;
-  var rotaId = novoId('rot'), agora = new Date().toISOString();
+  var agora = new Date().toISOString();
   var vists = alvos.map(function(a){
     var ciente = !!a.m.cienciaDadaEm;
     // sem ciência → parada de Ciência; já ciente → Cartório › AF (conferir cumprimento) ou › Multa (explicar)
     var v = {id:novoId('vis'), edificacaoId:a.e.id, tipo:'cartorio', motivo: ciente ? (a.m.tipo==='af'?'Conferir cumprimento da AF':'Tratar a multa')+' nº '+(a.m.numero||'(sem número)') : '',
-      checklist:{}, situacaoHS:'', obs:'', concluida:false, concluidaEm:null, trajetoriaId:null, rotaId:rotaId, criadoEm:agora, atualizadoEm:agora, criadaPelaRota:true,
+      checklist:{}, situacaoHS:'', obs:'', concluida:false, concluidaEm:null, trajetoriaId:null, rotaId:null, criadoEm:agora, atualizadoEm:agora, criadaPelaRota:true,
       cartorioItemRef:a.m.id};
     if(!ciente){ v.cartorioSubtipo='ciencia'; v.cienciaDe=a.m.tipo; v.cienciaItemId=a.m.id; v.afSistemas=[]; v.cienciaBaixas=[]; }
     else { v.cartorioSubtipo=a.m.tipo; v.cienciaDe=null; v.cienciaItemId=a.m.id; v.afSistemas = a.m.tipo==='af' ? sistemasDaAF(a.m) : []; v.cienciaBaixas=[]; v.conferirCumpridos=[]; }
-    db.vistorias.push(v);
     return v;
   });
-  var ot = otimizarOrdemRota(db, vists);
-  var hoje = new Date(), p = function(n){return (n<10?'0':'')+n;};
-  if(!db.rotas) db.rotas = [];
-  db.rotas.push({id:rotaId, nome:nome, data:p(hoje.getDate())+'/'+p(hoje.getMonth()+1)+'/'+hoje.getFullYear(), vistorias:ot.ids, distanciaEstimadaKm:ot.dist, ordemOtimizada:true, atualizadoEm:agora});
+  var criadas = criarRotasRespeitandoLimite(db, vists, nome);
+  if(!criadas.length) return;
   saveDB(db);
   ccSel = {};
   renderCalendarioCartorio();
-  alert('Rota "'+nome+'" criada com '+vists.length+' parada(s), já ordenada. Ela aparece na aba Rotas.');
+  alert((criadas.length>1 ? criadas.length+' rotas criadas' : 'Rota "'+nome+'" criada')+' com '+vists.length+' parada(s), já ordenada(s). Elas aparecem na aba Rotas.\n\n'+resumoRotasCriadas(db, criadas));
 }
 
 var rotasPainelAberto = {};
@@ -6112,10 +6297,14 @@ function rtAdicionarCienciasPendentes(){
 }
 function renderRtParadas(){
   var db = loadDB();
-  document.getElementById('rt-paradas-titulo').textContent = 'Paradas da rota ('+rtParadas.length+')';
+  var estRt = estimarRota(db, rtParadas);
+  document.getElementById('rt-paradas-titulo').textContent = 'Paradas da rota ('+rtParadas.length+')'+(rtParadas.length ? ' · '+estRt.edificacoes+' edificação(ões) · ~'+fmtMinutosRota(estRt.minutos) : '');
   var el = document.getElementById('rt-paradas');
   if(!rtParadas.length){ el.innerHTML = '<div class="sub">Nenhuma parada ainda — toque nas edificações da lista acima.</div>'; return; }
-  el.innerHTML = rtParadas.map(function(pr, i){
+  var avisoRt = excedeLimiteRota(estRt)
+    ? '<div class="pav-card" style="margin-bottom:8px;border-color:var(--red2);color:var(--red2);font-size:13px">⚠️ Passa do limite da rota: '+textoLimiteRota(estRt)+'. Dá pra salvar assim mesmo, mas o ideal é dividir em duas rotas.</div>'
+    : '<div class="sub" style="margin-bottom:8px">Limite: até '+ROTA_MAX_EDIF+' edificações e '+(ROTA_MAX_MIN/60)+'h (estimativa sem a ida e a volta do quartel).</div>';
+  el.innerHTML = avisoRt + rtParadas.map(function(pr, i){
     var e = db.edificacoes.find(function(x){return x.id===pr.edificacaoId;});
     var item = (pr.cienciaItemId && e) ? (e.cartorio||[]).find(function(m){return m.id===pr.cienciaItemId;}) : null;
     return '<div class="pav-card" style="margin-bottom:8px">'+
@@ -6150,6 +6339,8 @@ function salvarRota(){
   }
 
   var db = loadDB();
+  var estSalvar = estimarRota(db, rtParadas);
+  if(excedeLimiteRota(estSalvar) && !confirm('⚠️ Esta rota passa do limite: '+textoLimiteRota(estSalvar)+'.\n\nSalvar assim mesmo?')) return;
   var rotaIdFinal = rotaEmEdicaoId || novoId('rot');
   var agora = new Date().toISOString();
 
@@ -6235,6 +6426,9 @@ function confirmarAdicionarRotaExistente(){
   var r = (db.rotas||[]).find(function(x){return x.id===rotaId;});
   if(!r || !rotaAlvoEdifId) return;
   var v = vistoriaParaRota(db, rotaAlvoEdifId);
+  var depois = r.vistorias.map(function(id){ return db.vistorias.find(function(x){return x.id===id;}); }).filter(Boolean).concat([v]);
+  var estAdd = estimarRota(db, depois);
+  if(excedeLimiteRota(estAdd) && !confirm('⚠️ Com essa edificação, a rota "'+r.nome+'" passa do limite: '+textoLimiteRota(estAdd)+'.\n\nAdicionar assim mesmo?')) return;
   r.vistorias.push(v.id);
   v.rotaId = r.id;
   saveDB(db);
