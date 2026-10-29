@@ -13,6 +13,8 @@
 <meta name="theme-color" content="#C0272D">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/pmtiles@4.5.0/dist/pmtiles.js"></script>
+<script src="https://unpkg.com/protomaps-leaflet@5.1.0/dist/protomaps-leaflet.js"></script>
 <style>
   :root{
     --bg:#0E0E10; --card:#1C1C1E; --card2:#242427; --red:#C0272D; --red2:#E0393F;
@@ -425,6 +427,7 @@
         <div class="frow">
           <div class="fcol"><label class="lbl">Responsável</label><input type="text" id="ee-responsavel"></div>
           <div class="fcol"><label class="lbl">Telefone</label><input type="text" id="ee-telefone"></div>
+          <div class="fcol"><label class="lbl">Vínculo</label><select id="ee-vinculo"><option value="">Não informado</option><option value="proprietario">Proprietário</option><option value="inquilino">Inquilino</option><option value="responsavel_empresa">Responsável pela empresa</option><option value="advogado">Advogado</option><option value="contador">Contador</option></select></div>
         </div>
         <div class="frow">
           <div class="fcol"><label class="lbl">Área (m²)</label><input type="text" id="ee-area"></div>
@@ -456,6 +459,12 @@
       <div class="sheet">
         <div class="sheet-handle"></div>
         <div class="sheet-title">Mapas offline</div>
+
+        <div class="sec-title" style="margin-top:0">Mapa de Santa Catarina (arquivo único)</div>
+        <div id="scStatus" class="gps-warn" style="background:rgba(28,28,30,.4);border-color:var(--border);color:var(--sub);margin-bottom:8px"></div>
+        <input type="file" id="scInput" accept=".pmtiles" style="display:none" onchange="scImportar(this)">
+        <button class="btn primary" style="width:100%;margin-bottom:8px" onclick="document.getElementById('scInput').click()">⬆️ Importar mapa de SC (.pmtiles)</button>
+        <button class="btn" id="scRemoverBtn" style="width:100%;margin-bottom:16px;display:none" onclick="scRemover()">🗑️ Remover mapa de SC</button>
 
         <label class="lbl">Município ou região</label>
         <input type="text" id="mofNomeRegiao" placeholder="Ex: Blumenau, SC" style="margin-bottom:10px">
@@ -788,8 +797,6 @@ function rotuloVistoria(v){
   if(v.tipo==='cartorio' && v.cartorioSubtipo){
     var sub = {multa:'Multa', af:'AF', ciencia:'Ciência'}[v.cartorioSubtipo];
     if(v.cartorioSubtipo==='ciencia' && v.cienciaDe) sub += ' de '+(v.cienciaDe==='af'?'AF':'Multa');
-    else if(v.cartorioSubtipo==='af' && v.cienciaItemId) sub = 'Conferir AF';
-    else if(v.cartorioSubtipo==='multa' && v.cienciaItemId) sub = 'Multa (explicar)';
     rot += ' · '+sub;
   }
   if(v.origemCartorioId) rot += ' · junto com Cartório';
@@ -891,11 +898,17 @@ var execTipo = null;
 // ════════════════════════════════════════
 var vistFiltroRota = ''; // '' = todas, 'sem' = sem rota, ou id da rota
 
+var vistFiltroProc = 'tecnica';   // históricos separados: vistorias técnicas x ciências (AF, multa, documentos)
+function setVistFiltroProc(p){ vistFiltroProc = p; renderVistoriasCampo(); }
 function renderVistRotaFiltro(){
   var db = loadDB();
   var rotas = db.rotas || [];
   var el = document.getElementById('vistRotaFiltro');
-  if(!rotas.length){ el.innerHTML=''; return; }
+  var procChips = '<div class="btnrow" style="gap:6px;flex-wrap:wrap;margin-bottom:6px">'+
+    [['tecnica','🔥 Vistorias técnicas'],['ciencia','⚖️ Ciências (AF, multa)'],['esci','⏳ Pendentes e-SCI']].map(function(x){
+      return '<button class="chip '+(vistFiltroProc===x[0]?'on':'')+'" onclick="setVistFiltroProc(\''+x[0]+'\')">'+x[1]+'</button>';
+    }).join('')+'</div>';
+  if(!rotas.length){ el.innerHTML = procChips; return; }
   var chips = '<button class="chip '+(vistFiltroRota===''?'on':'')+'" onclick="setVistFiltroRota(\'\')">Todas</button>'+
     rotas.map(function(r){
       return '<span style="display:inline-flex;align-items:center;gap:2px">'+
@@ -904,7 +917,7 @@ function renderVistRotaFiltro(){
       '</span>';
     }).join('')+
     '<button class="chip '+(vistFiltroRota==='sem'?'on':'')+'" onclick="setVistFiltroRota(\'sem\')">Sem rota</button>';
-  el.innerHTML = '<div class="btnrow" style="gap:6px;flex-wrap:wrap">'+chips+'</div>';
+  el.innerHTML = procChips + '<div class="btnrow" style="gap:6px;flex-wrap:wrap">'+chips+'</div>';
 }
 function excluirRotaCampo(rotaId){
   var db = loadDB();
@@ -928,6 +941,9 @@ function renderVistoriasCampo(){
   var db = loadDB();
   renderVistRotaFiltro();
   var lista = (db.vistorias||[]).filter(function(v){
+    if(vistFiltroProc==='tecnica' && v.tipo==='cartorio') return false;
+    if(vistFiltroProc==='ciencia' && v.tipo!=='cartorio') return false;
+    if(vistFiltroProc==='esci' && v.esciStatus!=='pendente') return false;
     if(vistFiltroRota==='') return true;
     if(vistFiltroRota==='sem') return !v.rotaId;
     return v.rotaId===vistFiltroRota;
@@ -968,7 +984,7 @@ function renderVistoriasCampo(){
       '<div class="vtop">'+
         '<div><div class="vnome">'+(e?e.nome:'Edificação removida')+'</div>'+
         '<div class="vsub">'+(e?e.re:'')+' · '+(v.tipo ? rotuloVistoria(v) : 'Sem tipo escolhido')+(v.motivo?' · '+v.motivo:'')+rotaTag+(e&&e.endereco?'<br>'+e.endereco+(e.bairro?' — '+e.bairro:''):'')+'</div></div>'+
-        '<span class="vist-status '+statusCls+'">'+statusTxt+'</span>'+
+        '<span class="vist-status '+statusCls+'">'+statusTxt+'</span>'+badgeEsci(v)+
       '</div>'+
       '<div class="vsub">'+(v.concluida ? 'Concluída em '+new Date(v.concluidaEm).toLocaleString('pt-BR') : 'Toque pra continuar')+'</div>'+
       (temLocal ? '<button class="btn" style="width:100%;margin-top:8px" onclick="event.stopPropagation();window.open(\'https://www.google.com/maps/dir/?api=1&destination='+e.lat+','+e.lng+'\', \'_blank\')">🧭 Navegar até aqui</button>' : '')+
@@ -1214,11 +1230,10 @@ function vcTemProgresso(c){
 function vcCriar(db, vc, tipo){
   var agora = new Date().toISOString();
   var comp = {id:novoId('vis'), edificacaoId:vc.edificacaoId, tipo:tipo||'funcionamento', motivo:'', checklist:{}, situacaoHS:'', obs:'',
-    concluida:false, concluidaEm:null, trajetoriaId:null, rotaId:(vc.rotaId && (db.rotas||[]).some(function(r){return r.id===vc.rotaId;})) ? vc.rotaId : null, criadoEm:agora, atualizadoEm:agora,
+    concluida:false, concluidaEm:null, trajetoriaId:null, rotaId:vc.rotaId||null, criadoEm:agora, atualizadoEm:agora,
     criadaPelaRota:true, origemCartorioId:vc.id};
   db.vistorias.push(comp);
   vc.vistoriaCompletaId = comp.id; vc.atualizadoEm = agora;
-  if(vc.concluida) vc.escopoCartorio = 'com_vistoria'; // decidiu depois de concluir o Cartório
   if(vc.rotaId){
     var r = (db.rotas||[]).find(function(x){return x.id===vc.rotaId;});
     if(r && r.vistorias.indexOf(comp.id)<0) r.vistorias.push(comp.id);
@@ -1234,65 +1249,11 @@ function vcRemover(db, vc){
   (db.rotas||[]).forEach(function(r){ r.vistorias = (r.vistorias||[]).filter(function(id){return id!==comp.id;}); });
   return true;
 }
-// ════════════════════════════════════════
-// PARADA DE "CONFERIR CUMPRIMENTO DO AF" (Ex-ofício vindo do e-SCI) — lê o número da AF no motivo
-// da parada e mostra no topo da vistoria o que a AF cobra (preventivos e exigências), pra saber o
-// que olhar. A vistoria em si continua sendo a completa (checklist do Funcionamento).
-// ════════════════════════════════════════
-function afReferidaNoMotivo(db, v){
-  var mm = String(v && v.motivo || '').match(/AF\s*(\d{10}[A-Z])\s*[\/-]?\s*(\d{2})?/i);
-  if(!mm) return null;
-  var base = mm[1].toUpperCase(), ano = mm[2] || '';
-  var edifs = (db.edificacoes||[]).slice().sort(function(a,b){ return (a.id===v.edificacaoId?0:1)-(b.id===v.edificacaoId?0:1); });
-  var achou = null;
-  edifs.some(function(e){
-    var x = (e.cartorio||[]).find(function(c){
-      if(c.tipo!=='af') return false;
-      var n = String(c.numero||'').toUpperCase().replace(/[^0-9A-Z]/g,'').replace(/^AF/,'');
-      return n && (ano ? n===base+ano : n.indexOf(base)===0);
-    });
-    if(x){ achou = {e:e, m:x}; return true; }
-    return false;
-  });
-  return achou || {numero:'AF'+base+(ano?'/'+ano:''), naoCadastrada:true};
-}
-function htmlAFDaParada(db, v){
-  if(!v || v.tipo==='cartorio') return '';
-  var ref = afReferidaNoMotivo(db, v);
-  if(!ref) return '';
-  var h = '<div class="pav-card" style="margin:0 0 14px;border-color:var(--amar)">';
-  if(ref.naoCadastrada){
-    return h+'<div style="font-weight:700">🔍 Conferir cumprimento da '+escHtmlCart(ref.numero)+'</div>'+
-      '<div class="sub">Essa AF ainda não está no Cartório do app. Importe as AFs do e-SCI no Quartel para ver aqui as exigências.</div></div>';
-  }
-  var m = ref.m;
-  h += '<div style="font-weight:700;margin-bottom:4px">🔍 Conferir cumprimento da AF nº '+escHtmlCart(m.numero||'(sem número)')+'</div>'+
-    '<div class="sub">'+(m.prazo?'Prazo: '+escHtmlCart(m.prazo)+' · ':'')+(m.cienciaDadaEm?'ciência em '+new Date(m.cienciaDadaEm).toLocaleDateString('pt-BR'):'ainda sem ciência')+
-    (ref.e.id!==v.edificacaoId?' · AF de outra edificação ('+escHtmlCart(ref.e.re||ref.e.nome||'')+')':'')+'</div>';
-  var sis = sistemasDaAF(m);
-  if(sis.length) h += '<div style="margin-top:6px;font-size:13px"><b>Preventivos a olhar:</b> '+sis.map(function(id){ var x = SISTEMAS_AF.find(function(y){return y.id===id;}); return x?x.l:id; }).join(', ')+'</div>';
-  var itens = normalizarItensPendencia(m.itensPendencia);
-  if(itens.length){
-    h += '<div class="sub" style="margin:8px 0 2px">O que a AF cobra:</div>'+itens.map(function(it){
-      return '<div style="font-size:13px;padding:2px 0">'+(it.resolvidoEm?'✅ ':'• ')+escHtmlCart(it.texto)+(it.resolvidoEm?' <span class="sub">(já regularizado)</span>':'')+'</div>';
-    }).join('');
-  } else if(m.motivo){
-    h += '<div style="margin-top:6px;font-size:13px">'+escHtmlCart(m.motivo).replace(/\n/g,'<br>')+'</div>';
-  } else {
-    h += '<div class="sub" style="margin-top:6px">Exigências não cadastradas no app (importe do e-SCI no Quartel).</div>';
-  }
-  return h + '<div class="sub" style="margin-top:8px">Marque no checklist abaixo o que encontrar errado: fica registrado nesta vistoria.</div></div>';
-}
 function htmlEscopoCartorio(db, v, P){
   var comp = v.vistoriaCompletaId ? (db.vistorias||[]).find(function(x){return x.id===v.vistoriaCompletaId;}) : null;
   var h = '<div class="sec-title" style="margin-top:16px">O que foi feito nesta ida?</div>';
   if(v.concluida){
-    // mesmo depois de concluir o Cartório dá pra fazer (ou abrir) a vistoria completa daquele dia
-    h += '<div class="sub" style="margin-bottom:8px">'+(comp ? '✅ Cartório + vistoria completa ('+rotuloVistoria(comp)+')'+(comp.concluida?' — concluída':' — ainda pendente') : 'Só o Cartório')+'</div>';
-    if(comp && P.abrir) h += '<button type="button" class="btn primary" style="width:100%" onclick="'+P.abrir+'()">'+(comp.concluida?'Ver':'Fazer')+' a vistoria completa →</button>';
-    else if(!comp && P.set) h += '<button type="button" class="btn primary" style="width:100%" onclick="'+P.set+'(\'completa\')">📋 Fazer também a vistoria completa agora</button>'+
-      '<div class="sub" style="margin-top:6px">Registra o que você encontrou na edificação hoje (Funcionamento; dá pra trocar o tipo antes de começar).</div>';
-    return h;
+    return h + '<div class="sub">'+(comp ? '✅ Cartório + vistoria completa ('+rotuloVistoria(comp)+')'+(comp.concluida?' — concluída':' — ainda pendente') : 'Só o Cartório')+'</div>';
   }
   function b(modo, rot, ativo){ return '<button type="button" class="btn" style="flex:1;padding:10px 8px;'+(ativo?'background:var(--red2);color:#fff':'')+'" onclick="'+P.set+'(\''+modo+'\')">'+rot+'</button>'; }
   h += '<div class="btnrow" style="gap:6px;margin-bottom:8px">'+b('so','✍️ Só o Cartório',!comp)+b('completa','📋 Cartório + vistoria completa',!!comp)+'</div>';
@@ -1349,69 +1310,12 @@ function aplicarCampoCartorioCampo(st, campo, valor){
     st.afSistemas = st.afSistemas || [];
     var i = st.afSistemas.indexOf(valor);
     if(i>=0) st.afSistemas.splice(i,1); else st.afSistemas.push(valor);
-  } else if(campo==='itemRef'){
-    // Cartório › AF/Multa apontando pra um registro que já existe: AF = conferir cumprimento
-    // (preventivos vêm marcados das exigências), Multa = explicar. Sem registro = lavrar novo.
-    st.cienciaItemId = valor || null; st.cienciaBaixas = []; st.conferirCumpridos = [];
-    var ref = valor ? itemCartorioPorId(loadDB(), valor) : null;
-    st.afSistemas = (ref && ref.m.tipo==='af') ? sistemasDaAF(ref.m) : [];
   }
-}
-function escHtmlCart(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function itemCartorioPorId(db, id){
-  var achou = null;
-  (db.edificacoes||[]).some(function(e){ var m = (e.cartorio||[]).find(function(x){return x.id===id;}); if(m){ achou = {e:e, m:m}; return true; } return false; });
-  return achou;
-}
-// preventivos que uma AF cobra, lidos das exigências (texto do e-SCI ou da vistoria)
-function sistemaDoTexto(t){
-  if(/extintor/i.test(t)) return 'ext';
-  if(/ilumina/i.test(t)) return 'ilu';
-  if(/sinaliza/i.test(t)) return 'sal';
-  if(/\bGLP\b|g[áa]s combust/i.test(t)) return 'glp';
-  return 'outros';
-}
-function sistemasDaAF(m){
-  var textos = normalizarItensPendencia(m.itensPendencia).map(function(i){return i.texto;});
-  if(!textos.length && m.motivo) textos = String(m.motivo).split(/\n|;\s+/);
-  var ids = (m.afSistemas||[]).slice();
-  textos.forEach(function(t){ t = (t||'').trim(); if(!t) return; var id = sistemaDoTexto(t); if(ids.indexOf(id)<0) ids.push(id); });
-  return SISTEMAS_AF.map(function(x){return x.id;}).filter(function(id){ return ids.indexOf(id)>=0; });
-}
-// bloco "o que fazer nesta parada" quando a parada aponta pra uma AF/multa que já existe
-function htmlConferenciaCartorio(v, m, fnToggle){
-  var h = '';
-  if(m.tipo==='af'){
-    h += '<div class="pav-card" style="margin:6px 0 10px;border-color:var(--amar)">'+
-      '<div style="font-weight:700;margin-bottom:4px">🔍 Conferir cumprimento da AF nº '+escHtmlCart(m.numero||'(sem número)')+'</div>'+
-      '<div class="sub">'+(m.prazo?'Prazo: '+escHtmlCart(m.prazo)+' · ':'')+(m.cienciaDadaEm?'ciência em '+new Date(m.cienciaDadaEm).toLocaleDateString('pt-BR'):'ainda sem ciência')+'</div>';
-    var sis = (v.afSistemas&&v.afSistemas.length) ? v.afSistemas : sistemasDaAF(m);
-    if(sis.length) h += '<div style="margin-top:6px;font-size:13px"><b>Preventivos a olhar:</b> '+sis.map(function(id){ var x = SISTEMAS_AF.find(function(y){return y.id===id;}); return x?x.l:id; }).join(', ')+'</div>';
-    var itens = normalizarItensPendencia(m.itensPendencia);
-    if(itens.length){
-      h += '<div class="sub" style="margin:8px 0 4px">Exigências da AF — marque o que encontrou CUMPRIDO:</div>';
-      itens.forEach(function(it, i){
-        var marcado = !!it.resolvidoEm || (v.conferirCumpridos||[]).indexOf(i)>=0;
-        h += '<label style="display:flex;gap:8px;align-items:flex-start;padding:4px 0;font-size:13px"><input type="checkbox" style="width:auto;margin-top:3px" '+(marcado?'checked':'')+(it.resolvidoEm||!fnToggle?' disabled':'')+(fnToggle?' onchange="'+fnToggle+'('+i+')"':'')+'> <span>'+escHtmlCart(it.texto)+(it.resolvidoEm?' <span style="color:var(--verde)">(já resolvido em '+new Date(it.resolvidoEm).toLocaleDateString('pt-BR')+')</span>':'')+'</span></label>';
-      });
-      h += '<div class="sub" style="margin-top:4px">Ao concluir, o que foi marcado recebe baixa na AF. Se tudo estiver cumprido, a AF fica resolvida. O que não for marcado continua pendente (para multa, se for o caso).</div>';
-    } else if(m.motivo){
-      h += '<div class="sub" style="margin-top:6px">'+escHtmlCart(m.motivo).replace(/\n/g,'<br>')+'</div>';
-    }
-    h += '</div>';
-  } else {
-    h += '<div class="pav-card" style="margin:6px 0 10px;border-color:var(--amar)">'+
-      '<div style="font-weight:700;margin-bottom:4px">💰 Multa nº '+escHtmlCart(m.numero||'(sem número)')+'</div>'+
-      '<div class="sub">'+(m.prazo?'Prazo/vencimento: '+escHtmlCart(m.prazo)+' · ':'')+(m.cienciaDadaEm?'ciência em '+new Date(m.cienciaDadaEm).toLocaleDateString('pt-BR'):'ainda sem ciência')+'</div>'+
-      '<div style="margin-top:6px;font-size:13px"><b>Motivo (para explicar à pessoa):</b><br>'+(m.motivo?escHtmlCart(m.motivo).replace(/\n/g,'<br>'):'<span class="sub">(motivo não cadastrado)</span>')+'</div>'+
-    '</div>';
-  }
-  return h;
 }
 function htmlCartorioCampo(e, v, db){
   var h = '<div class="sec-title" style="margin-top:0">Visita de Cartório</div>';
   if(v.concluida){
-    return h + '<div class="sub">'+rotuloVistoria(v)+' — ✅ concluída. Será lançada no Cartório quando importar no Vistoria Quartel.</div>'+htmlEscopoCartorio(db, v, {set:'vcSetCampo', tipo:'vcTipoCampo', abrir:'vcAbrirCampo'});
+    return h + '<div class="sub">'+rotuloVistoria(v)+' — ✅ concluída. Será lançada no Cartório quando importar no Vistoria Quartel.</div>'+htmlEscopoCartorio(db, v, {});
   }
   var sub = v.cartorioSubtipo;
   function btn(campo, valor, rot, ativo){
@@ -1423,34 +1327,16 @@ function htmlCartorioCampo(e, v, db){
     h += '<div class="sub" style="margin-bottom:4px">Ciência de:</div><div class="btnrow" style="gap:6px;margin-bottom:8px">'+
       btn('cienciaDe','multa','Multa',v.cienciaDe==='multa')+btn('cienciaDe','af','AF',v.cienciaDe==='af')+'</div>';
   }
-  var candRef = (sub==='af' || sub==='multa') ? (e.cartorio||[]).filter(function(m){ return m.tipo===sub && !m.resolvidaEm; }) : [];
-  if(candRef.length){
-    h += '<div class="sub" style="margin:4px 0">'+(sub==='af' ? 'Qual AF vai conferir?' : 'Qual multa vai tratar?')+'</div>';
-    candRef.forEach(function(m){
-      var on = v.cienciaItemId===m.id;
-      h += '<div onclick="setCartorioCampo(\'itemRef\',\''+m.id+'\')" style="cursor:pointer;padding:8px;margin-bottom:6px;border-radius:8px;border:1px solid '+(on?'var(--red2)':'var(--border)')+';font-size:13px;'+(on?'background:rgba(192,39,45,.15)':'')+'">'+
-        (on?'◉ ':'○ ')+'<b>'+(sub==='af'?'AF':'Multa')+' nº '+escHtmlCart(m.numero||'(sem número)')+'</b>'+(m.prazo?' · prazo '+escHtmlCart(m.prazo):'')+'</div>';
-    });
-    var onNovo = !v.cienciaItemId;
-    h += '<div onclick="setCartorioCampo(\'itemRef\',\'\')" style="cursor:pointer;padding:8px;margin-bottom:8px;border-radius:8px;border:1px dashed '+(onNovo?'var(--red2)':'var(--border)')+';font-size:13px">'+
-      (onNovo?'◉ ':'○ ')+(sub==='af' ? 'Lavrar AF nova (não é conferência)' : 'Registrar multa nova')+'</div>';
-  }
   if(sub==='af'){
     var marc = v.afSistemas || [];
-    h += '<div class="sub" style="margin-bottom:4px">'+(v.cienciaItemId ? 'Preventivos que a AF cobra (o que olhar):' : 'Sistemas da AF (marque quantos precisar):')+'</div><div class="btnrow" style="gap:6px;margin-bottom:8px;flex-wrap:wrap">'+
+    h += '<div class="sub" style="margin-bottom:4px">Sistemas da AF (marque quantos precisar):</div><div class="btnrow" style="gap:6px;margin-bottom:8px;flex-wrap:wrap">'+
       SISTEMAS_AF.map(function(x){ var on = marc.indexOf(x.id)>=0; return btn('toggleSistema', x.id, (on?'☑ ':'☐ ')+x.l, on); }).join('')+'</div>';
   }
   function campoTxt(lbl, campo, ph, valor){
     var val = (valor!=null) ? valor : (v[campo]||'');
     return '<label class="lbl">'+lbl+'</label><input type="text" value="'+String(val).replace(/"/g,'&quot;')+'" placeholder="'+ph+'" style="margin-bottom:10px" onchange="setCartorioTextoCampo(\''+campo+'\',this.value)">';
   }
-  var refC = ((sub==='af' || sub==='multa') && v.cienciaItemId) ? (e.cartorio||[]).find(function(m){return m.id===v.cienciaItemId;}) : null;
-  if(refC){
-    h += htmlConferenciaCartorio(v, refC, sub==='af' ? 'toggleConferirCampo' : null);
-    h += campoTxt('Observação desta visita (opcional)', 'cartorioMotivo', sub==='af' ? 'Ex: extintor recarregado, falta placa' : 'Ex: explicado ao responsável');
-  } else if(v.cienciaItemId){
-    h += '<div class="sub" style="margin-bottom:8px">⚠️ O registro ligado a esta parada não veio do Quartel. Escolha outro acima ou importe o Cartório de novo.</div>';
-  } else if(sub==='af' || sub==='multa'){
+  if(sub==='af' || sub==='multa'){
     h += campoTxt(sub==='af' ? 'Detalhe da AF (opcional — além dos sistemas)' : 'Motivo da multa', 'cartorioMotivo', 'Ex: extintor sem carga no 2º pavimento');
     h += campoTxt(sub==='af' ? 'Número da AF (opcional)' : 'Número da multa', 'cartorioNumero', 'Ex: 2026/00123');
     h += campoTxt('Prazo (DD/MM/AAAA)', 'cartorioPrazo', 'DD/MM/AAAA', v.cartorioPrazo!=null ? v.cartorioPrazo : (sub==='af' ? prazoPadraoCartorioCampo(v) : ''));
@@ -1459,7 +1345,7 @@ function htmlCartorioCampo(e, v, db){
     else {
       // não oferece de novo o que já recebeu ciência em outra visita deste aparelho (ainda não importada no Quartel)
       var jaCiente = {};
-      (db.vistorias||[]).forEach(function(x){ if(x.id!==v.id && x.tipo==='cartorio' && x.cartorioSubtipo==='ciencia' && x.concluida && x.cienciaItemId) jaCiente[x.cienciaItemId] = true; });
+      (db.vistorias||[]).forEach(function(x){ if(x.id!==v.id && x.tipo==='cartorio' && x.concluida && x.cienciaItemId) jaCiente[x.cienciaItemId] = true; });
       var cand = (e.cartorio||[]).filter(function(m){ return m.tipo===v.cienciaDe && !m.resolvidaEm && !m.cienciaDadaEm && !jaCiente[m.id]; });
       if(!cand.length){
         h += '<div class="sub">Nenhuma '+(v.cienciaDe==='af'?'AF':'multa')+' pendente de ciência nesta edificação (confira se o Quartel já exportou o Cartório pra cá).</div>';
@@ -1512,28 +1398,19 @@ function toggleBaixaCienciaCampo(idx){
   salvarVistoria(v);
   renderExecucao();
 }
-function toggleConferirCampo(idx){
-  var v = garantirVistoria();
-  v.conferirCumpridos = v.conferirCumpridos || [];
-  var i = v.conferirCumpridos.indexOf(idx);
-  if(i>=0) v.conferirCumpridos.splice(i,1); else v.conferirCumpridos.push(idx);
-  salvarVistoria(v);
-  renderExecucao();
-}
 function concluirCartorioCampo(){
   var v = garantirVistoria();
   var sub = v.cartorioSubtipo;
   if(!sub){ alert('Escolha se a visita é de Multa, AF ou Ciência.'); return; }
-  var temRef = (sub==='af' || sub==='multa') && !!v.cienciaItemId;
-  if(sub==='af' && !temRef && !(v.afSistemas||[]).length && !(v.cartorioMotivo||'').trim()){ alert('Marque ao menos um sistema da AF ou escreva o detalhe.'); return; }
-  if(sub==='multa' && !temRef && !(v.cartorioNumero||'').trim()){ alert('Informe o número da multa.'); return; }
+  if(sub==='af' && !(v.afSistemas||[]).length && !(v.cartorioMotivo||'').trim()){ alert('Marque ao menos um sistema da AF ou escreva o detalhe.'); return; }
+  if(sub==='multa' && !(v.cartorioNumero||'').trim()){ alert('Informe o número da multa.'); return; }
   if(sub==='ciencia' && (!v.cienciaDe || !v.cienciaItemId)){ alert('Escolha qual '+(v.cienciaDe==='af'?'AF':'multa')+' recebeu a ciência.'); return; }
   var dbC = loadDB();
   var compPend = v.vistoriaCompletaId && dbC.vistorias.find(function(x){return x.id===v.vistoriaCompletaId && !x.concluida;});
   if(compPend && !confirm('A vistoria completa marcada nesta visita ainda NÃO foi concluída. Concluir só o Cartório agora e deixá-la pendente?')) return;
   if(!confirm('Concluir esta visita de Cartório?')) return;
   v.escopoCartorio = v.vistoriaCompletaId ? 'com_vistoria' : 'so_cartorio';
-  if(sub==='af' && !temRef && (v.cartorioPrazo==null || v.cartorioPrazo==='')) v.cartorioPrazo = prazoPadraoCartorioCampo(v);
+  if(sub==='af' && (v.cartorioPrazo==null || v.cartorioPrazo==='')) v.cartorioPrazo = prazoPadraoCartorioCampo(v);
   v.concluida = true;
   v.concluidaEm = new Date().toISOString();
   salvarVistoria(v);
@@ -1771,7 +1648,8 @@ function renderExecucao(){
   html += '<div class="hs-banner '+hs.classe+'" style="margin-bottom:14px">'+hs.icone+' Habite-se: '+hs.texto+(hs.protocolo?' · '+hs.protocolo:'')+
     (e.habiteSe && e.habiteSe.obs ? '<div style="font-weight:400;font-size:12px;margin-top:4px">'+e.habiteSe.obs+'</div>' : '')+
   '</div>';
-  html += htmlAFDaParada(db, vAtualBanner);
+
+  html += encTopHtml(e, db);
 
   // Seletor de tipo
   html += '<div class="tipo-row">'+
@@ -1789,6 +1667,7 @@ function renderExecucao(){
   if(execTipo==='cartorio'){
     var vCart = db.vistorias.find(function(x){return x.id===execVistoriaId;}) || {};
     html += htmlCartorioCampo(e, vCart, db);
+    html += htmlEncerramento(e, vCart, db);
     html += '<div class="exec-footer"><div class="btnrow">'+
       (vCart.concluida ? '<button class="btn" disabled>✅ Concluída</button>' : '<button class="btn primary" onclick="concluirCartorioCampo()">✅ Concluir visita de Cartório</button>')+
     '</div></div>';
@@ -1949,7 +1828,7 @@ function renderExecucao(){
   }
   var QTV_SIST = ['ext','ilu','sal','ala'];
   var qtvAtivos = QTV_SIST.filter(function(sid){ return totalPrevSistema(sid).esperado>0; });
-  var qtvAbaixo50 = false, qtvAcimaAlgum = false, qtvTodosPreenchidos = true;
+  var qtvAbaixo50 = false, qtvAcimaAlgum = false, qtvTodosPreenchidos = true, qtvFalta = false;
   if(qtvAtivos.length){
     html += '<div class="sec-title" style="margin-top:0">Verificação quantitativa (amostragem)</div>';
     html += '<div class="sub" style="margin:-4px 0 10px">Somado automaticamente a partir da contagem por bloco/andar acima.</div>';
@@ -1960,11 +1839,11 @@ function renderExecucao(){
       html += '<div class="item-card" style="padding:10px 12px">'+
         '<div class="item-c" style="margin:0">'+s.l+' — <span style="color:'+corTxt+';font-weight:700">'+t.aprovados+' aprovado(s)</span> de '+t.esperado+' esperado(s)'+(t.reprovados>0?' · '+t.reprovados+' reprovado(s)':'')+(!t.contado?' · ainda não contado':'')+'</div>'+
       '</div>';
-      if(t.contado){ if(t.aprovados < t.esperado*0.5) qtvAbaixo50=true; else qtvAcimaAlgum=true; }
+      if(t.contado){ if(t.aprovados < t.esperado*0.5) qtvAbaixo50=true; else qtvAcimaAlgum=true; if(t.aprovados < t.esperado) qtvFalta=true; }
       else { qtvTodosPreenchidos = false; }
     });
 
-    if(qtvAcimaAlgum && qtvTodosPreenchidos && !qtvAbaixo50){
+    if(qtvAcimaAlgum && qtvTodosPreenchidos && !qtvAbaixo50 && qtvFalta){
       var ano = v.qtv && v.qtv.ano;
       html += '<label class="lbl">Construção anterior a 2013?</label>'+
         '<div class="btnrow" style="margin-bottom:16px">'+
@@ -1974,8 +1853,9 @@ function renderExecucao(){
     }
   }
 
-  var qtvIndeferePorAno = qtvAcimaAlgum && qtvTodosPreenchidos && v.qtv && v.qtv.ano==='depois2013';
-  var qtvInfracaoPorAno = qtvAcimaAlgum && qtvTodosPreenchidos && !qtvAbaixo50 && v.qtv && v.qtv.ano==='antes2013';
+  // o ano de construção só pesa quando falta equipamento na amostragem; com tudo completo, nem aparece a pergunta e o ano não muda o resultado
+  var qtvIndeferePorAno = qtvFalta && qtvAcimaAlgum && qtvTodosPreenchidos && !qtvAbaixo50 && v.qtv && v.qtv.ano==='depois2013';
+  var qtvInfracaoPorAno = qtvFalta && qtvAcimaAlgum && qtvTodosPreenchidos && !qtvAbaixo50 && v.qtv && v.qtv.ano==='antes2013';
 
   // Pendências de sistemas por bloco/andar (abaixo do esperado, nunca contado, ou com reprovação por motivo)
   var pendenciasBloco = 0;
@@ -2068,6 +1948,7 @@ function renderExecucao(){
     }
   });
 
+  html += htmlEncerramento(e, v, db);
   html += '<div class="exec-footer"><div class="btnrow">'+
     (v.concluida
       ? '<button class="btn" disabled>✅ Vistoria concluída</button>'
@@ -2090,6 +1971,164 @@ function encerrarRotasConcluidasCampo(db){
   if(typeof vistFiltroRota!=='undefined' && removidas.indexOf(vistFiltroRota)>=0) vistFiltroRota = '';
   return removidas.length;
 }
+
+var ENC_PODE_GPS = true, ENC_PODE_FOTO = true;
+function encCtx(){ var db = loadDB(); var e = db.edificacoes.find(function(x){return x.id===execEdificacaoId;}); return {db:db, e:e}; }
+function encVistoriaGarantida(){ return garantirVistoria(); }
+function encSalvarVistoria(v){ salvarVistoria(v); }
+function encAposLoc(){ if(typeof map!=='undefined' && map && typeof renderMapEdificacoes==='function') renderMapEdificacoes(); }
+
+// ════════════════════════════════════════
+// LOCALIZAÇÃO (origem), RESPONSÁVEL, FOTO E REGISTRO NO e-SCI — blocos opcionais da execução
+// Localização: só "confirmada no local" quando o botão de GPS é apertado no local; qualquer outra
+// digitação vale "manual"; o que veio do BI/notificação vale "importado". Só a posição atual é guardada.
+// ════════════════════════════════════════
+var VINCULOS_RESP = [['proprietario','Proprietário'],['inquilino','Inquilino'],['responsavel_empresa','Responsável pela empresa'],['advogado','Advogado'],['contador','Contador']];
+function encAttr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+function locOrigemDe(e){
+  if(!e || !e.lat || !e.lng) return '';
+  if(e.locOrigem) return e.locOrigem;
+  return (e.origemDados && e.origemDados.lat==='importado') ? 'importado' : 'manual';
+}
+function encLocInner(e){
+  var o = locOrigemDe(e);
+  var rot = {local:['✅ Confirmada no local','var(--verde)'], importado:['📥 Importada do BI','#0A84FF'], manual:['✏️ Digitada manualmente','var(--sub)']};
+  var h = '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap"><div><b>📍 Localização</b> ';
+  if(o){
+    h += '<span style="font-size:12px">'+Number(e.lat).toFixed(5)+', '+Number(e.lng).toFixed(5)+'</span>'+
+      '<div style="font-size:11px;font-weight:700;color:'+rot[o][1]+'">'+rot[o][0]+(o==='local' && e.locConfirmadaEm ? ' em '+new Date(e.locConfirmadaEm).toLocaleDateString('pt-BR') : '')+'</div>';
+  } else {
+    h += '<div style="font-size:11px;color:var(--sub)">Sem localização cadastrada (opcional)</div>';
+  }
+  h += '</div><div style="display:flex;gap:6px;flex-wrap:wrap">'+
+    (ENC_PODE_GPS ? '<button type="button" class="btn" style="width:auto;padding:6px 10px" onclick="encConfirmarGPS()">📍 '+(o?'Confirmar aqui':'Cadastrar aqui')+'</button>' : '')+
+    '<button type="button" class="btn" style="width:auto;padding:6px 10px" onclick="encDigitarLoc()">✏️ Digitar</button></div></div>';
+  return h;
+}
+function encFotoDe(db, e){
+  if(!e) return '';
+  if(e.foto) return e.foto;
+  var p = (db.pontos||[]).find(function(x){ return x.edificacaoGeradaId===e.id && x.foto; });
+  return p ? p.foto : '';
+}
+function encFotoImg(db, e){
+  var f = encFotoDe(db, e);
+  return f ? '<img src="'+f+'" alt="Foto da edificação" style="width:100%;max-height:190px;object-fit:cover;border-radius:12px;display:block">' : '';
+}
+function encTopHtml(e, db){
+  return '<div id="encFotoTop" style="margin:10px 0 0">'+encFotoImg(db, e)+'</div>'+
+    '<div id="encLocBox" style="background:rgba(255,255,255,.06);border-radius:12px;padding:10px 12px;margin:10px 0 12px;font-size:13px">'+encLocInner(e)+'</div>';
+}
+function encRefazerBoxes(){
+  var c = encCtx(); if(!c.e) return;
+  var a = document.getElementById('encLocBox'); if(a) a.innerHTML = encLocInner(c.e);
+  var b = document.getElementById('encFotoTop'); if(b) b.innerHTML = encFotoImg(c.db, c.e);
+  var d = document.getElementById('encFotoFim'); if(d) d.innerHTML = encFotoFimInner(c.e, c.db);
+}
+function encGravarLoc(lat, lng, origem){
+  var c = encCtx(); if(!c.e) return;
+  c.e.lat = lat; c.e.lng = lng; c.e.locOrigem = origem;
+  c.e.locConfirmadaEm = origem==='local' ? new Date().toISOString() : null;
+  if(c.e.origemDados){ delete c.e.origemDados.lat; delete c.e.origemDados.lng; }
+  c.e.atualizadoEm = new Date().toISOString();
+  saveDB(c.db);
+  encRefazerBoxes();
+  try{ encAposLoc(); }catch(_){}
+}
+function encConfirmarGPS(){
+  if(!navigator.geolocation){ alert('Este dispositivo não tem GPS disponível.'); return; }
+  navigator.geolocation.getCurrentPosition(function(pos){
+    var acc = Math.round(pos.coords.accuracy||0);
+    if(acc>50 && !confirm('O GPS está com precisão de cerca de '+acc+' m. Confirmar a localização mesmo assim?')) return;
+    encGravarLoc(pos.coords.latitude, pos.coords.longitude, 'local');
+  }, function(){ alert('Não foi possível capturar o GPS. Verifique se a localização está ativada.'); }, {enableHighAccuracy:true, timeout:15000});
+}
+function encDigitarLoc(){
+  var txt = prompt('Digite a localização: latitude e longitude (ex: -27.70181, -49.33752)', '');
+  if(txt==null || !txt.trim()) return;
+  var m = txt.match(/(-?\d{1,3}(?:[.,]\d+)?)\s*[,;\s]+\s*(-?\d{1,3}(?:[.,]\d+)?)/);
+  if(!m){ alert('Não entendi. Use o formato: -27.70181, -49.33752'); return; }
+  var lat = parseFloat(m[1].replace(',','.')), lng = parseFloat(m[2].replace(',','.'));
+  if(isNaN(lat) || isNaN(lng) || Math.abs(lat)>90 || Math.abs(lng)>180){ alert('Coordenadas inválidas.'); return; }
+  if((lat>-25.9 || lat<-29.4 || lng>-48.3 || lng<-53.9) && !confirm('Essa posição fica fora de Santa Catarina. Gravar mesmo assim?')) return;
+  encGravarLoc(lat, lng, 'manual');
+}
+function encFotoFimInner(e, db){
+  return encFotoImg(db, e) +
+    (ENC_PODE_FOTO ? '<input type="file" accept="image/*" capture="environment" id="encFotoInput" style="display:none" onchange="encFotoEscolhida(this)">'+
+      '<button type="button" class="btn" style="width:100%;margin-top:8px" onclick="document.getElementById(\'encFotoInput\').click()">📷 Atualizar foto</button>' : '');
+}
+function encRedimensionar(file, cb){
+  var r = new FileReader();
+  r.onload = function(ev){
+    var img = new Image();
+    img.onload = function(){
+      var max = 900, k = Math.min(1, max/Math.max(img.width, img.height));
+      var cv = document.createElement('canvas'); cv.width = Math.round(img.width*k); cv.height = Math.round(img.height*k);
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      cb(cv.toDataURL('image/jpeg', 0.72));
+    };
+    img.onerror = function(){ alert('Não consegui ler essa foto.'); };
+    img.src = ev.target.result;
+  };
+  r.readAsDataURL(file);
+}
+function encFotoEscolhida(input){
+  var file = input.files && input.files[0]; if(!file) return;
+  encRedimensionar(file, function(dataUrl){
+    var c = encCtx(); if(!c.e) return;
+    c.e.foto = dataUrl;   // a foto nova SUBSTITUI a anterior
+    (c.db.pontos||[]).forEach(function(p){ if(p.edificacaoGeradaId===c.e.id && p.foto) p.foto = dataUrl; });
+    c.e.atualizadoEm = new Date().toISOString();
+    try{ saveDB(c.db); }catch(err){ alert('Não consegui gravar a foto (armazenamento cheio?).'); return; }
+    encRefazerBoxes();
+  });
+  input.value = '';
+}
+function encSetResp(campo, val){
+  var c = encCtx(); if(!c.e) return;
+  c.e.responsavel = c.e.responsavel || {nome:'', tel:''};
+  c.e.responsavel[campo] = String(val||'').trim();
+  c.e.atualizadoEm = new Date().toISOString();
+  saveDB(c.db);
+}
+function encEsciInner(v){
+  var st = (v && v.esciStatus) || 'nenhum';
+  return '<select onchange="encSetEsci(this.value)">'+
+    '<option value="nenhum"'+(st==='nenhum'?' selected':'')+'>Sem registro no e-SCI (controle interno)</option>'+
+    '<option value="pendente"'+(st==='pendente'?' selected':'')+'>⏳ Pendente de lançar no e-SCI</option>'+
+    '<option value="lancado"'+(st==='lancado'?' selected':'')+'>✅ Já lançado no e-SCI</option></select>'+
+    '<div class="sub" style="margin-top:4px">'+(st==='lancado' && v.esciEm ? 'Lançamento confirmado por você em '+new Date(v.esciEm).toLocaleDateString('pt-BR')+'. ' : '')+
+    'O aplicativo não presume lançamento: só muda quando você marcar.</div>';
+}
+function encSetEsci(val){
+  var v = encVistoriaGarantida(); if(!v) return;
+  v.esciStatus = val; v.esciEm = (val==='lancado') ? new Date().toISOString() : null;
+  encSalvarVistoria(v);
+  var b = document.getElementById('encEsciBox'); if(b) b.innerHTML = encEsciInner(v);
+}
+function badgeEsci(v){
+  if(!v) return '';
+  if(v.esciStatus==='pendente') return '<span class="vist-status pend" style="margin-left:6px">e-SCI pendente</span>';
+  if(v.esciStatus==='lancado') return '<span class="vist-status def" style="margin-left:6px">e-SCI ✔</span>';
+  return '';
+}
+function htmlEncerramento(e, v, db){
+  var r = e.responsavel || {};
+  return '<div style="background:rgba(255,255,255,.06);border-radius:12px;padding:12px;margin:14px 0">'+
+    '<div class="sec-title" style="margin-top:0">Encerramento (opcional)</div>'+
+    '<label class="lbl">Responsável pela edificação</label>'+
+    '<input type="text" value="'+encAttr(r.nome)+'" placeholder="Nome" onchange="encSetResp(\'nome\',this.value)">'+
+    '<label class="lbl">Telefone / WhatsApp</label>'+
+    '<input type="tel" value="'+encAttr(r.tel)+'" placeholder="(48) 90000-0000" onchange="encSetResp(\'tel\',this.value)">'+
+    '<label class="lbl">Vínculo com a edificação</label>'+
+    '<select onchange="encSetResp(\'vinculo\',this.value)"><option value="">Não informado</option>'+
+      VINCULOS_RESP.map(function(x){ return '<option value="'+x[0]+'"'+(r.vinculo===x[0]?' selected':'')+'>'+x[1]+'</option>'; }).join('')+'</select>'+
+    '<label class="lbl">Foto da edificação</label><div id="encFotoFim">'+encFotoFimInner(e, db)+'</div>'+
+    '<label class="lbl">Registro no e-SCI</label><div id="encEsciBox">'+encEsciInner(v)+'</div>'+
+  '</div>';
+}
+
 function concluirExecucao(){
   if(!confirm('Concluir esta vistoria? Isso fecha o checklist e calcula o resultado final.')) return;
   var v = garantirVistoria();
@@ -2556,6 +2595,7 @@ function abrirEdifEditCampo(id){
   document.getElementById('ee-municipio').value = e.municipio||'';
   document.getElementById('ee-responsavel').value = (e.responsavel&&e.responsavel.nome)||'';
   document.getElementById('ee-telefone').value = (e.responsavel&&e.responsavel.tel)||'';
+  document.getElementById('ee-vinculo').value = (e.responsavel&&e.responsavel.vinculo)||'';
   document.getElementById('ee-area').value = e.area||'';
   document.getElementById('ee-altura').value = e.altura||'';
 
@@ -2758,7 +2798,8 @@ function salvarEdifEditCampo(){
   e.municipio = document.getElementById('ee-municipio').value.trim();
   e.responsavel = {
     nome: document.getElementById('ee-responsavel').value.trim(),
-    tel: document.getElementById('ee-telefone').value.trim()
+    tel: document.getElementById('ee-telefone').value.trim(),
+    vinculo: document.getElementById('ee-vinculo').value || ''
   };
   e.area = document.getElementById('ee-area').value.trim();
   e.altura = document.getElementById('ee-altura').value.trim();
@@ -2784,7 +2825,9 @@ function salvarEdifEditCampo(){
   e.vigenciaFuncionamento.vencimento = linhaFuncAtual ? (linhaFuncAtual.vencimento||'') : '';
 
   var gpsStatus = document.getElementById('gpsEdifStatus');
+  var gpsCapturado = false;
   if(gpsStatus.dataset.lat && gpsStatus.dataset.lng){
+    gpsCapturado = true;
     e.lat = parseFloat(gpsStatus.dataset.lat);
     e.lng = parseFloat(gpsStatus.dataset.lng);
     delete gpsStatus.dataset.lat;
@@ -2794,6 +2837,7 @@ function salvarEdifEditCampo(){
   // o que você digitou/corrigiu aqui passa a valer mais que o importado; mudou algo → fica "a conferir" no Quartel
   var mudouAlgo = camposAlteradosMao(antesEdit, e).length>0 || prevAntes!==JSON.stringify(e.preventivos||{}) || (antesEdit.re||'')!==(e.re||'');
   aplicarOrigemMao(antesEdit, e);
+  if(gpsCapturado){ e.locOrigem = 'local'; e.locConfirmadaEm = new Date().toISOString(); }
   if(edifNovaCampoId===e.id){ e.origem = 'campo'; e.aConferir = {em:new Date().toISOString(), motivo:'nova'}; edifNovaCampoId = null; }
   else if(mudouAlgo){ e.aConferir = {em:new Date().toISOString(), motivo:(e.aConferir && e.aConferir.motivo==='nova')?'nova':'alterada'}; }
   e.atualizadoEm = new Date().toISOString();
@@ -3577,6 +3621,7 @@ function importarMapaOffline(input){
 }
 
 function abrirMapasOffline(){
+  renderScStatus();
   renderMapasOfflineLista();
   document.getElementById('mofStatus').style.display='none';
   document.getElementById('modalOffline').style.display='flex';
@@ -3612,19 +3657,99 @@ var OfflineFirstTileLayer = L.TileLayer.extend({
 });
 
 var camadaMapaAtual = null;
-function trocarFonteMapa(){
-  fonteMapaAtual = fonteMapaAtual==='osm' ? 'sat' : 'osm';
-  if(camadaMapaAtual && map) map.removeLayer(camadaMapaAtual);
-  camadaMapaAtual = new OfflineFirstTileLayer(fonteMapaAtual, {maxZoom:19, attribution:'© OpenStreetMap contributors © CARTO / Esri'}).addTo(map);
-  document.getElementById('btnFonteMapa').textContent = fonteMapaAtual==='osm' ? '🛰️' : '🗺️';
+function mapaBaseAtivo(){ return map; }
+function atualizarBotaoFonte(){ var b = document.getElementById('btnFonteMapa'); if(b) b.textContent = {sc:'📦', osm:'🗺️', sat:'🛰️'}[proximoModoBase()]; }
+
+// ════════════════════════════════════════
+// MAPA DE SANTA CATARINA OFFLINE — mapa vetorial do OpenStreetMap (arquivo único .pmtiles) guardado
+// DENTRO do aparelho (IndexedDB). Depois de importado, funciona sem internet e sem depender de
+// imagens vistas antes. Os pontos/edificações são desenhados por cima, como no mapa normal.
+// ════════════════════════════════════════
+var SC_DB = 'vistoriaMapaSC', scAtual = null, modoBaseMapa = 'osm';   // modoBaseMapa: 'sc' | 'osm' | 'sat'
+function scDB(){ return new Promise(function(res, rej){ var r = indexedDB.open(SC_DB, 1); r.onupgradeneeded = function(){ r.result.createObjectStore('arq'); }; r.onsuccess = function(){ res(r.result); }; r.onerror = function(){ rej(r.error); }; }); }
+function scGet(){ return scDB().then(function(db){ return new Promise(function(res, rej){ var q = db.transaction('arq').objectStore('arq').get('sc'); q.onsuccess = function(){ res(q.result||null); }; q.onerror = function(){ rej(q.error); }; }); }); }
+function scPut(rec){ return scDB().then(function(db){ return new Promise(function(res, rej){ var t = db.transaction('arq','readwrite'); t.objectStore('arq').put(rec, 'sc'); t.oncomplete = function(){ res(); }; t.onerror = function(){ rej(t.error); }; t.onabort = function(){ rej(t.error); }; }); }); }
+function scDel(){ return scDB().then(function(db){ return new Promise(function(res, rej){ var t = db.transaction('arq','readwrite'); t.objectStore('arq').delete('sc'); t.oncomplete = function(){ res(); }; t.onerror = function(){ rej(t.error); }; }); }); }
+
+function scLerCabecalho(file){
+  return file.slice(0, 127).arrayBuffer().then(function(buf){
+    var dv = new DataView(buf), magic = '';
+    for(var i=0;i<7;i++) magic += String.fromCharCode(dv.getUint8(i));
+    if(magic!=='PMTiles' || dv.getUint8(7)!==3) return null;
+    return {tipo: dv.getUint8(99), minZoom: dv.getUint8(100), maxZoom: dv.getUint8(101),
+      minLon: dv.getInt32(102,true)/1e7, minLat: dv.getInt32(106,true)/1e7, maxLon: dv.getInt32(110,true)/1e7, maxLat: dv.getInt32(114,true)/1e7};
+  });
 }
+function scTamanhoTxt(b){ return b>=1073741824 ? (b/1073741824).toFixed(2)+' GB' : Math.round(b/1048576)+' MB'; }
+function renderScStatus(){
+  var el = document.getElementById('scStatus'), bt = document.getElementById('scRemoverBtn');
+  if(!el) return;
+  if(!scAtual){
+    el.innerHTML = 'Nenhum mapa de SC instalado. Baixe o arquivo <b>.pmtiles</b> (passo a passo com o Claude) e importe aqui. Só precisa de internet para baixar o arquivo; depois o mapa funciona sem conexão.';
+    if(bt) bt.style.display = 'none';
+  } else {
+    el.innerHTML = '✅ <b>Mapa de SC instalado</b> (funciona sem internet)<br>'+(scAtual.nome||'')+' · '+scTamanhoTxt(scAtual.tamanho||0)+' · zoom até '+(scAtual.maxZoom||'?')+(scAtual.em ? ' · importado em '+new Date(scAtual.em).toLocaleDateString('pt-BR') : '');
+    if(bt) bt.style.display = '';
+  }
+}
+function scImportar(input){
+  var file = input.files && input.files[0]; input.value = '';
+  if(!file) return;
+  var st = document.getElementById('scStatus');
+  scLerCabecalho(file).then(function(h){
+    if(!h){ alert('Esse arquivo não é um mapa .pmtiles válido (versão 3).'); return; }
+    if(h.tipo!==1){ alert('Esse .pmtiles não é de mapa vetorial (precisa ser do OpenStreetMap em formato vetorial, "MVT").'); return; }
+    var cobreSC = h.minLat<=-27.5 && h.maxLat>=-27.5 && h.minLon<=-49 && h.maxLon>=-49;
+    if(!cobreSC && !confirm('Esse mapa não parece cobrir Santa Catarina (região de Alfredo Wagner). Importar mesmo assim?')) return;
+    st.innerHTML = '⏳ Gravando o mapa no aparelho ('+scTamanhoTxt(file.size)+')... pode levar alguns minutos. Não feche esta tela.';
+    if(navigator.storage && navigator.storage.persist){ try{ navigator.storage.persist(); }catch(_){} }   // pede pro navegador não apagar sozinho
+    return scPut({blob:file, nome:file.name, tamanho:file.size, maxZoom:h.maxZoom, minZoom:h.minZoom, bbox:[h.minLon,h.minLat,h.maxLon,h.maxLat], em:new Date().toISOString()}).then(function(){
+      return scGet();
+    }).then(function(rec){
+      scAtual = rec; modoBaseMapa = 'sc'; renderScStatus(); aplicarModoBaseMapa();
+      alert('Mapa de SC instalado. Agora ele funciona sem internet.');
+    });
+  }).catch(function(err){
+    scAtual = null; renderScStatus();
+    alert('Não consegui gravar o mapa no aparelho. Verifique se há espaço livre suficiente ('+scTamanhoTxt(file.size)+' ou mais) e tente de novo.');
+  });
+}
+function scRemover(){
+  if(!confirm('Remover o mapa de Santa Catarina deste aparelho? Para usar de novo será preciso importar o arquivo outra vez.')) return;
+  scDel().then(function(){ scAtual = null; if(modoBaseMapa==='sc') modoBaseMapa = 'osm'; renderScStatus(); aplicarModoBaseMapa(); });
+}
+function scCamadaVetorial(){
+  if(!scAtual || typeof protomapsL==='undefined' || typeof pmtiles==='undefined') return null;
+  var blob = scAtual.blob;
+  var fonte = {getKey:function(){ return 'sc-local'; }, getBytes:function(off, len){ return blob.slice(off, off+len).arrayBuffer().then(function(b){ return {data:b}; }); }};
+  return protomapsL.leafletLayer({url:new pmtiles.PMTiles(fonte), flavor:'light', lang:'pt', maxZoom:19, maxDataZoom:(scAtual.maxZoom||14),
+    attribution:'© OpenStreetMap contributors (mapa de SC offline)'});
+}
+function criarCamadaBase(m){
+  if(modoBaseMapa==='sc'){ var l = scCamadaVetorial(); if(l) return l.addTo(m); modoBaseMapa = 'osm'; }
+  fonteMapaAtual = modoBaseMapa;   // 'osm' | 'sat'
+  return new OfflineFirstTileLayer(fonteMapaAtual, {maxZoom:19, attribution:'© OpenStreetMap contributors © CARTO / Esri'}).addTo(m);
+}
+function aplicarModoBaseMapa(){
+  var m = mapaBaseAtivo();
+  if(m){ if(camadaMapaAtual) m.removeLayer(camadaMapaAtual); camadaMapaAtual = criarCamadaBase(m); }
+  atualizarBotaoFonte();
+}
+function proximoModoBase(){
+  var ciclo = scAtual ? ['sc','osm','sat'] : ['osm','sat'];
+  return ciclo[(Math.max(0, ciclo.indexOf(modoBaseMapa))+1) % ciclo.length];
+}
+function trocarFonteMapa(){ modoBaseMapa = proximoModoBase(); aplicarModoBaseMapa(); }
+// ao abrir o app: se o mapa de SC está instalado, ele vira o mapa padrão
+scGet().then(function(rec){ if(rec){ scAtual = rec; modoBaseMapa = 'sc'; aplicarModoBaseMapa(); } }).catch(function(){});
 
 function initMap(){
   if(mapInited) return;
   mapInited = true;
   map = L.map('map', {zoomControl:false}).setView([-27.5,-49.0], 12);
   map.on('dragstart', function(){ if(seguindoMinhaLocalizacao && !modoBussolaAtivo) pararSeguir(); });
-  camadaMapaAtual = new OfflineFirstTileLayer(fonteMapaAtual, {maxZoom:19, attribution:'© OpenStreetMap contributors © CARTO / Esri'}).addTo(map);
+  camadaMapaAtual = criarCamadaBase(map);
+  atualizarBotaoFonte();
 
   lyrEdif = L.layerGroup().addTo(map);
   lyrForaComp = L.layerGroup().addTo(map);
