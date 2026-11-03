@@ -172,7 +172,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v103</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v104</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -3110,10 +3110,12 @@ function confirmarEnviarVisitaWhatsapp(){
 var MODELO_CONVERSAR_AGENDAR_PADRAO =
 '*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*\n*{OBM}*\n\n'+
 'Olá, boa tarde.\n'+
-'I. Informamos que é necessário realizar a vistoria de *{TIPO}* na edificação *{NOME} - RE{RE}*.\n\n'+
+'I. Informamos que é necessário realizar a vistoria de *{TIPO}* na edificação *{NOME} - {RE}*.\n\n'+
 'II. Gostaríamos de agendar a vistoria — qual seria o melhor dia e período para o(a) senhor(a)?\n\n'+
 'Att.,\n'+
 'SSCI da {OBM}';
+// o RE já vem com o prefixo (RE8013...), então nunca escrever "RE" na frente
+function reMsg(re){ re=String(re||'').trim(); return re && !/^RE/i.test(re) ? 'RE'+re : re; }
 function carregarModeloConversarAgendar(){
   return localStorage.getItem('vistoria_modelo_conversar_agendar') || MODELO_CONVERSAR_AGENDAR_PADRAO;
 }
@@ -3125,7 +3127,7 @@ function montarMensagemAgendarVisita(e, v){
   return carregarModeloConversarAgendar()
     .replace(/{OBM}/g, obm.nome||'')
     .replace(/{NOME}/g, e.nome||'')
-    .replace(/{RE}/g, e.re||'')
+    .replace(/(RE)?\{RE\}/g, reMsg(e.re))
     .replace(/{TIPO}/g, rotuloVistoria(v));
 }
 
@@ -3133,7 +3135,7 @@ function montarMensagemAgendarVisita(e, v){
 var MODELO_CONFIRMAR_VISITA_PADRAO =
 '*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*\n*{OBM}*\n\n'+
 'Olá, boa tarde.\n'+
-'I. Informamos que a vistoria de *{TIPO}* na edificação *{NOME} - RE{RE}* está agendada para o dia *{DATA}*, *{PERIODO}*.\n\n'+
+'I. Informamos que a vistoria de *{TIPO}* na edificação *{NOME} - {RE}* está agendada para o dia *{DATA}*, *{PERIODO}*.\n\n'+
 'II. Por favor, providencie a presença de um responsável no local.\n\n'+
 'Att.,\n'+
 'SSCI da {OBM}';
@@ -3148,7 +3150,7 @@ function montarMensagemConfirmarVisita(e, v, data, periodo){
   return carregarModeloConfirmarVisita()
     .replace(/{OBM}/g, obm.nome||'')
     .replace(/{NOME}/g, e.nome||'')
-    .replace(/{RE}/g, e.re||'')
+    .replace(/(RE)?\{RE\}/g, reMsg(e.re))
     .replace(/{TIPO}/g, rotuloVistoria(v))
     .replace(/{DATA}/g, data)
     .replace(/{PERIODO}/g, periodo);
@@ -3481,7 +3483,7 @@ function quConcluirCartorio(){
 }
 function abrirRelatorioCartorio(v, e, vistId){
   var L = [];
-  L.push((e?e.nome:'—')+' — RE '+(e?e.re:''));
+  L.push((e?e.nome:'—')+' — '+reMsg(e?e.re:''));
   L.push(rotuloVistoria(v)+' · concluída em '+(v.concluidaEm?new Date(v.concluidaEm).toLocaleString('pt-BR'):'—'));
   L.push('');
   if(v.cartorioSubtipo==='af' || v.cartorioSubtipo==='multa'){
@@ -3644,7 +3646,7 @@ function abrirRelatorio(vistId){
 
 function gerarRelatorioTexto(e, v, pendGerais, duvidasGerais, porBloco, aprovadosPorBloco, totalItens, reprovadosChecklist, totalPendencias){
   var linhas = [];
-  linhas.push((e?e.nome:'—')+' — RE '+(e?e.re:''));
+  linhas.push((e?e.nome:'—')+' — '+reMsg(e?e.re:''));
   linhas.push(rotuloVistoria(v)+' · concluída em '+(v.concluidaEm?new Date(v.concluidaEm).toLocaleString('pt-BR'):'—'));
   if(v.ocupacao && v.ocupacao.trim()) linhas.push('Ocupação: '+v.ocupacao.trim());
   linhas.push('');
@@ -4759,14 +4761,14 @@ var CORPO_AVISO_PADRAO =
 var MODELO_AVISO_PADRAO =
 '*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*\n*{OBM}*\n\n'+
 'Olá, boa tarde.\n'+
-'I. Informamos que o Protocolo de Funcionamento/Regularização *{PROTOCOLO}* referente à edificação *{NOME} - RE{RE}* venceu/vencerá no dia *{DATA}* (faltam {DIAS} dias).'+
+'I. Informamos que o Protocolo de Funcionamento/Regularização *{PROTOCOLO}* referente à edificação *{NOME} - {RE}* venceu/vencerá no dia *{DATA}* (faltam {DIAS} dias).'+
 CORPO_AVISO_PADRAO;
 
 // Modelo separado pro aviso PÓS-vencimento — processo muda pra abertura de novo AF, não renovação
 var MODELO_AVISO_POS_PADRAO =
 '*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*\n*{OBM}*\n\n'+
 'Olá, boa tarde.\n'+
-'I. Informamos que o Protocolo de Funcionamento/Regularização *{PROTOCOLO}* referente à edificação *{NOME} - RE{RE}* está vencido desde *{DATA}* (há {DIAS} dias). Devido ao tempo decorrido, não é mais possível dar prosseguimento por renovação — *é necessário abrir um novo Atestado de Funcionamento (AF)* no sistema e-SCI.'+
+'I. Informamos que o Protocolo de Funcionamento/Regularização *{PROTOCOLO}* referente à edificação *{NOME} - {RE}* está vencido desde *{DATA}* (há {DIAS} dias). Devido ao tempo decorrido, não é mais possível dar prosseguimento por renovação — *é necessário abrir um novo Atestado de Funcionamento (AF)* no sistema e-SCI.'+
 CORPO_AVISO_PADRAO;
 
 // Mensagem pra edificação sem Habite-se (ou em andamento) — usa só o corpo comum de tutoriais/e-SCI,
@@ -4774,7 +4776,7 @@ CORPO_AVISO_PADRAO;
 var MODELO_AVISO_HABITESE_PADRAO =
 '*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*\n*{OBM}*\n\n'+
 'Olá, boa tarde.\n'+
-'I. Informamos que a edificação *{NOME} - RE{RE}* não possui Habite-se junto a este Corpo de Bombeiros. É necessário solicitar a Vistoria para Habite-se no sistema e-SCI.\n\n'+
+'I. Informamos que a edificação *{NOME} - {RE}* não possui Habite-se junto a este Corpo de Bombeiros. É necessário solicitar a Vistoria para Habite-se no sistema e-SCI.\n\n'+
 'II. Caso não seja dado prosseguimento à solicitação, a edificação ficará sujeita às infrações administrativas previstas na legislação.\n\n'+
 'III. Segue o link do tutorial de como solicitar Vistoria para Habite-se: {LINK_VISTORIA}\n\n'+
 'VI. *Favor desconsiderar essa mensagem, caso a solicitação já esteja cadastrada no sistema e-SCI.*\n\n'+
@@ -4785,7 +4787,7 @@ var MODELO_AVISO_HABITESE_PADRAO =
 var MODELO_AVISO_MULTA_PADRAO =
 '*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*\n*{OBM}*\n\n'+
 'Olá, boa tarde.\n'+
-'I. Informamos que a edificação *{NOME} - RE{RE}* foi autuada — Multa nº *{MULTA_NUMERO}*.\n\n'+
+'I. Informamos que a edificação *{NOME} - {RE}* foi autuada — Multa nº *{MULTA_NUMERO}*.\n\n'+
 'II. Motivo: {MULTA_MOTIVO}\n\n'+
 'III. Prazo para regularização: *{MULTA_PRAZO}*\n\n'+
 'IV. Pra darmos andamento, precisamos que você nos envie: *nome completo*, *CPF*, e a *ciência desta multa* (uma mensagem confirmando que recebeu e está ciente já serve).\n\n'+
@@ -4796,7 +4798,7 @@ var MODELO_AVISO_MULTA_PADRAO =
 var MODELO_AVISO_AF_PADRAO =
 '*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*\n*{OBM}*\n\n'+
 'Olá, boa tarde.\n'+
-'I. Informamos que a edificação *{NOME} - RE{RE}* recebeu um Auto de Infração (AF) nº *{MULTA_NUMERO}*.\n\n'+
+'I. Informamos que a edificação *{NOME} - {RE}* recebeu um Auto de Infração (AF) nº *{MULTA_NUMERO}*.\n\n'+
 'II. Motivo: {MULTA_MOTIVO}\n\n'+
 'III. Prazo para regularização: *{MULTA_PRAZO}*. Se não for cumprido dentro do prazo, poderá ser gerada multa.\n\n'+
 'IV. Pra darmos andamento, precisamos que você nos envie: *nome completo*, *CPF*, e a *ciência deste AF* (uma mensagem confirmando que recebeu e está ciente já serve).\n\n'+
@@ -4806,7 +4808,7 @@ var MODELO_AVISO_AF_PADRAO =
 var MODELO_RESULTADO_VISTORIA_PADRAO =
 '*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*\n*{OBM}*\n\n'+
 'Olá, boa tarde.\n'+
-'I. Informamos que a vistoria de *{TIPO}* na edificação *{NOME} - RE{RE}*, realizada em *{DATA}*, foi concluída.\n\n'+
+'I. Informamos que a vistoria de *{TIPO}* na edificação *{NOME} - {RE}*, realizada em *{DATA}*, foi concluída.\n\n'+
 'II. Resultado: *{RESULTADO}*.\n\n'+
 '{DETALHE_PENDENCIA}'+
 'III. Qualquer dúvida, estamos à disposição.\n\n'+
@@ -4816,7 +4818,7 @@ var MODELO_RESULTADO_VISTORIA_PADRAO =
 var MODELO_MENSAGEM_GENERICA_PADRAO =
 '*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*\n*{OBM}*\n\n'+
 'Olá, boa tarde.\n'+
-'Sobre a edificação *{NOME} - RE{RE}*:\n\n'+
+'Sobre a edificação *{NOME} - {RE}*:\n\n'+
 'I. \n\n'+
 'II. \n\n'+
 'III. \n\n'+
@@ -4839,7 +4841,7 @@ function enviarMensagemGenericaEdificacao(edifId){
   var texto = carregarModeloMensagemGenerica()
     .replace(/{OBM}/g, obm.nome||'')
     .replace(/{NOME}/g, e.nome||'')
-    .replace(/{RE}/g, e.re||'');
+    .replace(/(RE)?\{RE\}/g, reMsg(e.re));
   window.open('https://wa.me/'+telWa+'?text='+encodeURIComponent(texto), '_blank');
 }
 
@@ -4879,7 +4881,7 @@ function montarMensagemResultadoVistoria(e, v){
   return carregarModeloResultadoVistoria()
     .replace(/{OBM}/g, obm.nome||'')
     .replace(/{NOME}/g, e.nome||'')
-    .replace(/{RE}/g, e.re||'')
+    .replace(/(RE)?\{RE\}/g, reMsg(e.re))
     .replace(/{TIPO}/g, rotuloVistoria(v))
     .replace(/{DATA}/g, v.concluidaEm ? new Date(v.concluidaEm).toLocaleDateString('pt-BR') : '')
     .replace(/{RESULTADO}/g, resultado)
@@ -4915,7 +4917,7 @@ function montarMensagemAvisoHabiteSe(e){
   return carregarModeloAvisoHabiteSe()
     .replace(/{OBM}/g, obm.nome||'')
     .replace(/{NOME}/g, e.nome||'')
-    .replace(/{RE}/g, e.re||'')
+    .replace(/(RE)?\{RE\}/g, reMsg(e.re))
     .replace(/{LINK_VISTORIA}/g, obm.linkVistoria||'');
 }
 function enviarAvisoHabiteSe(edifId){
@@ -4941,7 +4943,7 @@ function enviarAvisoHabiteSe(edifId){
 var MODELO_AVISO_FUNC_NECESSIDADE_PADRAO =
 '*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*\n*{OBM}*\n\n'+
 'Olá, boa tarde.\n'+
-'I. Informamos que a edificação *{NOME} - RE{RE}* não possui Atestado de Funcionamento junto a este Corpo de Bombeiros. É necessário solicitar a Vistoria para Funcionamento no sistema e-SCI.\n\n'+
+'I. Informamos que a edificação *{NOME} - {RE}* não possui Atestado de Funcionamento junto a este Corpo de Bombeiros. É necessário solicitar a Vistoria para Funcionamento no sistema e-SCI.\n\n'+
 'II. Caso não seja dado prosseguimento à solicitação, a edificação ficará sujeita às infrações administrativas previstas na legislação.\n\n'+
 'III. Segue o link do tutorial de como solicitar Vistoria para Funcionamento: {LINK_VISTORIA}\n\n'+
 'VI. *Favor desconsiderar essa mensagem, caso a solicitação já esteja cadastrada no sistema e-SCI.*\n\n'+
@@ -4958,7 +4960,7 @@ function montarMensagemAvisoFuncNecessidade(e){
   return carregarModeloAvisoFuncNecessidade()
     .replace(/{OBM}/g, obm.nome||'')
     .replace(/{NOME}/g, e.nome||'')
-    .replace(/{RE}/g, e.re||'')
+    .replace(/(RE)?\{RE\}/g, reMsg(e.re))
     .replace(/{LINK_VISTORIA}/g, obm.linkVistoria||'');
 }
 function enviarAvisoFuncionamento(edifId){
@@ -4986,7 +4988,7 @@ function montarMensagemAvisoMulta(e, m){
   return modelo
     .replace(/{OBM}/g, obm.nome||'')
     .replace(/{NOME}/g, e.nome||'')
-    .replace(/{RE}/g, e.re||'')
+    .replace(/(RE)?\{RE\}/g, reMsg(e.re))
     .replace(/{MULTA_NUMERO}/g, m.numero||'(em registro)')
     .replace(/{MULTA_MOTIVO}/g, m.motivo||'—')
     .replace(/{MULTA_PRAZO}/g, m.prazo||'—');
@@ -5066,7 +5068,7 @@ function montarMensagemAviso(e, dataVenc, dias, posVencimento){
   return modelo
     .replace(/{OBM}/g, obm.nome||'')
     .replace(/{NOME}/g, e.nome||'')
-    .replace(/{RE}/g, e.re||'')
+    .replace(/(RE)?\{RE\}/g, reMsg(e.re))
     .replace(/{PROTOCOLO}/g, (e.vigenciaFuncionamento&&e.vigenciaFuncionamento.protocolo)||'')
     .replace(/{DATA}/g, dataFmt)
     .replace(/{DIAS}/g, diasAbs)
@@ -5693,7 +5695,7 @@ function copiarRelatorioRotaTexto(rotaId){
     linhas.push('=== QUANTITATIVO POR PREVENTIVO (providenciar) ===');
     sidsComPendencia.sort(function(a,b){ return agregadoPorSistema[b].qtd - agregadoPorSistema[a].qtd; }).forEach(function(sid){
       var it = agregadoPorSistema[sid];
-      linhas.push('- '+it.label+': '+it.qtd+' unidade(s) em '+it.edificacoes.length+' edificação(ões) — RE: '+it.edificacoes.join(', '));
+      linhas.push('- '+it.label+': '+it.qtd+' unidade(s) em '+it.edificacoes.length+' edificação(ões) — '+it.edificacoes.join(', '));
     });
   }
 
