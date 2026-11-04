@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v67</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v70</div>
   </header>
 
   <main>
@@ -904,7 +904,7 @@ var vistFiltroProc = 'tecnica';   // históricos separados: vistorias técnicas 
 function setVistFiltroProc(p){ vistFiltroProc = p; renderVistoriasCampo(); }
 function renderVistRotaFiltro(){
   var db = loadDB();
-  var rotas = db.rotas || [];
+  var rotas = (db.rotas || []).slice().sort(compararRotasPorNomeCampo);
   var el = document.getElementById('vistRotaFiltro');
   var procChips = '<div class="btnrow" style="gap:6px;flex-wrap:wrap;margin-bottom:6px">'+
     [['tecnica','🔥 Vistorias técnicas'],['ciencia','⚖️ Ciências (AF, multa)'],['esci','⏳ Pendentes e-SCI']].map(function(x){
@@ -999,41 +999,78 @@ function vistCardHtmlCampo(v, db){
 // Lista agrupada (quando nenhuma rota está filtrada): Rotas anuais (ano > mês), Rotas avulsas e Sem rota; cada nível abre e fecha
 var vistGrupoAberto = (function(){ try{ return JSON.parse(localStorage.getItem('vistoria_campo_grupos')||'null') || {avulsas:true, semrota:true}; }catch(e){ return {avulsas:true, semrota:true}; } })();
 function toggleGrupoVistCampo(k){ vistGrupoAberto[k] = !(vistGrupoAberto[k]===true); try{ localStorage.setItem('vistoria_campo_grupos', JSON.stringify(vistGrupoAberto)); }catch(e){} renderVistoriasCampo(); }
-function rotaEhAnualCampo(r){ return !!(r.rotaFixaId || r.origem==='calendario' || r.origem==='auto' || /^Rota Auto\b/.test(r.nome||'')); }
+function compararRotasPorNomeCampo(a,b){ return String(a.nome||'').localeCompare(String(b.nome||''), 'pt-BR', {numeric:true, sensitivity:'base'}); }
+function rotaEhAnualCampo(r){ return !!(r.rotaFixaId || r.origem==='calendario'); }
+function dataBRCampo(t){ var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(t||'').trim()); return m ? new Date(+m[3], +m[2]-1, +m[1]) : null; }
+// mês da demanda que a rota atende (guardado pelo Quartel; nas antigas, o vencimento mais comum das paradas; senão a data da rota)
+function mesDemandaRotaCampo(db, r){
+  if(r.mesRef && r.mesRef.ano) return {ano:r.mesRef.ano, mes:r.mesRef.mes};
+  if(r.origem==='calendario'){
+    var cont = {}, melhor = null;
+    (r.vistorias||[]).forEach(function(vid){
+      var v = (db.vistorias||[]).find(function(x){return x.id===vid;}); var e = v && (db.edificacoes||[]).find(function(x){return x.id===v.edificacaoId;});
+      var d = e && dataBRCampo(e.vigenciaFuncionamento && e.vigenciaFuncionamento.vencimento); if(!d) return;
+      var k = d.getFullYear()+'-'+d.getMonth(); cont[k] = (cont[k]||0)+1; if(!melhor || cont[k]>cont[melhor]) melhor = k;
+    });
+    if(melhor){ var q = melhor.split('-'); return {ano:+q[0], mes:+q[1]}; }
+  }
+  var m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(r.data||''); return m ? {ano:+m[3], mes:+m[2]-1} : {ano:0, mes:0};
+}
 var MESES_CAMPO = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+var vistChavesReg = [];
 function htmlGrupoVistCampo(chave, titulo, info, corpo, nivel){
+  if(vistChavesReg.indexOf(chave)<0) vistChavesReg.push(chave);
   var ab = vistGrupoAberto[chave] === true;
   return '<div style="margin:0 0 10px '+((nivel||0)*10)+'px"><div onclick="toggleGrupoVistCampo(\''+chave+'\')" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.07);font-weight:700">'+
     '<span>'+(ab?'▼':'▶')+'</span><span style="flex:1;min-width:0">'+titulo+'</span><span style="font-size:12px;font-weight:400;color:var(--sub)">'+info+'</span></div>'+
     (ab ? '<div style="margin-top:8px">'+corpo+'</div>' : '')+'</div>';
 }
+function rotaPrefixoCampo(nome){
+  var n = String(nome||'').replace(/\s*\(\d+\/\d+\)\s*$/,'').trim();
+  var m = /^(.*?[^\s\-–—:\/\d])[\s\-–—:]*\s(\d{1,3})$/.exec(n) || /^(.*?[^\s\-–—:\/\d])[\s\-–—:]+(\d{1,3})$/.exec(n);
+  var rot = m ? m[1].trim() : n;
+  return {rotulo: rot, chave: rot.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()};
+}
+function recolherTodasVistCampo(){ vistChavesReg.forEach(function(k){ if(k!=='anuais' && k!=='avulsas' && k!=='semrota') vistGrupoAberto[k] = false; }); vistGrupoAberto.anuais = true; vistGrupoAberto.avulsas = true; try{ localStorage.setItem('vistoria_campo_grupos', JSON.stringify(vistGrupoAberto)); }catch(e){} renderVistoriasCampo(); }
+function expandirTodasVistCampo(){ vistChavesReg.forEach(function(k){ vistGrupoAberto[k] = true; }); try{ localStorage.setItem('vistoria_campo_grupos', JSON.stringify(vistGrupoAberto)); }catch(e){} renderVistoriasCampo(); }
 function htmlVistoriasAgrupadasCampo(db, lista){
+  vistChavesReg = [];
   var porRota = {}, semRota = [];
   lista.forEach(function(v){ if(v.rotaId && (db.rotas||[]).some(function(r){return r.id===v.rotaId;})) (porRota[v.rotaId] = porRota[v.rotaId] || []).push(v); else semRota.push(v); });
   var rotas = (db.rotas||[]).filter(function(r){ return porRota[r.id]; });
-  var dataOrd = function(r){ var m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(r.data||''); return m ? m[3]+m[2]+m[1] : '00000000'; };
-  rotas.sort(function(a,b){ return dataOrd(b).localeCompare(dataOrd(a)); });
   var rotaHtml = function(r, nivel){
     var vs = porRota[r.id], feitas = vs.filter(function(v){return v.concluida;}).length;
     var corpo = '<button class="btn primary" style="width:100%;margin-bottom:10px" onclick="navegarRotaInteira(\''+r.id+'\')">🧭 Navegar por toda a rota</button>'+
       vs.map(function(v){ return vistCardHtmlCampo(v, db); }).join('');
-    return htmlGrupoVistCampo('rota-'+r.id, '🧭 '+r.nome, vs.length+' parada(s) · '+feitas+' feita(s)', corpo, nivel);
+    return htmlGrupoVistCampo('rota-'+r.id, '🧭 '+r.nome, (r.data?r.data+' · ':'')+vs.length+' parada(s) · '+feitas+' feita(s)', corpo, nivel);
   };
-  var h = '';
+  // grupo pelo nome ("Ciência 1", "Ciência 2" → pasta "Ciência"); só vira pasta com 2 ou mais
+  var porPrefixo = function(rs, chaveBase, nivel){
+    var ord = rs.slice().sort(compararRotasPorNomeCampo), grupos = {}, vistos = {}, h = '';
+    ord.forEach(function(r){ var k = rotaPrefixoCampo(r.nome).chave; (grupos[k] = grupos[k]||[]).push(r); });
+    ord.forEach(function(r){
+      var pf = rotaPrefixoCampo(r.nome), g = grupos[pf.chave];
+      if(g.length<2){ h += rotaHtml(r, nivel); return; }
+      if(vistos[pf.chave]) return; vistos[pf.chave] = true;
+      h += htmlGrupoVistCampo(chaveBase+'|'+pf.chave, '📁 '+pf.rotulo, g.length+' rota(s)', g.map(function(x){ return rotaHtml(x, nivel+1); }).join(''), nivel);
+    });
+    return h;
+  };
+  var h = '<div class="btnrow" style="gap:8px;margin-bottom:10px"><button class="btn" onclick="recolherTodasVistCampo()">⏫ Recolher tudo</button><button class="btn" onclick="expandirTodasVistCampo()">⏬ Expandir tudo</button></div>';
   var anuais = rotas.filter(rotaEhAnualCampo), avulsas = rotas.filter(function(r){ return !rotaEhAnualCampo(r); });
   if(anuais.length){
     var anos = {};
-    anuais.forEach(function(r){ var m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(r.data||''); var a = m?+m[3]:0, mes = m?+m[2]-1:0; (anos[a] = anos[a]||{}); (anos[a][mes] = anos[a][mes]||[]).push(r); });
+    anuais.forEach(function(r){ var mm = mesDemandaRotaCampo(db, r); var a = mm.ano, mes = mm.mes; (anos[a] = anos[a]||{}); (anos[a][mes] = anos[a][mes]||[]).push(r); });
     var corpoAnos = Object.keys(anos).sort(function(a,b){return b-a;}).map(function(a){
       var corpoMeses = Object.keys(anos[a]).sort(function(x,y){return y-x;}).map(function(m){
-        return htmlGrupoVistCampo('anuais-'+a+'-'+m, MESES_CAMPO[m]+' de '+a, anos[a][m].length+' rota(s)', anos[a][m].map(function(r){ return rotaHtml(r, 2); }).join(''), 1);
+        return htmlGrupoVistCampo('anuais-'+a+'-'+m, MESES_CAMPO[m]+' de '+a, anos[a][m].length+' rota(s)', porPrefixo(anos[a][m], 'anuais-'+a+'-'+m, 2), 1);
       }).join('');
       var qtd = 0; Object.keys(anos[a]).forEach(function(m){ qtd += anos[a][m].length; });
       return htmlGrupoVistCampo('anuais-'+a, '📆 '+(a>0?a:'Sem data'), qtd+' rota(s)', corpoMeses, 0);
     }).join('');
-    h += htmlGrupoVistCampo('anuais', '📆 Rotas anuais (por mês)', anuais.length+' rota(s)', corpoAnos, 0);
+    h += htmlGrupoVistCampo('anuais', '📆 Planejamento do ano (mês a mês)', anuais.length+' rota(s)', corpoAnos, 0);
   }
-  if(avulsas.length) h += htmlGrupoVistCampo('avulsas', '🧭 Rotas avulsas', avulsas.length+' rota(s)', avulsas.map(function(r){ return rotaHtml(r, 1); }).join(''), 0);
+  if(avulsas.length) h += htmlGrupoVistCampo('avulsas', '📥 Fila de trabalho (atrasos e pedidos)', avulsas.length+' rota(s)', porPrefixo(avulsas, 'avulsas', 1), 0);
   if(semRota.length) h += htmlGrupoVistCampo('semrota', '📋 Sem rota', semRota.length+' vistoria(s)', semRota.map(function(v){ return vistCardHtmlCampo(v, db); }).join(''), 0);
   return h;
 }
