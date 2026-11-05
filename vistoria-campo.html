@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v77</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v78</div>
   </header>
 
   <main>
@@ -1044,11 +1044,14 @@ function htmlVistoriasAgrupadasCampo(db, lista){
   lista.forEach(function(v){ if(v.rotaId && (db.rotas||[]).some(function(r){return r.id===v.rotaId;})) (porRota[v.rotaId] = porRota[v.rotaId] || []).push(v); else semRota.push(v); });
   var rotas = (db.rotas||[]).filter(function(r){ return porRota[r.id]; });
   var rotaHtml = function(r, nivel){
-    var vs = porRota[r.id], feitas = vs.filter(function(v){return v.concluida;}).length;
+    var vs = porRota[r.id];
+    // total real da rota (técnicas + ciências), mesmo quando o filtro de tipo esconde parte das paradas
+    var todasRota = (r.vistorias||[]).map(function(id){ return (db.vistorias||[]).find(function(x){return x.id===id;}); }).filter(Boolean);
+    var feitas = todasRota.filter(function(v){return v.concluida;}).length, ocultas = todasRota.length - vs.length;
     var corpo = '<div class="btnrow" style="gap:8px;margin-bottom:10px"><button class="btn primary" style="flex:1" onclick="navegarRotaInteira(\''+r.id+'\')">🧭 Navegar por toda a rota</button>'+
       '<button class="btn" style="width:auto;background:var(--red2);color:#fff" onclick="excluirRotaCampo(\''+r.id+'\')">🗑️ Excluir rota</button></div>'+
       vs.map(function(v){ return vistCardHtmlCampo(v, db); }).join('');
-    return htmlGrupoVistCampo('rota-'+r.id, '🧭 '+r.nome, (r.data?r.data+' · ':'')+vs.length+' parada(s) · '+feitas+' feita(s)', corpo, nivel);
+    return htmlGrupoVistCampo('rota-'+r.id, '🧭 '+r.nome, (r.data?r.data+' · ':'')+todasRota.length+' parada(s) · '+feitas+' feita(s)'+(ocultas>0 ? ' · ⚠️ '+vs.length+' aqui, '+ocultas+' em outro filtro ('+(vistFiltroProc==='ciencia'?'🔥 técnicas':'⚖️ Ciências')+')' : ''), corpo, nivel);
   };
   // grupo pelo nome ("Ciência 1", "Ciência 2" → pasta "Ciência"); só vira pasta com 2 ou mais
   var porPrefixo = function(rs, chaveBase, nivel){
