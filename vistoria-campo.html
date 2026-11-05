@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v74</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v77</div>
   </header>
 
   <main>
@@ -442,6 +442,7 @@
         <button class="btn" style="margin-bottom:12px" onclick="ceAddProjetoRow()">+ Adicionar protocolo</button>
 
         <div class="sec-title">Sistemas preventivos</div>
+        <button type="button" class="btn" style="margin-bottom:8px" onclick="cePrefillBasico()">⚡ Pré-preencher o básico (extintores, sinalização, iluminação, gás)</button>
         <div class="prev-chips" id="ee-preventivos"></div>
 
         <div class="sec-title">Blocos e pavimentos</div>
@@ -1650,6 +1651,19 @@ function concluirCartorioCampo(){
   renderExecucao();
 }
 
+function prefillBasicoCampo(){
+  var db = loadDB(), e = db.edificacoes.find(function(x){return x.id===execEdificacaoId;}); if(!e) return;
+  e.preventivos = e.preventivos || {}; e.blocos = e.blocos || [];
+  basicoAplicar(e.preventivos, e.blocos, e.grauRisco);
+  e.preenchimentoBasico = {em:new Date().toISOString()}; e.atualizadoEm = new Date().toISOString();
+  if(!e.aConferir) e.aConferir = {em:new Date().toISOString(), motivo:'alterada'};
+  saveDB(db); renderExecucao();
+}
+function prefillOkCampo(){
+  var db = loadDB(), e = db.edificacoes.find(function(x){return x.id===execEdificacaoId;}); if(!e) return;
+  delete e.preenchimentoBasico; e.atualizadoEm = new Date().toISOString();
+  saveDB(db); renderExecucao();
+}
 function ocupGravarVistoria(l){
   var v = garantirVistoria();
   v.ocupacoes = l.slice(); v.ocupacao = ocupTexto(l);
@@ -1922,6 +1936,8 @@ function renderExecucao(){
     return;
   }
 
+  html += htmlAvisoFaltando(e, 'prefillBasicoCampo', 'prefillOkCampo');
+
   // Ocupação do local — texto livre, vai pro relatório. Se esta vistoria ainda não tem nada
   // escrito, já vem preenchido com a última ocupação registrada pra essa edificação.
   var vOcup = db.vistorias.find(function(x){return x.id===execVistoriaId;});
@@ -2164,7 +2180,7 @@ function renderExecucao(){
         html += '<div class="item-card">'+
           '<div class="item-obj">'+it.obj+'</div>'+
           '<div class="item-c">'+it.c+'</div>'+
-          (it.id==='f6' ? ocupCardCheck(ocupListaVist(v,e)) : '')+
+          (it.id==='f6' ? ocupCardCheck(ocupListaVist(v,e)) : cadRefHtml(it.id,e))+
           '<div class="item-btns">'+
             '<button class="item-btn ok '+(st==='ok'?'on':'')+'" onclick="setItemStatus(\''+it.id+'\',\'ok\')">✅</button>'+
             '<button class="item-btn nao '+(st==='nao'?'on':'')+'" onclick="setItemStatus(\''+it.id+'\',\'nao\')">❌</button>'+
@@ -2622,7 +2638,7 @@ function renderEdifsCampo(){
         '<div style="flex:1;min-width:0">'+
           '<div style="font-weight:700;font-size:14px">'+(e.nome||'Sem nome')+tagConferir(e)+'</div>'+
           '<div style="font-size:11px;color:var(--sub);order:9">🕑 '+textoUltimaVistoria(db, e.id, false)+'</div>'+
-          '<div style="font-size:12px;color:var(--sub)">'+(e.re||'Sem RE')+(e.endereco?' · '+e.endereco:'')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(semGPS?' · ⚠️ sem localização':'')+'</div>'+ocupLinhaCard(ocupLista(e))+
+          '<div style="font-size:12px;color:var(--sub)">'+(e.re||'Sem RE')+(e.endereco?' · '+e.endereco:'')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(semGPS?' · ⚠️ sem localização':'')+'</div>'+ocupLinhaCard(ocupLista(e))+tagFaltando(e)+
         '</div>'+
       '</div>'+
       '<button class="btn primary" style="width:100%;margin-top:10px" onclick="event.stopPropagation();abrirExecucao(\''+e.id+'\')">✅ Vistoriar</button>'+
@@ -2771,6 +2787,69 @@ function ocupRefHtml(lista){
 function ocupCardCheck(lista){
   return '<div id="ocup-ref" style="font-size:12px;background:rgba(10,132,255,.12);border:1px solid rgba(10,132,255,.4);border-radius:8px;padding:8px 10px;margin-bottom:10px">'+ocupRefHtml(lista)+'</div>';
 }
+function cadRefHtml(itemId, e){
+  // Dados cadastrados da edificação, mostrados dentro do card da pergunta para conferir na hora.
+  if(!e) return '';
+  var partes = [];
+  var ender = (e.endereco||'') + (e.bairro ? ' — '+e.bairro : '') + (e.municipio ? ', '+e.municipio : '');
+  var altura = e.altura ? e.altura+' m' : 'não informada', area = e.area ? e.area+' m²' : 'não informada';
+  var pavs;
+  if(e.blocos && e.blocos.length){
+    pavs = e.blocos.map(function(b,i){ var n=(b.pavimentos||[]).length; return ocupEsc(b.nome||('Bloco '+(i+1)))+': '+n+' pavimento(s)'; }).join(' · ');
+  } else if(e.pavimentos && e.pavimentos.length){ pavs = e.pavimentos.length+' pavimento(s)'; }
+  else pavs = 'não informado';
+  if(itemId==='h7' || itemId==='f4') partes.push('📍 <b>Endereço cadastrado:</b> '+(ender.trim() ? ocupEsc(ender) : 'não informado'));
+  if(itemId==='h8' || itemId==='f5') partes.push('📏 <b>Altura cadastrada:</b> '+ocupEsc(altura));
+  if(itemId==='h9' || itemId==='f5') partes.push('📐 <b>Área cadastrada:</b> '+ocupEsc(area));
+  if(itemId==='h10' || itemId==='f5') partes.push('🏢 <b>Pavimentos cadastrados:</b> '+pavs);
+  if(!partes.length) return '';
+  return '<div style="font-size:12px;background:rgba(10,132,255,.12);border:1px solid rgba(10,132,255,.4);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.6">'+partes.join('<br>')+'</div>';
+}
+var BASICO_SIST = ['ext','ilu','sal','gas'];
+function dadosFaltando(e){
+  if(!e || e.competencia==='fora') return [];
+  var f = [];
+  var temPav = (e.blocos||[]).some(function(b){ return (b.pavimentos||[]).length; }) || (e.pavimentos||[]).length;
+  if(!temPav) f.push('blocos e andares');
+  var prevAtivo = Object.keys(e.preventivos||{}).some(function(k){ return e.preventivos[k] && e.preventivos[k].ativo; }) ||
+    (e.blocos||[]).some(function(b){ return (b.pavimentos||[]).some(function(p){ return Object.keys(p.sist||{}).some(function(k){ return p.sist[k] && p.sist[k].ativo; }); }); });
+  if(!prevAtivo) f.push('sistemas preventivos');
+  return f;
+}
+function basicoAplicar(prev, blocos, risco){
+  // Pré-preenchimento do básico: extintores, sinalização de abandono, iluminação de emergência e gás.
+  // Só acrescenta o que falta (não desmarca nem apaga nada); quantidade zero em cada, só com o sistema marcado.
+  var maior = Object.keys(prev).reduce(function(m,k){ return prev[k] && prev[k].ativo && prev[k].ordem ? Math.max(m, prev[k].ordem) : m; }, 0);
+  BASICO_SIST.forEach(function(sid){
+    if(!prev[sid]) prev[sid] = {ativo:false, qty:0, info:''};
+    if(!prev[sid].ativo){ prev[sid].ativo = true; prev[sid].ordem = ++maior; if(!prev[sid].qty) prev[sid].qty = 0; }
+  });
+  if(!blocos.length) blocos.push({nome:'Bloco 1', grauRisco:risco||null, nPavimentos:0, terreoCfg:'sim', pavimentos:[]});
+  blocos.forEach(function(b){
+    if(!(b.pavimentos||[]).length) b.pavimentos = [{label:'Pavimento único', sist:{}}];
+    b.pavimentos.forEach(function(p){
+      p.sist = p.sist || {};
+      var tem = Object.keys(p.sist).some(function(k){ return p.sist[k] && p.sist[k].ativo; });
+      if(!tem) BASICO_SIST.forEach(function(sid){ p.sist[sid] = {ativo:true, qty:0, info:''}; });
+    });
+  });
+}
+function htmlAvisoFaltando(e, fnPre, fnOk){
+  var f = dadosFaltando(e), h = '';
+  if(f.length){
+    h += '<div style="background:rgba(255,159,10,.12);border:1px solid rgba(255,159,10,.5);border-radius:10px;padding:10px 12px;margin:10px 0;font-size:12px">⚠️ <b>Falta cadastrar nesta edificação:</b> '+f.join(' e ')+'.'+
+      '<div style="margin-top:8px"><button type="button" class="btn" style="width:auto;padding:6px 12px" onclick="'+fnPre+'()">⚡ Pré-preencher o básico</button>'+
+      '<div style="color:var(--sub);margin-top:4px">Marca extintores, sinalização de abandono, iluminação de emergência e instalação de gás, com quantidade zero, em um pavimento único. Só o sistema fica marcado; informe as quantidades reais quando souber.</div></div></div>';
+  } else if(e && e.preenchimentoBasico){
+    h += '<div style="background:rgba(10,132,255,.12);border:1px solid rgba(10,132,255,.4);border-radius:10px;padding:10px 12px;margin:10px 0;font-size:12px">🧩 <b>Pré-preenchido automaticamente</b> em '+new Date(e.preenchimentoBasico.em).toLocaleDateString('pt-BR')+': confira os sistemas e as quantidades.'+
+      '<div style="margin-top:8px"><button type="button" class="btn" style="width:auto;padding:6px 12px" onclick="'+fnOk+'()">✔ Conferi, está certo</button></div></div>';
+  }
+  return h;
+}
+function tagFaltando(e){
+  var f = dadosFaltando(e);
+  return f.length ? '<div class="elist-s" style="color:#FF9F0A;font-weight:700;margin-top:2px">⚠️ Falta: '+f.join(', ')+'</div>' : '';
+}
 function ocupLinhaCard(lista){
   return lista.length ? '<div style="font-size:12px;color:var(--sub);margin-top:2px">🏷️ '+lista.map(ocupEsc).join(' · ')+'</div>' : '';
 }
@@ -2813,6 +2892,11 @@ function htmlBannerConferir(e, fn){
 var edifNovaCampoId = null;
 var ceBlocos = [];
 var ceOcup = [];
+function cePrefillBasico(){
+  var r = document.getElementById('ee-risco').value || null;
+  basicoAplicar(cePreventivos, ceBlocos, r);
+  ceRenderPreventivos(); ceRenderBlocos();
+}
 function ceOcupRender(){ var b=document.getElementById('ee-ocup-box'); if(b) b.innerHTML = ocupEditorHtml('ee-ocup', ceOcup, 'ceOcupAdd', 'ceOcupDel'); }
 function ceOcupAdd(){ var i=document.getElementById('ee-ocup-in'); ocupAdd(ceOcup, i.value); ceOcupRender(); document.getElementById('ee-ocup-in').focus(); }
 function ceOcupDel(n){ ceOcup.splice(n,1); ceOcupRender(); }
