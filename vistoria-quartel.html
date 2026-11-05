@@ -172,7 +172,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v110</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v111</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -2067,7 +2067,9 @@ var NTF_SINONIMOS = {
   area:['area','area construida','area total','area m2','area solicitacao'],
   altura:['altura','altura m','altura edificacao'],
   tel:['telefone','celular','celular responsavel','contato','telefone responsavel'],
-  ocupacao:['ocupacao','ocupacoes','ocupacao uso','tipo de ocupacao','ocupacao principal','descricao da ocupacao','uso','uso ocupacao']
+  ocupacao:['ocupacao','ocupacoes','ocupacao uso','tipo de ocupacao','ocupacao principal','descricao da ocupacao','uso','uso ocupacao'],
+  ocupDivisao:['ocupacao divisao','divisao','divisao ocupacao','divisao de ocupacao'],
+  ocupGrupo:['ocupacao grupo','grupo ocupacao','grupo de ocupacao','grupo']
 };
 function ntfCampo(row, chave){
   var mapa = {}; Object.keys(row).forEach(function(k){ mapa[ntfNorm(k)] = row[k]; });
@@ -2103,7 +2105,8 @@ function ntfExtrair(row){
     nBlocos: ntfNum(ntfCampo(row,'blocos')), nPav: ntfNum(ntfCampo(row,'pavs')),
     area:String(ntfCampo(row,'area')||'').trim(), altura:String(ntfCampo(row,'altura')||'').trim(),
     tel:String(ntfCampo(row,'tel')||'').trim(),
-    ocupacoes: ocupDividir(ntfCampo(row,'ocupacao'))
+    // BI traz "Ocupação grupo" (ex.: Local de Reunião de Público) e "Ocupação divisão" (ex.: F-8 — Local para refeição). Usa a divisão (tem o código); se não houver, o grupo.
+    ocupacoes: ocupDividir(ntfCampo(row,'ocupacao') || ntfCampo(row,'ocupDivisao') || ntfCampo(row,'ocupGrupo')).filter(function(o){ return !/^sem informa/i.test(o); })
   };
 }
 // nPav = total de pavimentos incluindo o térreo (ex: 3 → Térreo, 1º, 2º); se vier mais de um bloco,
