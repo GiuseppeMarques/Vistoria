@@ -172,7 +172,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v109</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v110</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -2120,9 +2120,19 @@ function ntfGerarBlocos(nBlocos, nPav, risco){
 function ntfDistM(a,b,c,d){ return haversineKm(a,b,c,d)*1000; }
 function ntfPlanejar(db, linhas){
   var plano = {criar:[], atualizar:[], semMudanca:0, semId:0};
+  // O arquivo do BI vem com uma linha por bloco: junta as linhas da mesma edificação (RE) antes de planejar,
+  // somando as ocupações de todos os blocos e completando campos vazios com os das outras linhas.
+  var mapaD = {}, ordemD = [];
   linhas.forEach(function(row){
     var d = ntfExtrair(row);
     if(!d.re && !d.nome){ plano.semId++; return; }
+    var k = d.re ? d.re.toUpperCase() : 'n|'+ntfNorm(d.nome)+'|'+ntfNorm(d.municipio), m = mapaD[k];
+    if(!m){ mapaD[k] = d; ordemD.push(k); return; }
+    d.ocupacoes.forEach(function(o){ if(!m.ocupacoes.some(function(x){return x.toLowerCase()===o.toLowerCase();})) m.ocupacoes.push(o); });
+    Object.keys(d).forEach(function(c){ if(c!=='ocupacoes' && (m[c]==null || m[c]==='') && d[c]!=null && d[c]!=='') m[c] = d[c]; });
+  });
+  ordemD.forEach(function(k){
+    var d = mapaD[k];
     var e = d.re ? (db.edificacoes||[]).find(function(x){return x.re && x.re.trim().toUpperCase()===d.re.toUpperCase();}) : null;
     if(!e && !d.re) e = (db.edificacoes||[]).find(function(x){ return ntfNorm(x.nome)===ntfNorm(d.nome) && (!d.municipio || !x.municipio || ntfNorm(x.municipio)===ntfNorm(d.municipio)); });
     if(!e){ plano.criar.push(d); return; }
@@ -2192,7 +2202,7 @@ function ntfMostrarPrevia(){
   var nomeCampo = function(c){ return ROTULOS_CAMPOS[c] || (c==='tel'?'telefone':c); };
   var h = '<div style="font-size:13px;margin-bottom:8px"><b>'+ntfLinhas.length+'</b> linha(s) lida(s)'+(plano.semId?' · '+plano.semId+' sem RE nem nome (ignoradas)':'')+'</div>';
   if(plano.criar.length) h += '<div style="font-size:13px">🆕 <b>'+plano.criar.length+'</b> edificação(ões) nova(s)</div><div class="sub" style="margin:2px 0 8px 14px;max-height:110px;overflow-y:auto">'+
-    plano.criar.slice(0,30).map(function(d){ return (d.re||'sem RE')+' — '+(d.nome||'sem nome')+(d.endereco?' · '+d.endereco:'')+(d.lat!=null?' · 📍':'')+(d.grauRisco?' · risco '+d.grauRisco:'')+((d.nBlocos||d.nPav)?' · '+(d.nBlocos||1)+' bloco(s)/'+(d.nPav||'?')+' pav.':''); }).join('<br>')+(plano.criar.length>30?'<br>… e mais '+(plano.criar.length-30):'')+'</div>';
+    plano.criar.slice(0,30).map(function(d){ return (d.re||'sem RE')+' — '+(d.nome||'sem nome')+(d.endereco?' · '+d.endereco:'')+(d.lat!=null?' · 📍':'')+(d.grauRisco?' · risco '+d.grauRisco:'')+(d.ocupacoes&&d.ocupacoes.length?' · 🏷️ '+d.ocupacoes.join('; '):'')+((d.nBlocos||d.nPav)?' · '+(d.nBlocos||1)+' bloco(s)/'+(d.nPav||'?')+' pav.':''); }).join('<br>')+(plano.criar.length>30?'<br>… e mais '+(plano.criar.length-30):'')+'</div>';
   var comPreench = plano.atualizar.filter(function(a){return a.preencher.length;});
   if(comPreench.length) h += '<div style="font-size:13px">✅ <b>'+comPreench.length+'</b> existente(s) com campo vazio preenchido</div><div class="sub" style="margin:2px 0 8px 14px;max-height:110px;overflow-y:auto">'+
     comPreench.slice(0,30).map(function(a){ var r=[]; a.preencher.forEach(function(c){ var t=nomeCampo(c); if(r.indexOf(t)<0) r.push(t); }); return (a.e.re||'sem RE')+' — '+(a.e.nome||'')+': '+r.join(', '); }).join('<br>')+'</div>';
