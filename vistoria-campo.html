@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v71</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v72</div>
   </header>
 
   <main>
@@ -418,6 +418,8 @@
         </label>
         <label class="lbl">Nome da edificação</label>
         <input type="text" id="ee-nome" style="margin-bottom:12px">
+        <label class="lbl">Ocupação (pode ter mais de uma)</label>
+        <div id="ee-ocup-box"></div>
         <label class="lbl">Endereço</label>
         <input type="text" id="ee-endereco" style="margin-bottom:12px" placeholder="Rua, número">
         <div class="frow">
@@ -992,6 +994,7 @@ function vistCardHtmlCampo(v, db){
         '<div class="vsub">'+(e?e.re:'')+' · '+(v.tipo ? rotuloVistoria(v) : 'Sem tipo escolhido')+(v.motivo?' · '+v.motivo:'')+rotaTag+(e&&e.endereco?'<br>'+e.endereco+(e.bairro?' — '+e.bairro:''):'')+'</div></div>'+
         '<span class="vist-status '+statusCls+'">'+statusTxt+'</span>'+badgeEsci(v)+
       '</div>'+
+      ocupLinhaCard(ocupListaVist(v,e))+
       '<div class="vsub">'+(v.concluida ? 'Concluída em '+new Date(v.concluidaEm).toLocaleString('pt-BR') : 'Toque pra continuar')+'</div>'+
       (temLocal ? '<button class="btn" style="width:100%;margin-top:8px" onclick="event.stopPropagation();window.open(\'https://www.google.com/maps/dir/?api=1&destination='+e.lat+','+e.lng+'\', \'_blank\')">🧭 Navegar até aqui</button>' : '')+
       '<button class="btn stop" style="width:100%;margin-top:8px" onclick="event.stopPropagation();excluirVistoriaCampo(\''+v.id+'\')">Excluir</button>'+
@@ -1647,15 +1650,27 @@ function concluirCartorioCampo(){
   renderExecucao();
 }
 
-function setOcupacaoVistoria(val){
+function ocupGravarVistoria(l){
   var v = garantirVistoria();
-  v.ocupacao = val;
+  v.ocupacoes = l.slice(); v.ocupacao = ocupTexto(l);
   salvarVistoria(v);
-  // lembra na edificação — a próxima vistoria desse local já abre com essa ocupação preenchida
+  // lembra na edificação: a próxima vistoria desse local já abre com essas ocupações
   var db = loadDB();
   var e = db.edificacoes.find(function(x){return x.id===execEdificacaoId;});
-  if(e){ e.ocupacao = val; saveDB(db); }
+  if(e){ e.ocupacoes = l.slice(); e.ocupacao = ocupTexto(l); if(e.origemDados) delete e.origemDados.ocupacoes; saveDB(db); }
+  var ch = document.getElementById('vo-ocup-chips'); if(ch) ch.innerHTML = ocupChipsHtml(l, 'ocupDelVistoria');
 }
+function ocupAtualVistoria(){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===execVistoriaId;});
+  var e = db.edificacoes.find(function(x){return x.id===execEdificacaoId;});
+  return ocupListaVist(v, e);
+}
+function ocupAddVistoria(){
+  var i = document.getElementById('vo-ocup-in'), l = ocupAtualVistoria();
+  ocupAdd(l, i.value); i.value = ''; ocupGravarVistoria(l); i.focus();
+}
+function ocupDelVistoria(n){ var l = ocupAtualVistoria(); l.splice(n,1); ocupGravarVistoria(l); }
 
 function escolherTipo(tipo){
   execTipo = tipo;
@@ -1909,9 +1924,7 @@ function renderExecucao(){
   // Ocupação do local — texto livre, vai pro relatório. Se esta vistoria ainda não tem nada
   // escrito, já vem preenchido com a última ocupação registrada pra essa edificação.
   var vOcup = db.vistorias.find(function(x){return x.id===execVistoriaId;});
-  var ocupacaoAtual = (vOcup && vOcup.ocupacao!=null) ? vOcup.ocupacao : (e.ocupacao||'');
-  html += '<label class="lbl">Ocupação do local</label>'+
-    '<input type="text" value="'+ocupacaoAtual.replace(/"/g,'&quot;')+'" placeholder="Ex: Comércio de roupas (F-6), loja térrea + depósito" style="margin-bottom:14px" onchange="setOcupacaoVistoria(this.value)">';
+  html += '<label class="lbl">Ocupação do local (confira; pode ter mais de uma)</label>'+ocupEditorHtml('vo-ocup', ocupListaVist(vOcup, e), 'ocupAddVistoria', 'ocupDelVistoria');
 
   // Sistemas preventivos ativos — chips controlam quais grupos do checklist aparecem
   html += '<div style="font-size:12px;color:var(--sub);margin-bottom:6px">Sistemas preventivos ativos nesta edificação:</div>';
@@ -2607,7 +2620,7 @@ function renderEdifsCampo(){
         '<div style="flex:1;min-width:0">'+
           '<div style="font-weight:700;font-size:14px">'+(e.nome||'Sem nome')+tagConferir(e)+'</div>'+
           '<div style="font-size:11px;color:var(--sub);order:9">🕑 '+textoUltimaVistoria(db, e.id, false)+'</div>'+
-          '<div style="font-size:12px;color:var(--sub)">'+(e.re||'Sem RE')+(e.endereco?' · '+e.endereco:'')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(semGPS?' · ⚠️ sem localização':'')+'</div>'+
+          '<div style="font-size:12px;color:var(--sub)">'+(e.re||'Sem RE')+(e.endereco?' · '+e.endereco:'')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(semGPS?' · ⚠️ sem localização':'')+'</div>'+ocupLinhaCard(ocupLista(e))+
         '</div>'+
       '</div>'+
       '<button class="btn primary" style="width:100%;margin-top:10px" onclick="event.stopPropagation();abrirExecucao(\''+e.id+'\')">✅ Vistoriar</button>'+
@@ -2708,13 +2721,44 @@ function renderMapFiltroGeoBanner(){
 // estava vazio e fica em e.origemDados[campo]='importado' (segunda opção); ao editar o campo à
 // mão a marca some. e.aConferir marca edificação nova/alterada no Campo, pra revisar no Quartel.
 // ════════════════════════════════════════
-var CAMPOS_RASTREADOS = ['nome','endereco','bairro','municipio','grauRisco','area','altura','lat','lng','blocos'];
-var ROTULOS_CAMPOS = {nome:'nome', endereco:'endereço', bairro:'bairro', municipio:'município', grauRisco:'risco', area:'área', altura:'altura', lat:'localização', lng:'localização', blocos:'blocos/andares'};
+
+// ── Ocupações (várias por edificação): e.ocupacoes = [texto,...]; e.ocupacao = texto junto (compatibilidade)
+function ocupLista(x){ if(!x) return []; if(Array.isArray(x.ocupacoes)) return x.ocupacoes.filter(Boolean); var t=String(x.ocupacao||'').trim(); return t?[t]:[]; }
+function ocupListaVist(v, e){
+  if(v && Array.isArray(v.ocupacoes)) return v.ocupacoes.filter(Boolean);
+  if(v && v.ocupacao!=null){ var t=String(v.ocupacao).trim(); return t?[t]:[]; }
+  return ocupLista(e);
+}
+function ocupDividir(t){ return String(t==null?'':t).split(/[;|\n]+/).map(function(s){return s.trim();}).filter(Boolean); }
+function ocupAdd(lista, txt){
+  ocupDividir(txt).forEach(function(o){ if(!lista.some(function(x){return x.toLowerCase()===o.toLowerCase();})) lista.push(o); });
+  return lista;
+}
+function ocupTexto(lista){ return (lista||[]).join('; '); }
+function ocupEsc(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+function ocupChipsHtml(lista, fnDel){
+  if(!lista.length) return '<span style="font-size:12px;color:var(--sub)">Nenhuma ocupação informada.</span>';
+  return lista.map(function(o,i){
+    return '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(10,132,255,.14);border:1px solid rgba(10,132,255,.45);border-radius:14px;padding:4px 6px 4px 10px;margin:0 6px 6px 0;font-size:13px">'+ocupEsc(o)+
+      '<b onclick="'+fnDel+'('+i+')" style="cursor:pointer;padding:0 6px;font-size:16px;line-height:1">×</b></span>';
+  }).join('');
+}
+function ocupEditorHtml(idBase, lista, fnAdd, fnDel){
+  return '<div id="'+idBase+'-chips" style="margin-bottom:6px">'+ocupChipsHtml(lista, fnDel)+'</div>'+
+    '<div style="display:flex;gap:6px;margin-bottom:14px"><input type="text" id="'+idBase+'-in" placeholder="Ex: Comércio varejista, Residencial multifamiliar" style="flex:1;min-width:0" onkeydown="if(event.key===\'Enter\'){event.preventDefault();'+fnAdd+'()}">'+
+    '<button type="button" class="btn" style="width:auto;padding:0 14px" onclick="'+fnAdd+'()">+ Adicionar</button></div>';
+}
+function ocupLinhaCard(lista){
+  return lista.length ? '<div style="font-size:12px;color:var(--sub);margin-top:2px">🏷️ '+lista.map(ocupEsc).join(' · ')+'</div>' : '';
+}
+var CAMPOS_RASTREADOS = ['nome','endereco','bairro','municipio','grauRisco','area','altura','lat','lng','blocos','ocupacoes'];
+var ROTULOS_CAMPOS = {nome:'nome', endereco:'endereço', bairro:'bairro', municipio:'município', grauRisco:'risco', area:'área', altura:'altura', lat:'localização', lng:'localização', blocos:'blocos/andares', ocupacoes:'ocupação'};
 function normalizarValorOrigem(v){ return JSON.stringify(v==null ? '' : v); }
 function camposAlteradosMao(antes, depois){
   var lista = [];
   CAMPOS_RASTREADOS.forEach(function(c){
-    if(normalizarValorOrigem(antes ? antes[c] : undefined) !== normalizarValorOrigem(depois[c])) lista.push(c);
+    var va = c==='ocupacoes' ? ocupLista(antes) : (antes ? antes[c] : undefined), vd = c==='ocupacoes' ? ocupLista(depois) : depois[c];
+    if(normalizarValorOrigem(va) !== normalizarValorOrigem(vd)) lista.push(c);
   });
   return lista;
 }
@@ -2745,6 +2789,10 @@ function htmlBannerConferir(e, fn){
 
 var edifNovaCampoId = null;
 var ceBlocos = [];
+var ceOcup = [];
+function ceOcupRender(){ var b=document.getElementById('ee-ocup-box'); if(b) b.innerHTML = ocupEditorHtml('ee-ocup', ceOcup, 'ceOcupAdd', 'ceOcupDel'); }
+function ceOcupAdd(){ var i=document.getElementById('ee-ocup-in'); ocupAdd(ceOcup, i.value); ceOcupRender(); document.getElementById('ee-ocup-in').focus(); }
+function ceOcupDel(n){ ceOcup.splice(n,1); ceOcupRender(); }
 function ceAddBloco(){
   ceBlocos.push({nome:'Bloco '+String.fromCharCode(65+ceBlocos.length), grauRisco:null, nPavimentos:0, terreoCfg:'sim', pavimentos:[]});
   ceRenderBlocos();
@@ -2843,6 +2891,7 @@ function abrirEdifEditCampo(id){
   document.getElementById('ee-risco').value = e.grauRisco||'';
   document.getElementById('ee-desocupada').checked = !!e.desocupada;
   document.getElementById('ee-nome').value = e.nome||'';
+  ceOcup = ocupLista(e); ceOcupRender();
   document.getElementById('ee-endereco').value = e.endereco||'';
   document.getElementById('ee-bairro').value = e.bairro||'';
   document.getElementById('ee-municipio').value = e.municipio||'';
@@ -3046,6 +3095,8 @@ function salvarEdifEditCampo(){
   e.grauRisco = document.getElementById('ee-risco').value || null;
   e.desocupada = document.getElementById('ee-desocupada').checked;
   e.nome = document.getElementById('ee-nome').value.trim();
+  var _oi = document.getElementById('ee-ocup-in'); if(_oi && _oi.value.trim()) ocupAdd(ceOcup, _oi.value);
+  e.ocupacoes = ceOcup.slice(); e.ocupacao = ocupTexto(ceOcup);
   e.endereco = document.getElementById('ee-endereco').value.trim();
   e.bairro = document.getElementById('ee-bairro').value.trim();
   e.municipio = document.getElementById('ee-municipio').value.trim();
@@ -4449,6 +4500,7 @@ function abrirCartaoEdificacao(e){
     fotoCartaoHtml(db, e)+
     '<div class="hs-banner '+hs.classe+'" style="margin:12px 0">'+hs.icone+' Habite-se: '+hs.texto+(hs.protocolo?' · '+hs.protocolo:'')+'</div>'+
     '<div style="margin:14px 0">'+
+      (ocupLista(e).length ? '<div class="ecard-row"><span class="l">Ocupação</span><span style="text-align:right">'+ocupLista(e).map(ocupEsc).join('<br>')+'</span></div>' : '')+
       '<div class="ecard-row"><span class="l">Funcionamento</span><span>'+venc+'</span></div>'+
       '<div class="ecard-row"><span class="l">Última vistoria</span><span style="text-align:right">'+textoUltimaVistoria(db, e.id, true)+'</span></div>'+
       '<div class="ecard-row" style="border-bottom:none"><span class="l">Endereço</span><span style="text-align:right">'+(e.endereco||'—')+(e.bairro?' — '+e.bairro:'')+'</span></div>'+
@@ -4494,6 +4546,7 @@ function abrirDetalhesCompletos(id){
   }
 
   html += '<div style="margin:14px 0">';
+  linha('Ocupação', ocupLista(e).map(ocupEsc).join('<br>'));
   linha('Endereço', e.endereco);
   linha('Bairro', e.bairro);
   linha('Município', e.municipio);

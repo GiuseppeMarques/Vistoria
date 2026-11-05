@@ -172,7 +172,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v108</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v109</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -784,6 +784,8 @@
     </label>
     <label class="lbl">Nome da edificação</label>
     <input type="text" id="ef-nome" style="margin-bottom:12px">
+    <label class="lbl">Ocupação (pode ter mais de uma)</label>
+    <div id="ef-ocup-box"></div>
     <label class="lbl">Endereço</label>
     <input type="text" id="ef-endereco" style="margin-bottom:12px" placeholder="Rua, número">
     <div class="frow">
@@ -1362,6 +1364,10 @@ var efInquilinos = [];
 var efProjetos = [];
 var efPreventivos = {};
 var efBlocos = [];
+var efOcup = [];
+function efOcupRender(){ var b=document.getElementById('ef-ocup-box'); if(b) b.innerHTML = ocupEditorHtml('ef-ocup', efOcup, 'efOcupAdd', 'efOcupDel'); }
+function efOcupAdd(){ var i=document.getElementById('ef-ocup-in'); ocupAdd(efOcup, i.value); efOcupRender(); document.getElementById('ef-ocup-in').focus(); }
+function efOcupDel(n){ efOcup.splice(n,1); efOcupRender(); }
 
 function corRisco(r){ return {1:'#34C759',2:'#A8D93A',3:'#FF9F0A',4:'#FF5E3A',5:'#C0272D'}[r] || '#8E8E93'; }
 
@@ -1544,7 +1550,7 @@ function renderEdificacoes(){
         '<div style="flex:1;min-width:0">'+
           '<div class="elist-t">'+(e.nome||'Sem nome')+tagConferir(e)+origemTag+foraCompTag+desocupadaTag+'</div>'+
           '<div class="elist-s">'+(e.competencia==='fora' ? (e.competenciaMotivo||'Sem motivo informado') : (e.re||'Sem RE')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(venc?' · vence '+venc:'')+' · '+hsInfo[0]+' '+hsInfo[1])+'</div>'+
-          ultTxt+
+          ultTxt+ocupLinhaCard(ocupLista(e))+
         '</div>'+
       '</div>'+
       (telWaEdif ? '<button class="btn" style="width:100%;margin-top:8px;background:#25D366;color:#fff" onclick="event.stopPropagation();enviarMensagemGenericaEdificacao(\''+e.id+'\')">💬 Mensagem para o responsável</button>' : '')+
@@ -1972,13 +1978,44 @@ function abrirImportarESCI(){
 // estava vazio e fica em e.origemDados[campo]='importado' (segunda opção); ao editar o campo à
 // mão a marca some. e.aConferir marca edificação nova/alterada no Campo, pra revisar no Quartel.
 // ════════════════════════════════════════
-var CAMPOS_RASTREADOS = ['nome','endereco','bairro','municipio','grauRisco','area','altura','lat','lng','blocos'];
-var ROTULOS_CAMPOS = {nome:'nome', endereco:'endereço', bairro:'bairro', municipio:'município', grauRisco:'risco', area:'área', altura:'altura', lat:'localização', lng:'localização', blocos:'blocos/andares'};
+
+// ── Ocupações (várias por edificação): e.ocupacoes = [texto,...]; e.ocupacao = texto junto (compatibilidade)
+function ocupLista(x){ if(!x) return []; if(Array.isArray(x.ocupacoes)) return x.ocupacoes.filter(Boolean); var t=String(x.ocupacao||'').trim(); return t?[t]:[]; }
+function ocupListaVist(v, e){
+  if(v && Array.isArray(v.ocupacoes)) return v.ocupacoes.filter(Boolean);
+  if(v && v.ocupacao!=null){ var t=String(v.ocupacao).trim(); return t?[t]:[]; }
+  return ocupLista(e);
+}
+function ocupDividir(t){ return String(t==null?'':t).split(/[;|\n]+/).map(function(s){return s.trim();}).filter(Boolean); }
+function ocupAdd(lista, txt){
+  ocupDividir(txt).forEach(function(o){ if(!lista.some(function(x){return x.toLowerCase()===o.toLowerCase();})) lista.push(o); });
+  return lista;
+}
+function ocupTexto(lista){ return (lista||[]).join('; '); }
+function ocupEsc(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+function ocupChipsHtml(lista, fnDel){
+  if(!lista.length) return '<span style="font-size:12px;color:var(--sub)">Nenhuma ocupação informada.</span>';
+  return lista.map(function(o,i){
+    return '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(10,132,255,.14);border:1px solid rgba(10,132,255,.45);border-radius:14px;padding:4px 6px 4px 10px;margin:0 6px 6px 0;font-size:13px">'+ocupEsc(o)+
+      '<b onclick="'+fnDel+'('+i+')" style="cursor:pointer;padding:0 6px;font-size:16px;line-height:1">×</b></span>';
+  }).join('');
+}
+function ocupEditorHtml(idBase, lista, fnAdd, fnDel){
+  return '<div id="'+idBase+'-chips" style="margin-bottom:6px">'+ocupChipsHtml(lista, fnDel)+'</div>'+
+    '<div style="display:flex;gap:6px;margin-bottom:14px"><input type="text" id="'+idBase+'-in" placeholder="Ex: Comércio varejista, Residencial multifamiliar" style="flex:1;min-width:0" onkeydown="if(event.key===\'Enter\'){event.preventDefault();'+fnAdd+'()}">'+
+    '<button type="button" class="btn" style="width:auto;padding:0 14px" onclick="'+fnAdd+'()">+ Adicionar</button></div>';
+}
+function ocupLinhaCard(lista){
+  return lista.length ? '<div style="font-size:12px;color:var(--sub);margin-top:2px">🏷️ '+lista.map(ocupEsc).join(' · ')+'</div>' : '';
+}
+var CAMPOS_RASTREADOS = ['nome','endereco','bairro','municipio','grauRisco','area','altura','lat','lng','blocos','ocupacoes'];
+var ROTULOS_CAMPOS = {nome:'nome', endereco:'endereço', bairro:'bairro', municipio:'município', grauRisco:'risco', area:'área', altura:'altura', lat:'localização', lng:'localização', blocos:'blocos/andares', ocupacoes:'ocupação'};
 function normalizarValorOrigem(v){ return JSON.stringify(v==null ? '' : v); }
 function camposAlteradosMao(antes, depois){
   var lista = [];
   CAMPOS_RASTREADOS.forEach(function(c){
-    if(normalizarValorOrigem(antes ? antes[c] : undefined) !== normalizarValorOrigem(depois[c])) lista.push(c);
+    var va = c==='ocupacoes' ? ocupLista(antes) : (antes ? antes[c] : undefined), vd = c==='ocupacoes' ? ocupLista(depois) : depois[c];
+    if(normalizarValorOrigem(va) !== normalizarValorOrigem(vd)) lista.push(c);
   });
   return lista;
 }
@@ -2029,7 +2066,8 @@ var NTF_SINONIMOS = {
   pavs:['numero de pavimentos','n de pavimentos','n pavimentos','quantidade de pavimentos','pavimentos','numero de andares','n de andares','andares','qtd andares','n andares'],
   area:['area','area construida','area total','area m2','area solicitacao'],
   altura:['altura','altura m','altura edificacao'],
-  tel:['telefone','celular','celular responsavel','contato','telefone responsavel']
+  tel:['telefone','celular','celular responsavel','contato','telefone responsavel'],
+  ocupacao:['ocupacao','ocupacoes','ocupacao uso','tipo de ocupacao','ocupacao principal','descricao da ocupacao','uso','uso ocupacao']
 };
 function ntfCampo(row, chave){
   var mapa = {}; Object.keys(row).forEach(function(k){ mapa[ntfNorm(k)] = row[k]; });
@@ -2064,7 +2102,8 @@ function ntfExtrair(row){
     grauRisco: (riscoNum>=1 && riscoNum<=5) ? String(Math.round(riscoNum)) : null,
     nBlocos: ntfNum(ntfCampo(row,'blocos')), nPav: ntfNum(ntfCampo(row,'pavs')),
     area:String(ntfCampo(row,'area')||'').trim(), altura:String(ntfCampo(row,'altura')||'').trim(),
-    tel:String(ntfCampo(row,'tel')||'').trim()
+    tel:String(ntfCampo(row,'tel')||'').trim(),
+    ocupacoes: ocupDividir(ntfCampo(row,'ocupacao'))
   };
 }
 // nPav = total de pavimentos incluindo o térreo (ex: 3 → Térreo, 1º, 2º); se vier mais de um bloco,
@@ -2109,6 +2148,13 @@ function ntfPlanejar(db, linhas){
       else if(d.nBlocos && e.blocos.length!==Math.round(d.nBlocos)) divergencias.push({campo:'blocos', atual:e.blocos.length+' bloco(s)', importado:Math.round(d.nBlocos)+' bloco(s)'});
     }
     if(d.tel && !(e.responsavel && e.responsavel.tel)) preencher.push('tel');
+    if(d.ocupacoes && d.ocupacoes.length){
+      var atualO = ocupLista(e);
+      if(!atualO.length) preencher.push('ocupacoes');
+      else if(od.ocupacoes==='importado'){ if(JSON.stringify(atualO)!==JSON.stringify(d.ocupacoes)) preencher.push('ocupacoes'); }
+      else if(d.ocupacoes.some(function(o){ return !atualO.some(function(x){return x.toLowerCase()===o.toLowerCase();}); }))
+        divergencias.push({campo:'ocupação', atual:atualO.join('; '), importado:d.ocupacoes.join('; ')});
+    }
     if(preencher.length || divergencias.length) plano.atualizar.push({e:e, d:d, preencher:preencher, divergencias:divergencias});
     else plano.semMudanca++;
   });
@@ -2163,7 +2209,7 @@ function ntfAplicar(){
     var od = {};
     var e = {id:novoId('edif'), re:d.re, nome:d.nome||'(sem nome)', endereco:d.endereco, bairro:d.bairro, municipio:d.municipio, area:d.area, altura:d.altura,
       responsavel:{nome:'', tel:d.tel}, habiteSe:{}, vigenciaFuncionamento:{}, blocos:[], projetos:[], inquilinos:[], preventivos:{},
-      grauRisco:d.grauRisco, origem:'cadastro', criadoEm:agora, atualizadoEm:agora};
+      grauRisco:d.grauRisco, ocupacoes:(d.ocupacoes||[]).slice(), ocupacao:ocupTexto(d.ocupacoes||[]), origem:'cadastro', criadoEm:agora, atualizadoEm:agora};
     if(d.lat!=null){ e.lat = d.lat; e.lng = d.lng; e.locOrigem = 'importado'; }
     if(d.nBlocos || d.nPav) e.blocos = ntfGerarBlocos(d.nBlocos, d.nPav, d.grauRisco);
     CAMPOS_RASTREADOS.forEach(function(c){ var v = e[c]; if(v!=null && v!=='' && !(Array.isArray(v) && !v.length)) od[c]='importado'; });
@@ -2176,6 +2222,7 @@ function ntfAplicar(){
       if(c==='lat'){ e.lat = d.lat; e.lng = d.lng; e.locOrigem = 'importado'; e.origemDados.lat = 'importado'; e.origemDados.lng = 'importado'; }
       else if(c==='blocos'){ e.blocos = ntfGerarBlocos(d.nBlocos, d.nPav, d.grauRisco); e.origemDados.blocos = 'importado'; }
       else if(c==='tel'){ e.responsavel = e.responsavel || {nome:'',tel:''}; e.responsavel.tel = d.tel; }
+      else if(c==='ocupacoes'){ e.ocupacoes = d.ocupacoes.slice(); e.ocupacao = ocupTexto(d.ocupacoes); e.origemDados.ocupacoes = 'importado'; }
       else { e[c] = d[c]; e.origemDados[c] = 'importado'; }
     });
     e.atualizadoEm = agora;
@@ -2494,6 +2541,7 @@ function abrirFormEdif(id){
   document.getElementById('ef-risco').value = e ? (e.grauRisco||'') : '';
   document.getElementById('ef-desocupada').checked = !!(e && e.desocupada);
   document.getElementById('ef-nome').value = e ? (e.nome||'') : '';
+  efOcup = ocupLista(e); efOcupRender();
   document.getElementById('ef-endereco').value = e ? (e.endereco||'') : '';
   document.getElementById('ef-bairro').value = e ? (e.bairro||'') : '';
   document.getElementById('ef-municipio').value = e ? (e.municipio||'') : '';
@@ -2573,6 +2621,7 @@ function fecharFormEdif(){ document.getElementById('modalEdif').style.display='n
 function salvarFormEdif(){
   var nome = document.getElementById('ef-nome').value.trim();
   if(!nome){ alert('Informe o nome da edificação.'); return; }
+  var _oi = document.getElementById('ef-ocup-in'); if(_oi && _oi.value.trim()) ocupAdd(efOcup, _oi.value);
 
   var db = loadDB();
   var linhaHSAtual = efProjetos.filter(function(p){return p.tipo==='habite-se';}).pop();
@@ -2586,6 +2635,7 @@ function salvarFormEdif(){
     municipio: document.getElementById('ef-municipio').value.trim(),
     bairro: document.getElementById('ef-bairro').value.trim(),
     nome: nome,
+    ocupacoes: efOcup.slice(), ocupacao: ocupTexto(efOcup),
     endereco: document.getElementById('ef-endereco').value.trim(),
     area: document.getElementById('ef-area').value.trim(),
     altura: document.getElementById('ef-altura').value.trim(),
@@ -3020,6 +3070,7 @@ function renderVistoriaCard(v, db){
       '<div style="flex:1;min-width:0">'+
         '<div class="vnome">'+(e?e.nome:'⚠️ Edificação sem vínculo')+'</div>'+
         '<div class="vsub">'+(e?e.re:'esta vistoria não está ligada a nenhuma edificação')+' · '+rotuloVistoria(v)+(v.motivo?' · '+v.motivo:'')+'</div>'+
+        ocupLinhaCard(ocupListaVist(v,e))+
         (v.obs ? '<div class="vsub" style="margin-top:4px;font-style:italic">📝 '+v.obs+'</div>' : '')+
         (v.esciLancadoEm ? '<div class="vsub" style="margin-top:4px;color:var(--verde)">📤 Lançada no e-SCI em '+new Date(v.esciLancadoEm).toLocaleDateString('pt-BR')+'</div>' : (v.concluida && v.concluidaEm && v.concluidaEm>=ESCI_DESDE && !(v.tipo==='cartorio' && v.cartorioSubtipo==='multa' && v.cienciaItemId) ? '<div class="vsub" style="margin-top:4px;color:var(--amar)">📤 Falta lançar no e-SCI</div>' : ''))+
       '</div>'+
@@ -3791,7 +3842,7 @@ function gerarRelatorioTexto(e, v, pendGerais, duvidasGerais, porBloco, aprovado
   var linhas = [];
   linhas.push((e?e.nome:'—')+' — '+reMsg(e?e.re:''));
   linhas.push(rotuloVistoria(v)+' · concluída em '+(v.concluidaEm?new Date(v.concluidaEm).toLocaleString('pt-BR'):'—'));
-  if(v.ocupacao && v.ocupacao.trim()) linhas.push('Ocupação: '+v.ocupacao.trim());
+  var _ocs = ocupListaVist(v, e); if(_ocs.length) linhas.push('Ocupação: '+ocupTexto(_ocs));
   linhas.push('');
   linhas.push('RESUMO: '+(totalItens-reprovadosChecklist)+' de '+totalItens+' itens do checklist aprovados · '+totalPendencias+' pendência(s) no total'+(duvidasGerais.length?' · '+duvidasGerais.length+' dúvida(s)':''));
   linhas.push('');
@@ -4066,16 +4117,23 @@ function quSetItemStatus(itemId, status){
   saveDB(db);
   renderExecucaoQuartel();
 }
-function quSetOcupacao(val){
-  var db = loadDB();
-  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
-  if(!v) return;
-  v.ocupacao = val;
-  v.atualizadoEm = new Date().toISOString();
-  // lembra na edificação — a próxima vistoria desse local já abre com essa ocupação preenchida
-  var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
-  if(e) e.ocupacao = val;
+function quOcupGravar(db, v, e, l){
+  v.ocupacoes = l.slice(); v.ocupacao = ocupTexto(l); v.atualizadoEm = new Date().toISOString();
+  // lembra na edificação: a próxima vistoria desse local já abre com essas ocupações
+  if(e){ e.ocupacoes = l.slice(); e.ocupacao = ocupTexto(l); if(e.origemDados) delete e.origemDados.ocupacoes; }
   saveDB(db);
+  var c = document.getElementById('qu-ocup-chips'); if(c) c.innerHTML = ocupChipsHtml(l, 'quOcupDel');
+}
+function quOcupAdd(){
+  var db = loadDB(), v = db.vistorias.find(function(x){return x.id===quExecVistId;}); if(!v) return;
+  var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
+  var i = document.getElementById('qu-ocup-in'), l = ocupListaVist(v,e);
+  ocupAdd(l, i.value); i.value = ''; quOcupGravar(db, v, e, l); i.focus();
+}
+function quOcupDel(n){
+  var db = loadDB(), v = db.vistorias.find(function(x){return x.id===quExecVistId;}); if(!v) return;
+  var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
+  var l = ocupListaVist(v,e); l.splice(n,1); quOcupGravar(db, v, e, l);
 }
 function quSetItemCampo(itemId, campo, val){
   var db = loadDB();
@@ -4381,9 +4439,7 @@ function renderExecucaoQuartel(){
 
   // Ocupação do local — texto livre, vai pro relatório. Se esta vistoria ainda não tem nada
   // escrito, já vem preenchido com a última ocupação registrada pra essa edificação.
-  var ocupacaoAtual = (v.ocupacao!=null) ? v.ocupacao : (e.ocupacao||'');
-  html += '<label class="lbl" style="margin-top:4px">Ocupação do local</label>'+
-    '<input type="text" value="'+ocupacaoAtual.replace(/"/g,'&quot;')+'" placeholder="Ex: Comércio de roupas (F-6), loja térrea + depósito" style="margin-bottom:14px" onchange="quSetOcupacao(this.value)">';
+  html += '<label class="lbl" style="margin-top:4px">Ocupação do local (confira; pode ter mais de uma)</label>'+ocupEditorHtml('qu-ocup', ocupListaVist(v,e), 'quOcupAdd', 'quOcupDel');
 
   html += '<div style="font-size:12px;color:var(--sub);margin-bottom:6px">Sistemas preventivos ativos nesta edificação:</div>';
   html += '<div class="prev-chips">'+SIST.map(function(s){
