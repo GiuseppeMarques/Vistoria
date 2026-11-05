@@ -172,7 +172,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v111</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v113</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -2000,10 +2000,31 @@ function ocupChipsHtml(lista, fnDel){
       '<b onclick="'+fnDel+'('+i+')" style="cursor:pointer;padding:0 6px;font-size:16px;line-height:1">×</b></span>';
   }).join('');
 }
+var OCUP_BASE = ["A-1 — Multifamiliar horizontal", "A-2 — Multifamiliar vertical", "A-3 — Coletiva", "B-1 — Hotel e assemelhado", "C-1 — Comércio com baixa carga de incêndio", "C-2 — Comércio com média e alta carga de incêndio", "D-1 — Local para prestação de serviço profissional ou condução de negócios", "D-2 — Agência bancária", "D-3 — Serviço de reparação (exceto os classificados em G-4)", "E-1 — Escola em geral", "E-2 — Escola especial", "E-3 — Espaço para cultura física", "E-5 — Pré-escola", "F-1 — Local onde há objeto de valor inestimável", "F-11 — Boate", "F-2 — Local religioso e velório", "F-3 — Centro esportivo e de exibição", "F-6 — Clubes sociais e diversão", "F-7 — Construção provisória", "F-8 — Local para refeição", "F-9 — Recreação pública", "G-3 — Local dotado de abastecimento de combustível", "G-4 — Serviço de conservação, manutenção e reparos", "H-3 — Hospitalar", "H-4 — Edificação Pública", "H-6 — Clínica e consultório médico e odontológico", "I-1 — Locais onde as atividades exercidas e os materiais utilizados apresentam baixo potencial de incêndio. Locais onde a carga de incêndio não chega a 300 MJ/m2", "I-2 — Locais onde as atividades exercidas e os materiais utilizados apresentam médio potencial de incêndio. Locais com carga de incêndio entre 300 a 1.200 MJ/m2", "I-3 — Locais onde há alto risco de incêndio. Locais com carga de incêndio superior a 1.200 MJ/m²", "J-1 — Depósitos de material incombustível", "J-2 — Depósito com baixa carga de incêndio", "J-3 — Depósito com média carga de incêndio", "K-2 — Usinas", "M-8 — Posto de revenda de GLP risco I", "Misto"];
+function ocupSugestoes(){
+  var set = {}, lista = OCUP_BASE.slice();
+  lista.forEach(function(o){ set[o.toLowerCase()] = 1; });
+  try{
+    var db = loadDB();
+    (db.edificacoes||[]).forEach(function(e){ ocupLista(e).forEach(function(o){ if(!set[o.toLowerCase()]){ set[o.toLowerCase()] = 1; lista.push(o); } }); });
+  }catch(err){}
+  return lista.sort(function(a,b){ return a.localeCompare(b, 'pt-BR', {numeric:true}); });
+}
 function ocupEditorHtml(idBase, lista, fnAdd, fnDel){
+  var sug = ocupSugestoes();
   return '<div id="'+idBase+'-chips" style="margin-bottom:6px">'+ocupChipsHtml(lista, fnDel)+'</div>'+
-    '<div style="display:flex;gap:6px;margin-bottom:14px"><input type="text" id="'+idBase+'-in" placeholder="Ex: Comércio varejista, Residencial multifamiliar" style="flex:1;min-width:0" onkeydown="if(event.key===\'Enter\'){event.preventDefault();'+fnAdd+'()}">'+
+    '<datalist id="'+idBase+'-dl">'+sug.map(function(o){ return '<option value="'+ocupEsc(o)+'">'; }).join('')+'</datalist>'+
+    '<div style="display:flex;gap:6px;margin-bottom:14px"><input type="text" id="'+idBase+'-in" list="'+idBase+'-dl" autocomplete="off" placeholder="Toque e escolha da lista, ou digite (ex.: F-8, comércio)" style="flex:1;min-width:0" '+
+      'oninput="var v=this.value.trim().toLowerCase(); if(v && ocupSugestoes().some(function(o){return o.toLowerCase()===v;})) '+fnAdd+'()" onkeydown="if(event.key===\'Enter\'){event.preventDefault();'+fnAdd+'()}">'+
     '<button type="button" class="btn" style="width:auto;padding:0 14px" onclick="'+fnAdd+'()">+ Adicionar</button></div>';
+}
+function ocupRefHtml(lista){
+  return lista.length
+    ? '🏷️ <b>Ocupação cadastrada:</b> '+lista.map(ocupEsc).join(' · ')
+    : '🏷️ <b>Nenhuma ocupação cadastrada.</b> Informe no campo "Ocupação do local" acima.';
+}
+function ocupCardCheck(lista){
+  return '<div id="ocup-ref" style="font-size:12px;background:rgba(10,132,255,.12);border:1px solid rgba(10,132,255,.4);border-radius:8px;padding:8px 10px;margin-bottom:10px">'+ocupRefHtml(lista)+'</div>';
 }
 function ocupLinhaCard(lista){
   return lista.length ? '<div style="font-size:12px;color:var(--sub);margin-top:2px">🏷️ '+lista.map(ocupEsc).join(' · ')+'</div>' : '';
@@ -4136,6 +4157,7 @@ function quOcupGravar(db, v, e, l){
   if(e){ e.ocupacoes = l.slice(); e.ocupacao = ocupTexto(l); if(e.origemDados) delete e.origemDados.ocupacoes; }
   saveDB(db);
   var c = document.getElementById('qu-ocup-chips'); if(c) c.innerHTML = ocupChipsHtml(l, 'quOcupDel');
+  var rc = document.getElementById('ocup-ref'); if(rc) rc.innerHTML = ocupRefHtml(l);
 }
 function quOcupAdd(){
   var db = loadDB(), v = db.vistorias.find(function(x){return x.id===quExecVistId;}); if(!v) return;
@@ -4621,6 +4643,7 @@ function renderExecucaoQuartel(){
         html += '<div class="item-card">'+
           '<div class="item-obj">'+it.obj+'</div>'+
           '<div class="item-c">'+it.c+'</div>'+
+          (it.id==='f6' ? ocupCardCheck(ocupListaVist(v,e)) : '')+
           '<div class="item-btns">'+
             '<button class="item-btn ok '+(st==='ok'?'on':'')+'" onclick="quSetItemStatus(\''+it.id+'\',\'ok\')">✅</button>'+
             '<button class="item-btn nao '+(st==='nao'?'on':'')+'" onclick="quSetItemStatus(\''+it.id+'\',\'nao\')">❌</button>'+
