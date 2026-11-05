@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v78</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v82</div>
   </header>
 
   <main>
@@ -915,11 +915,9 @@ function renderVistRotaFiltro(){
     }).join('')+'</div>';
   if(!rotas.length){ el.innerHTML = procChips; return; }
   var opt = function(r){ return '<option value="'+r.id+'"'+(vistFiltroRota===r.id?' selected':'')+'>'+r.nome+(r.data?' · '+r.data:'')+'</option>'; };
-  var plan = rotas.filter(rotaEhAnualCampo), fila = rotas.filter(function(r){ return !rotaEhAnualCampo(r); });
   var seletor = '<select id="vistSelRota" onchange="setVistFiltroRota(this.value)" style="flex:1;min-width:0">'+
     '<option value=""'+(vistFiltroRota===''?' selected':'')+'>🧭 Todas as rotas (agrupadas)</option>'+
-    (plan.length ? '<optgroup label="📆 Planejamento do ano">'+plan.map(opt).join('')+'</optgroup>' : '')+
-    (fila.length ? '<optgroup label="📥 Fila de trabalho">'+fila.map(opt).join('')+'</optgroup>' : '')+
+    MODELOS_ROTA_CAMPO.map(function(M){ var rs = rotas.filter(function(r){ return modeloRotaCampo(db, r)===M[0]; }); return rs.length ? '<optgroup label="'+M[1]+'">'+rs.map(opt).join('')+'</optgroup>' : ''; }).join('')+
     '<option value="sem"'+(vistFiltroRota==='sem'?' selected':'')+'>📋 Sem rota</option></select>';
   var excluir = (vistFiltroRota && vistFiltroRota!=='sem') ? '<button class="chip" style="padding:6px 10px;background:var(--red2);color:#fff" onclick="excluirRotaCampo(\''+vistFiltroRota+'\')" title="Excluir esta rota">🗑️ Excluir rota</button>' : '';
   var chips = seletor + excluir;
@@ -947,8 +945,10 @@ function renderVistoriasCampo(){
   var db = loadDB();
   renderVistRotaFiltro();
   var lista = (db.vistorias||[]).filter(function(v){
-    if(vistFiltroProc==='tecnica' && v.tipo==='cartorio') return false;
-    if(vistFiltroProc==='ciencia' && v.tipo!=='cartorio') return false;
+    // vistoria que está numa rota aparece sempre na rota (técnica ou ciência); o filtro de tipo só vale para as soltas
+    var naRota = v.rotaId && (db.rotas||[]).some(function(r){ return r.id===v.rotaId; });
+    if(!naRota && vistFiltroProc==='tecnica' && v.tipo==='cartorio') return false;
+    if(!naRota && vistFiltroProc==='ciencia' && v.tipo!=='cartorio') return false;
     if(vistFiltroProc==='esci' && v.esciStatus!=='pendente') return false;
     if(vistFiltroRota==='') return true;
     if(vistFiltroRota==='sem') return !v.rotaId;
@@ -1005,12 +1005,22 @@ function vistCardHtmlCampo(v, db){
 var vistGrupoAberto = (function(){ try{ return JSON.parse(localStorage.getItem('vistoria_campo_grupos')||'null') || {}; }catch(e){ return {}; } })();
 function toggleGrupoVistCampo(k){ vistGrupoAberto[k] = !(vistGrupoAberto[k]===true); try{ localStorage.setItem('vistoria_campo_grupos', JSON.stringify(vistGrupoAberto)); }catch(e){} renderVistoriasCampo(); }
 function compararRotasPorNomeCampo(a,b){ return String(a.nome||'').localeCompare(String(b.nome||''), 'pt-BR', {numeric:true, sensitivity:'base'}); }
-function rotaEhAnualCampo(r){ return !!(r.rotaFixaId || r.origem==='calendario'); }
+var MODELOS_ROTA_CAMPO = [['anual','📆 Anual'],['cartorio','⚖️ Cartório'],['mista','🧩 Mista'],['avulsa','🎯 Avulsa']];
+// mesmo critério do Quartel: modelo gravado, senão deduzido (calendário/modelo fixo = anual; só cartório = cartório; técnica+cartório = mista; resto = avulsa)
+function modeloRotaCampo(db, r){
+  if(['anual','cartorio','mista','avulsa'].indexOf(r.modelo)>=0) return r.modelo;
+  if(r.rotaFixaId || r.origem==='calendario') return 'anual';
+  var vs = (r.vistorias||[]).map(function(id){ return (db.vistorias||[]).find(function(x){return x.id===id;}); }).filter(Boolean);
+  if(!vs.length) return 'avulsa';
+  var nc = vs.filter(function(v){ return v.tipo==='cartorio'; }).length;
+  return nc===vs.length ? 'cartorio' : (nc>0 ? 'mista' : 'avulsa');
+}
+function rotaEhAnualCampo(r){ return modeloRotaCampo(loadDB(), r)==='anual'; }
 function dataBRCampo(t){ var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(t||'').trim()); return m ? new Date(+m[3], +m[2]-1, +m[1]) : null; }
 // mês da demanda que a rota atende (guardado pelo Quartel; nas antigas, o vencimento mais comum das paradas; senão a data da rota)
 function mesDemandaRotaCampo(db, r){
   if(r.mesRef && r.mesRef.ano) return {ano:r.mesRef.ano, mes:r.mesRef.mes};
-  if(r.origem==='calendario'){
+  if(r.origem==='calendario' || r.modelo==='anual'){
     var cont = {}, melhor = null;
     (r.vistorias||[]).forEach(function(vid){
       var v = (db.vistorias||[]).find(function(x){return x.id===vid;}); var e = v && (db.edificacoes||[]).find(function(x){return x.id===v.edificacaoId;});
@@ -1026,13 +1036,13 @@ var vistChavesReg = [];
 function htmlGrupoVistCampo(chave, titulo, info, corpo, nivel){
   if(vistChavesReg.indexOf(chave)<0) vistChavesReg.push(chave);
   var ab = vistGrupoAberto[chave] === true;
-  return '<div style="margin:0 0 10px '+((nivel||0)*10)+'px"><div onclick="toggleGrupoVistCampo(\''+chave+'\')" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.07);font-weight:700">'+
-    '<span>'+(ab?'▼':'▶')+'</span><span style="flex:1;min-width:0">'+titulo+'</span><span style="font-size:12px;font-weight:400;color:var(--sub)">'+info+'</span></div>'+
+  return '<div style="margin:0 0 10px '+(nivel?8:0)+'px"><div onclick="toggleGrupoVistCampo(\''+chave+'\')" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;cursor:pointer;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.07);font-weight:700">'+
+    '<span>'+(ab?'▼':'▶')+'</span><span style="flex:1;min-width:0">'+titulo+'</span><span style="flex:0 0 100%;box-sizing:border-box;padding-left:26px;font-size:12px;font-weight:400;color:var(--sub)">'+info+'</span></div>'+
     (ab ? '<div style="margin-top:8px">'+corpo+'</div>' : '')+'</div>';
 }
 function rotaPrefixoCampo(nome){
   var n = String(nome||'').replace(/\s*\(\d+\/\d+\)\s*$/,'').trim();
-  var m = /^(.*?[^\s\-–—:\/\d])[\s\-–—:]*\s(\d{1,3})$/.exec(n) || /^(.*?[^\s\-–—:\/\d])[\s\-–—:]+(\d{1,3})$/.exec(n);
+  var m = /^([^\s\d\-–—:\/][^\d]*?[^\s\d\-–—:\/])\s+0*(\d{1,3})(?:\s|$)/.exec(n) || /^(.*?[^\s\-–—:\/\d])[\s\-–—:]*\s(\d{1,3})$/.exec(n) || /^(.*?[^\s\-–—:\/\d])[\s\-–—:]+(\d{1,3})$/.exec(n);
   var rot = m ? m[1].trim() : n;
   return {rotulo: rot, chave: rot.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()};
 }
@@ -1044,14 +1054,11 @@ function htmlVistoriasAgrupadasCampo(db, lista){
   lista.forEach(function(v){ if(v.rotaId && (db.rotas||[]).some(function(r){return r.id===v.rotaId;})) (porRota[v.rotaId] = porRota[v.rotaId] || []).push(v); else semRota.push(v); });
   var rotas = (db.rotas||[]).filter(function(r){ return porRota[r.id]; });
   var rotaHtml = function(r, nivel){
-    var vs = porRota[r.id];
-    // total real da rota (técnicas + ciências), mesmo quando o filtro de tipo esconde parte das paradas
-    var todasRota = (r.vistorias||[]).map(function(id){ return (db.vistorias||[]).find(function(x){return x.id===id;}); }).filter(Boolean);
-    var feitas = todasRota.filter(function(v){return v.concluida;}).length, ocultas = todasRota.length - vs.length;
+    var vs = porRota[r.id], feitas = vs.filter(function(v){return v.concluida;}).length;
     var corpo = '<div class="btnrow" style="gap:8px;margin-bottom:10px"><button class="btn primary" style="flex:1" onclick="navegarRotaInteira(\''+r.id+'\')">🧭 Navegar por toda a rota</button>'+
       '<button class="btn" style="width:auto;background:var(--red2);color:#fff" onclick="excluirRotaCampo(\''+r.id+'\')">🗑️ Excluir rota</button></div>'+
       vs.map(function(v){ return vistCardHtmlCampo(v, db); }).join('');
-    return htmlGrupoVistCampo('rota-'+r.id, '🧭 '+r.nome, (r.data?r.data+' · ':'')+todasRota.length+' parada(s) · '+feitas+' feita(s)'+(ocultas>0 ? ' · ⚠️ '+vs.length+' aqui, '+ocultas+' em outro filtro ('+(vistFiltroProc==='ciencia'?'🔥 técnicas':'⚖️ Ciências')+')' : ''), corpo, nivel);
+    return htmlGrupoVistCampo('rota-'+r.id, '🧭 '+r.nome, (r.data?r.data+' · ':'')+vs.length+' parada(s) · '+feitas+' feita(s)', corpo, nivel);
   };
   // grupo pelo nome ("Ciência 1", "Ciência 2" → pasta "Ciência"); só vira pasta com 2 ou mais
   var porPrefixo = function(rs, chaveBase, nivel){
@@ -1066,20 +1073,24 @@ function htmlVistoriasAgrupadasCampo(db, lista){
     return h;
   };
   var h = '<div class="btnrow" style="gap:8px;margin-bottom:10px"><button class="btn" onclick="recolherTodasVistCampo()">⏫ Recolher tudo</button><button class="btn" onclick="expandirTodasVistCampo()">⏬ Expandir tudo</button></div>';
-  var anuais = rotas.filter(rotaEhAnualCampo), avulsas = rotas.filter(function(r){ return !rotaEhAnualCampo(r); });
-  if(anuais.length){
-    var anos = {};
-    anuais.forEach(function(r){ var mm = mesDemandaRotaCampo(db, r); var a = mm.ano, mes = mm.mes; (anos[a] = anos[a]||{}); (anos[a][mes] = anos[a][mes]||[]).push(r); });
-    var corpoAnos = Object.keys(anos).sort(function(a,b){return b-a;}).map(function(a){
-      var corpoMeses = Object.keys(anos[a]).sort(function(x,y){return y-x;}).map(function(m){
-        return htmlGrupoVistCampo('anuais-'+a+'-'+m, MESES_CAMPO[m]+' de '+a, anos[a][m].length+' rota(s)', porPrefixo(anos[a][m], 'anuais-'+a+'-'+m, 2), 1);
+  MODELOS_ROTA_CAMPO.forEach(function(M){
+    var rs = rotas.filter(function(r){ return modeloRotaCampo(db, r)===M[0]; });
+    if(!rs.length) return;
+    var chave = 'mod-'+M[0], corpo;
+    if(M[0]==='avulsa'){ corpo = porPrefixo(rs, chave, 1); }
+    else {
+      var anos = {};
+      rs.forEach(function(r){ var mm = mesDemandaRotaCampo(db, r); (anos[mm.ano] = anos[mm.ano]||{}); (anos[mm.ano][mm.mes] = anos[mm.ano][mm.mes]||[]).push(r); });
+      corpo = Object.keys(anos).sort(function(a,b){return b-a;}).map(function(a){
+        var corpoMeses = Object.keys(anos[a]).sort(function(x,y){return y-x;}).map(function(m){
+          return htmlGrupoVistCampo(chave+'-'+a+'-'+m, MESES_CAMPO[m]+' de '+a, anos[a][m].length+' rota(s)', porPrefixo(anos[a][m], chave+'-'+a+'-'+m, 3), 2);
+        }).join('');
+        var qtd = 0; Object.keys(anos[a]).forEach(function(m){ qtd += anos[a][m].length; });
+        return htmlGrupoVistCampo(chave+'-'+a, '📆 '+(a>0?a:'Sem data'), qtd+' rota(s)', corpoMeses, 1);
       }).join('');
-      var qtd = 0; Object.keys(anos[a]).forEach(function(m){ qtd += anos[a][m].length; });
-      return htmlGrupoVistCampo('anuais-'+a, '📆 '+(a>0?a:'Sem data'), qtd+' rota(s)', corpoMeses, 0);
-    }).join('');
-    h += htmlGrupoVistCampo('anuais', '📆 Planejamento do ano (mês a mês)', anuais.length+' rota(s)', corpoAnos, 0);
-  }
-  if(avulsas.length) h += htmlGrupoVistCampo('avulsas', '📥 Fila de trabalho (atrasos e pedidos)', avulsas.length+' rota(s)', porPrefixo(avulsas, 'avulsas', 1), 0);
+    }
+    h += htmlGrupoVistCampo(chave, M[1], rs.length+' rota(s)', corpo, 0);
+  });
   if(semRota.length){
     var porBairro = {};
     semRota.forEach(function(v){ var e = (db.edificacoes||[]).find(function(x){return x.id===v.edificacaoId;}); var b = (e && e.bairro) || 'Sem bairro'; (porBairro[b] = porBairro[b]||[]).push(v); });
@@ -1108,6 +1119,39 @@ function navegarRotaInteira(rotaId){
   window.open(url, '_blank');
 }
 
+// Atalho "Vistoriar" (mapa e lista de edificações): abre a vistoria que já está programada na rota, sem criar outra.
+// Ordem: vistoria pendente da rota filtrada; senão, pendente de qualquer rota; senão, qualquer pendente.
+function vistoriasProgramadasDaEdif(db, edifId){
+  var pend = (db.vistorias||[]).filter(function(v){ return v.edificacaoId===edifId && !v.concluida; });
+  if(!pend.length) return [];
+  var rotasPorId = {}; (db.rotas||[]).forEach(function(r){ rotasPorId[r.id] = r; });
+  if(vistFiltroRota && vistFiltroRota!=='sem'){
+    var daSel = pend.filter(function(v){ return v.rotaId===vistFiltroRota; });
+    if(daSel.length) return daSel;
+  }
+  var emRota = pend.filter(function(v){ return v.rotaId && rotasPorId[v.rotaId]; });
+  return emRota.length ? emRota : pend;
+}
+function textoProgramadaCampo(db, edifId){
+  var c = vistoriasProgramadasDaEdif(db, edifId);
+  if(!c.length) return '';
+  var rotasPorId = {}; (db.rotas||[]).forEach(function(r){ rotasPorId[r.id] = r; });
+  return c.map(function(v){ var r = v.rotaId && rotasPorId[v.rotaId]; return '🧭 '+(r ? r.nome.split(' - ')[0] : 'Sem rota')+': '+rotuloVistoria(v); }).join('<br>');
+}
+function vistoriarDaRotaCampo(edifId){
+  var db = loadDB(), c = vistoriasProgramadasDaEdif(db, edifId);
+  var m = document.getElementById('modalEdif'); if(m) m.style.display = 'none';
+  if(c.length <= 1){ abrirExecucao(edifId, c.length ? c[0].id : undefined); return; }
+  // mais de uma vistoria programada no local: escolhe qual
+  var e = db.edificacoes.find(function(x){return x.id===edifId;});
+  document.getElementById('edifCard').innerHTML = '<div class="sheet-handle"></div>'+
+    '<div style="font-weight:800;font-size:15px;margin-bottom:4px">'+(e?e.nome:'')+'</div>'+
+    '<div style="font-size:12px;color:var(--sub);margin-bottom:12px">Há mais de uma vistoria programada aqui. Qual você vai fazer?</div>'+
+    c.map(function(v){ var r = (db.rotas||[]).find(function(x){return x.id===v.rotaId;});
+      return '<button class="btn primary" style="width:100%;margin-bottom:8px;text-align:left" onclick="document.getElementById(\'modalEdif\').style.display=\'none\';abrirExecucao(\''+edifId+'\',\''+v.id+'\')">'+rotuloVistoria(v)+(r?' · '+ocupEsc(r.nome.split(' - ')[0]):'')+(v.motivo?' · '+ocupEsc(v.motivo):'')+'</button>'; }).join('')+
+    '<button class="btn" style="width:100%" onclick="document.getElementById(\'modalEdif\').style.display=\'none\'">Cancelar</button>';
+  if(m) m.style.display = 'flex';
+}
 function abrirExecucao(edificacaoId, vistoriaId){
   execEdificacaoId = edificacaoId;
   blocosExpandidosCampo = {};
@@ -2644,7 +2688,8 @@ function renderEdifsCampo(){
           '<div style="font-size:12px;color:var(--sub)">'+(e.re||'Sem RE')+(e.endereco?' · '+e.endereco:'')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(semGPS?' · ⚠️ sem localização':'')+'</div>'+ocupLinhaCard(ocupLista(e))+tagFaltando(e)+
         '</div>'+
       '</div>'+
-      '<button class="btn primary" style="width:100%;margin-top:10px" onclick="event.stopPropagation();abrirExecucao(\''+e.id+'\')">✅ Vistoriar</button>'+
+      (textoProgramadaCampo(db, e.id) ? '<div style="font-size:12px;color:var(--sub);margin-top:8px">'+textoProgramadaCampo(db, e.id)+'</div>' : '')+
+      '<button class="btn primary" style="width:100%;margin-top:10px" onclick="event.stopPropagation();vistoriarDaRotaCampo(\''+e.id+'\')">✅ Vistoriar</button>'+
     '</div>';
   }).join('');
 }
@@ -4615,9 +4660,10 @@ function abrirCartaoEdificacao(e){
       '<div class="ecard-row"><span class="l">Última vistoria</span><span style="text-align:right">'+textoUltimaVistoria(db, e.id, true)+'</span></div>'+
       '<div class="ecard-row" style="border-bottom:none"><span class="l">Endereço</span><span style="text-align:right">'+(e.endereco||'—')+(e.bairro?' — '+e.bairro:'')+'</span></div>'+
     '</div>'+
+    (textoProgramadaCampo(db, e.id) ? '<div style="font-size:12px;background:rgba(10,132,255,.12);border:1px solid rgba(10,132,255,.4);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.6">'+textoProgramadaCampo(db, e.id)+'</div>' : '')+
     '<div class="btnrow">'+
       '<button class="btn" onclick="abrirDetalhesCompletos(\''+e.id+'\')">Detalhes</button>'+
-      '<button class="btn primary" onclick="document.getElementById(\'modalEdif\').style.display=\'none\';abrirExecucao(\''+e.id+'\')">Vistoriar</button>'+
+      '<button class="btn primary" onclick="vistoriarDaRotaCampo(\''+e.id+'\')">Vistoriar</button>'+
     '</div>'+
     '<button class="btn stop" style="width:100%;margin-top:8px" onclick="window.open(\'https://www.google.com/maps/dir/?api=1&destination='+e.lat+','+e.lng+'\',\'_blank\')">🧭 Navegar</button>';
 

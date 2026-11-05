@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vistoria-campo-v78';
+const CACHE_NAME = 'vistoria-campo-v82';
 
 self.addEventListener('install', function(e){
   self.skipWaiting();

@@ -172,7 +172,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v116</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v120</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -276,6 +276,7 @@
       <div class="sec-title">Minhas rotas</div>
       <div class="toolbar">
         <button class="btn primary" onclick="abrirFormRota()">+ Nova rota</button>
+        <button class="btn" onclick="mistaAbrir()">🧩 Montar Mista do mês</button>
         <button class="btn" style="background:var(--red2)" onclick="abrirGerarRotasAuto()">🤖 Gerar rotas automáticas</button>
       </div>
       <div id="rotasList"></div>
@@ -917,6 +918,8 @@
       <button type="button" class="btn" style="width:auto;padding:4px 10px" onclick="usarNomeRota('Ciência')">Ciência</button>
       <button type="button" class="btn" style="width:auto;padding:4px 10px" onclick="usarNomeRota('Funcionamento')">Funcionamento</button>
       <button type="button" class="btn" style="width:auto;padding:4px 10px" onclick="usarNomeRota('Habite-se')">Habite-se</button></div>
+    <label class="lbl">Modelo da rota</label>
+    <select id="rt-modelo" style="margin-bottom:8px"><option value="avulsa">🎯 Avulsa — livre</option><option value="anual">📆 Anual — funcionamento</option><option value="cartorio">⚖️ Cartório</option><option value="mista">🧩 Mista — funcionamento + cartório</option></select>
     <label class="lbl">Data</label>
     <input type="text" id="rt-data" style="margin-bottom:12px" placeholder="DD/MM/AAAA">
     <label class="lbl">Tipo das novas paradas</label>
@@ -926,6 +929,15 @@
     <label class="lbl">Adicionar edificações</label>
     <input type="text" id="rt-busca" placeholder="Buscar por RE, nome, endereço, bairro ou município..." style="margin-bottom:8px" oninput="renderRtEdifLista()">
     <div id="rt-vist-list" style="max-height:200px;overflow-y:auto;margin-bottom:12px;border:1px solid var(--border);border-radius:10px"></div>
+    <div style="border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:12px">
+      <div class="lbl" style="margin:0 0 6px">🧩 Puxar por mês (funcionamento + cartório que vencem; respeita a busca acima, ex: um bairro)</div>
+      <div class="btnrow" style="gap:6px;margin-bottom:6px"><select id="rt-mes" style="flex:2"></select><input type="number" id="rt-mes-ano" style="flex:1" min="2020" max="2100"></div>
+      <div class="btnrow" style="gap:6px;flex-wrap:wrap">
+        <button type="button" class="btn" style="flex:1" onclick="rtPuxarMes(true,true)">Os dois</button>
+        <button type="button" class="btn" style="flex:1" onclick="rtPuxarMes(true,false)">Só funcionamento</button>
+        <button type="button" class="btn" style="flex:1" onclick="rtPuxarMes(false,true)">Só cartório</button></div>
+      <div class="sub" id="rt-mes-info" style="margin-top:6px"></div>
+    </div>
     <button class="btn" style="width:100%;margin-bottom:12px" onclick="rtAdicionarCienciasPendentes()">✍️ Adicionar AF/multas pendentes de ciência (respeita a busca acima, ex: um bairro)</button>
     <label class="lbl" id="rt-paradas-titulo">Paradas da rota</label>
     <div id="rt-paradas" style="max-height:300px;overflow-y:auto;margin-bottom:12px"></div>
@@ -4970,12 +4982,12 @@ function dividirParadasEmRotas(db, vists){
 // cria uma ou várias rotas com as paradas montadas pelos geradores. Se passar do limite, pergunta:
 // dividir sozinho (recomendado), criar uma só mesmo assim, ou cancelar. Devolve as rotas criadas
 // (vazio = cancelado; aí nada foi salvo).
-function criarRotasRespeitandoLimite(db, vists, nomeBase, extra){
+function criarRotasRespeitandoLimite(db, vists, nomeBase, extra, forcarDividir){
   var est = estimarRota(db, vists);
   var grupos = [vists];
   if(excedeLimiteRota(est)){
     var div = dividirParadasEmRotas(db, vists);
-    if(div.length>1 && confirm('⚠️ Essa rota passa do limite: '+textoLimiteRota(est)+'.\n\nOK = dividir automaticamente em '+div.length+' rotas (por bairro, sem misturar cidades, até '+ROTA_MAX_EDIF+' edificações e '+(ROTA_MAX_MIN/60)+'h cada).\nCancelar = outras opções.')){
+    if(div.length>1 && (forcarDividir || confirm('⚠️ Essa rota passa do limite: '+textoLimiteRota(est)+'.\n\nOK = dividir automaticamente em '+div.length+' rotas (por bairro, sem misturar cidades, até '+ROTA_MAX_EDIF+' edificações e '+(ROTA_MAX_MIN/60)+'h cada).\nCancelar = outras opções.'))){
       grupos = div;
     } else if(!confirm('Criar UMA rota só, mesmo passando do limite ('+textoLimiteRota(est)+')?\n\nCancelar = não criar nada.')){
       return [];
@@ -4999,6 +5011,95 @@ function criarRotasRespeitandoLimite(db, vists, nomeBase, extra){
     criadas.push(r);
   });
   return criadas;
+}
+
+// ===== Rota MISTA do mês: junta funcionamento (validade no mês) + cartório (prazo no mês); você tira o que não quer e ele divide de 5 em 5 por proximidade =====
+var mistaAno = new Date().getFullYear(), mistaMes = new Date().getMonth(), mistaAtras = true, mistaSel = {};
+function mistaItens(db){
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  var noMes = function(d){ return d && ((d.getFullYear()===mistaAno && d.getMonth()===mistaMes) || (mistaAtras && (d.getFullYear()<mistaAno || (d.getFullYear()===mistaAno && d.getMonth()<mistaMes)))); };
+  var rotaDe = {};
+  (db.vistorias||[]).forEach(function(v){ if(v.concluida || !v.rotaId) return; var r=(db.rotas||[]).find(function(x){return x.id===v.rotaId;}); if(!r) return;
+    rotaDe['E'+v.edificacaoId+'|'+(v.tipo==='cartorio'?'C'+(v.cienciaItemId||v.cartorioItemRef||''):'F')] = r.nome; });
+  var itens = [];
+  (db.edificacoes||[]).forEach(function(e){
+    if(e.competencia==='fora') return;
+    var d = parseDataBR(e.vigenciaFuncionamento && e.vigenciaFuncionamento.vencimento);
+    if(noMes(d)) itens.push({k:'F|'+e.id, t:'F', e:e, d:d, rota:rotaDe['E'+e.id+'|F']||null});
+    (e.cartorio||[]).forEach(function(m){
+      if(m.resolvidaEm) return;
+      var dp = parseDataBR(m.prazo); if(!noMes(dp)) return;
+      itens.push({k:'C|'+m.id, t:'C', e:e, m:m, d:dp, rota:rotaDe['E'+e.id+'|C'+m.id]||null});
+    });
+  });
+  return itens;
+}
+function mistaAbrir(){
+  var ov = document.getElementById('modalMista');
+  if(!ov){ ov = document.createElement('div'); ov.id='modalMista'; ov.className='modal-overlay'; document.body.appendChild(ov); }
+  ov.style.display='flex'; mistaSel = {}; mistaDesenhar(true);
+}
+function mistaMudou(){
+  mistaMes = +document.getElementById('mista-mes').value; mistaAno = +document.getElementById('mista-ano').value||mistaAno;
+  mistaAtras = document.getElementById('mista-atras').checked; mistaDesenhar(true);
+}
+function mistaMarcar(k){ mistaSel[k] = !mistaSel[k]; mistaDesenhar(false); }
+function mistaTodos(v){ mistaItens(loadDB()).forEach(function(it){ mistaSel[it.k] = v && !it.rota; }); mistaDesenhar(false); }
+function mistaDesenhar(reset){
+  var db = loadDB(), itens = mistaItens(db), ov = document.getElementById('modalMista');
+  if(reset){ mistaSel = {}; itens.forEach(function(it){ mistaSel[it.k] = !it.rota; }); }
+  var sc = ov.querySelector('.mista-lista'); var pos = sc ? sc.scrollTop : 0;
+  var mun = {};
+  var tit = function(t){ return String(t).toLowerCase().replace(/(^|[\s\-\/])([a-zà-ú])/g, function(x,p,c){ return p+c.toUpperCase(); }); };
+  var rotM = {}, rotB = {};
+  itens.forEach(function(it){ var m0 = it.e.municipio||'Sem município', b0 = it.e.bairro||'Sem bairro'; var mk = normBairroRota(m0), bk = normBairroRota(b0); rotM[mk] = rotM[mk]||tit(m0); rotB[mk+'|'+bk] = rotB[mk+'|'+bk]||tit(b0); ((mun[mk] = mun[mk]||{})[bk] = mun[mk][bk]||[]).push(it); });
+  var corpo = '';
+  Object.keys(mun).sort().forEach(function(m){
+    corpo += '<div style="font-weight:700;margin:10px 0 2px">🏙️ '+rotM[m]+'</div>';
+    Object.keys(mun[m]).sort().forEach(function(b){
+      corpo += '<div class="sub" style="margin:6px 0 2px">📍 '+rotB[m+'|'+b]+' · '+mun[m][b].length+'</div>';
+      mun[m][b].sort(function(x,y){return (x.e.re||'').localeCompare(y.e.re||'',undefined,{numeric:true});}).forEach(function(it){
+        var venc = it.d<new Date(new Date().setHours(0,0,0,0));
+        var rot = it.t==='F' ? '🔥 Funcionamento · vence '+it.d.toLocaleDateString('pt-BR') : (it.m.tipo==='af'?'📋 AF ':'💰 Multa ')+(it.m.numero||'')+' · '+(it.m.cienciaDadaEm?'ciente':'aguardando ciência')+' · prazo '+it.d.toLocaleDateString('pt-BR');
+        corpo += '<label style="display:flex;gap:8px;align-items:flex-start;padding:6px 4px;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer"><input type="checkbox" '+(mistaSel[it.k]?'checked':'')+' onchange="mistaMarcar(\''+it.k+'\')" style="margin-top:3px">'+
+          '<span style="flex:1;min-width:0"><b>'+(it.e.re||'Sem RE')+'</b> — '+(it.e.nome||'Sem nome')+'<br><span class="sub">'+rot+(venc?' · <span style="color:var(--red2)">vencido</span>':'')+(it.rota?' · <span style="color:var(--amar)">já na rota "'+it.rota+'"</span>':'')+'</span></span></label>';
+      });
+    });
+  });
+  var n = itens.filter(function(it){return mistaSel[it.k];}).length, nf = itens.filter(function(it){return mistaSel[it.k] && it.t==='F';}).length;
+  var anoOpt = ''; for(var a=mistaAno-1;a<=mistaAno+1;a++) anoOpt += '<option value="'+a+'"'+(a===mistaAno?' selected':'')+'>'+a+'</option>';
+  ov.innerHTML = '<div class="modal"><h3>🧩 Montar rota Mista</h3>'+
+    '<div class="btnrow" style="gap:8px;margin-bottom:8px"><select id="mista-mes" onchange="mistaMudou()" style="flex:2">'+MESES_PT.map(function(x,i){return '<option value="'+i+'"'+(i===mistaMes?' selected':'')+'>'+x+'</option>';}).join('')+'</select>'+
+    '<select id="mista-ano" onchange="mistaMudou()" style="flex:1">'+anoOpt+'</select></div>'+
+    '<label style="font-size:13px;display:flex;gap:6px;margin-bottom:8px"><input type="checkbox" id="mista-atras" '+(mistaAtras?'checked':'')+' onchange="mistaMudou()"> Incluir também o que ficou atrasado de meses anteriores</label>'+
+    '<div class="btnrow" style="gap:8px;margin-bottom:6px"><button class="btn" onclick="mistaTodos(true)">Marcar todos</button><button class="btn" onclick="mistaTodos(false)">Desmarcar todos</button></div>'+
+    '<div class="sub" style="margin-bottom:6px">'+itens.length+' item(ns) no mês: desmarque o que não quer levar. Já marcados: '+n+' ('+nf+' funcionamento, '+(n-nf)+' cartório).</div>'+
+    '<div class="mista-lista" style="max-height:48vh;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:0 8px">'+(corpo||'<div class="sub" style="padding:12px">Nada vence neste mês.</div>')+'</div>'+
+    '<div class="btnrow" style="gap:8px;margin-top:10px"><button class="btn" onclick="document.getElementById(\'modalMista\').style.display=\'none\'">Cancelar</button>'+
+    '<button class="btn primary" style="flex:1" onclick="mistaCriar()" '+(n?'':'disabled')+'>Criar rotas de 5 em 5 por proximidade ('+n+')</button></div></div>';
+  var sc2 = ov.querySelector('.mista-lista'); if(sc2) sc2.scrollTop = pos;
+}
+function mistaCriar(){
+  var db = loadDB(), itens = mistaItens(db).filter(function(it){ return mistaSel[it.k]; });
+  if(!itens.length) return;
+  var agora = new Date().toISOString();
+  var vists = itens.map(function(it){
+    if(it.t==='F'){ var v = vistoriaParaRota(db, it.e.id); v.tipo='funcionamento'; v.atualizadoEm=agora; return v; }
+    var e = it.e, m = it.m, ciente = !!m.cienciaDadaEm;
+    var v2 = {id:novoId('vis'), edificacaoId:e.id, tipo:'cartorio', motivo: ciente ? (m.tipo==='af'?'Conferir cumprimento da AF':'Tratar a multa')+' nº '+(m.numero||'(sem número)') : '',
+      checklist:{}, situacaoHS:'', obs:'', concluida:false, concluidaEm:null, trajetoriaId:null, rotaId:null, criadoEm:agora, atualizadoEm:agora, criadaPelaRota:true, cartorioItemRef:m.id};
+    if(!ciente){ v2.cartorioSubtipo='ciencia'; v2.cienciaDe=m.tipo; v2.cienciaItemId=m.id; v2.afSistemas=[]; v2.cienciaBaixas=[]; }
+    else { v2.cartorioSubtipo=m.tipo; v2.cienciaDe=null; v2.cienciaItemId=m.id; v2.afSistemas = m.tipo==='af' ? sistemasDaAF(m) : []; v2.cienciaBaixas=[]; v2.conferirCumpridos=[]; }
+    return v2;
+  });
+  // uma vistoria por parada: se a edificação aparece como funcionamento e cartório, as duas entram (a divisão agrupa pela edificação)
+  var criadas = criarRotasRespeitandoLimite(db, vists, 'Mista '+MESES_PT[mistaMes]+' '+mistaAno, {modelo:'mista', mesRef:{ano:mistaAno, mes:mistaMes}}, true);
+  if(!criadas.length) return;
+  saveDB(db);
+  document.getElementById('modalMista').style.display='none';
+  renderRotas();
+  if(typeof qmap!=='undefined' && qmap) renderQMapaConteudo();
+  alert(criadas.length+' rota(s) Mista criada(s), com '+vists.length+' parada(s), já ordenadas.\n\n'+resumoRotasCriadas(db, criadas));
 }
 function resumoRotasCriadas(db, criadas){
   return criadas.map(function(r){
@@ -6256,11 +6357,23 @@ function atualizarPaineisRotas(){
 }
 // "Anual" = rota que nasceu do calendário por mês, do gerador automático ou de um modelo fixo; o resto é avulsa
 // Planejamento do ano = rotas do calendário por mês e dos modelos fixos (à frente da demanda); o resto é a fila de trabalho (corrigir atrasos e atender pedidos)
-function rotaEhAnual(r){ return !!(r.rotaFixaId || r.origem==='calendario'); }
+var MODELOS_ROTA = [['anual','📆 Anual','Funcionamento: edificações por mês de validade, bairro e cidade'],['cartorio','⚖️ Cartório','AF, multa e ciência por mês, bairro e cidade'],['mista','🧩 Mista','Funcionamento + cartório juntos, por oportunidade'],['avulsa','🎯 Avulsa','Rota livre, montada como e por que você quiser']];
+// Modelo da rota: o gravado (r.modelo) ou, nas antigas, deduzido (calendário/modelo fixo = anual; só cartório = cartório; técnica+cartório = mista; resto = avulsa)
+function modeloRota(db, r){
+  if(r.modelo && ['anual','cartorio','mista','avulsa'].indexOf(r.modelo)>=0) return r.modelo;
+  if(r.rotaFixaId || r.origem==='calendario') return 'anual';
+  var vs = (r.vistorias||[]).map(function(id){ return (db.vistorias||[]).find(function(x){return x.id===id;}); }).filter(Boolean);
+  if(!vs.length) return 'avulsa';
+  var nc = vs.filter(function(v){ return v.tipo==='cartorio'; }).length;
+  if(nc===vs.length) return 'cartorio';
+  if(nc>0) return 'mista';
+  return 'avulsa';
+}
+function rotaEhAnual(r){ return modeloRota(loadDB(), r)==='anual'; }
 // Mês da demanda: o do vencimento que a rota atende (guardado ao criar; nas antigas, o vencimento mais comum das paradas); senão a data da rota
 function mesDemandaRota(db, r){
   if(r.mesRef && r.mesRef.ano) return {ano:r.mesRef.ano, mes:r.mesRef.mes};
-  if(r.origem==='calendario'){
+  if(r.origem==='calendario' || r.modelo==='anual'){
     var cont = {}, melhor = null;
     (r.vistorias||[]).forEach(function(vid){
       var v = (db.vistorias||[]).find(function(x){return x.id===vid;}); var e = v && (db.edificacoes||[]).find(function(x){return x.id===v.edificacaoId;});
@@ -6307,14 +6420,14 @@ var rotasChavesReg = [];
 function htmlGrupoRotas(chave, titulo, qtd, corpo, nivel){
   if(rotasChavesReg.indexOf(chave)<0) rotasChavesReg.push(chave);
   var ab = rotasGrupoAberto[chave] === true;
-  return '<div style="margin:0 0 10px '+((nivel||0)*14)+'px"><div class="sec-toggle" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;padding:8px 2px;border-bottom:1px solid var(--line,rgba(255,255,255,.12))" onclick="togglePainelRotaGrupo(\''+chave+'\')">'+
+  return '<div style="margin:0 0 10px '+(nivel?12:0)+'px"><div class="sec-toggle" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;padding:8px 2px;border-bottom:1px solid var(--line,rgba(255,255,255,.12))" onclick="togglePainelRotaGrupo(\''+chave+'\')">'+
     '<span>'+(ab?'▼':'▶')+'</span><span style="flex:1">'+titulo+'</span><span class="sub">'+qtd+' rota(s)</span></div>'+
     (ab ? '<div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">'+corpo+'</div>' : '')+'</div>';
 }
 // Grupo pelo nome: "Ciência 1", "Ciência 2"... viram o grupo "Ciência"; só vira pasta quando há 2 ou mais com o mesmo prefixo
 function rotaPrefixo(nome){
   var n = String(nome||'').replace(/\s*\(\d+\/\d+\)\s*$/,'').trim();
-  var m = /^(.*?[^\s\-–—:\/\d])[\s\-–—:]*\s(\d{1,3})$/.exec(n) || /^(.*?[^\s\-–—:\/\d])[\s\-–—:]+(\d{1,3})$/.exec(n);
+  var m = /^([^\s\d\-–—:\/][^\d]*?[^\s\d\-–—:\/])\s+0*(\d{1,3})(?:\s|$)/.exec(n) || /^(.*?[^\s\-–—:\/\d])[\s\-–—:]*\s(\d{1,3})$/.exec(n) || /^(.*?[^\s\-–—:\/\d])[\s\-–—:]+(\d{1,3})$/.exec(n);
   var rot = m ? m[1].trim() : n;
   return {rotulo: rot, chave: rot.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()};
 }
@@ -6329,7 +6442,7 @@ function htmlRotasPorPrefixo(db, rotas, chaveBase, nivel){
   });
   return h;
 }
-function recolherTodasRotas(){ rotasChavesReg.forEach(function(k){ if(k!=='anuais' && k!=='avulsas') rotasGrupoAberto[k] = false; }); rotasGrupoAberto.anuais = true; rotasGrupoAberto.avulsas = true; salvarRotasGrupos(); renderRotas(); }
+function recolherTodasRotas(){ rotasChavesReg.forEach(function(k){ rotasGrupoAberto[k] = false; }); MODELOS_ROTA.forEach(function(M){ rotasGrupoAberto['mod-'+M[0]] = true; }); salvarRotasGrupos(); renderRotas(); }
 function expandirTodasRotas(){ rotasChavesReg.forEach(function(k){ rotasGrupoAberto[k] = true; }); salvarRotasGrupos(); renderRotas(); }
 // Sugere o próximo nome de um tipo de rota ("Ciência" -> "Ciência 4", pelo maior número já usado)
 function proximoNomeRota(prefixo){
@@ -6350,22 +6463,26 @@ function renderRotas(){
     el.innerHTML = '<div class="empty"><div class="ico">🧭</div>Nenhuma rota criada ainda.</div>';
     return;
   }
-  var anuais = lista.filter(rotaEhAnual), avulsas = lista.filter(function(r){ return !rotaEhAnual(r); });
   var html = '<div class="btnrow" style="gap:8px;margin-bottom:12px"><button class="btn" onclick="recolherTodasRotas()">⏫ Recolher tudo</button><button class="btn" onclick="expandirTodasRotas()">⏬ Expandir tudo</button></div>';
-  // Rotas anuais: ano > mês > grupo pelo nome > rotas (cada nível abre e fecha)
-  if(anuais.length){
-    var anos = {};
-    anuais.forEach(function(r){ var m = mesDemandaRota(db, r); (anos[m.ano] = anos[m.ano] || {}); (anos[m.ano][m.mes] = anos[m.ano][m.mes] || []).push(r); });
-    var corpoAnos = Object.keys(anos).sort(function(a,b){return b-a;}).map(function(ano){
-      var meses = anos[ano], qtdAno = 0; Object.keys(meses).forEach(function(m){ qtdAno += meses[m].length; });
-      var corpoMeses = Object.keys(meses).sort(function(a,b){return b-a;}).map(function(m){
-        return htmlGrupoRotas('anuais-'+ano+'-'+m, MESES_PT[m]+' de '+ano, meses[m].length, htmlRotasPorPrefixo(db, meses[m], 'anuais-'+ano+'-'+m, 1), 1);
+  // 4 modelos: Anual, Cartório, Mista (ano > mês > grupo pelo nome) e Avulsa (grupo pelo nome)
+  MODELOS_ROTA.forEach(function(M){
+    var rs = lista.filter(function(r){ return modeloRota(db, r)===M[0]; });
+    var chave = 'mod-'+M[0], corpo;
+    if(!rs.length){ corpo = '<div class="sub">Nenhuma rota neste modelo. '+M[2]+'.</div>'; }
+    else if(M[0]==='avulsa'){ corpo = htmlRotasPorPrefixo(db, rs, chave, 1); }
+    else {
+      var anos = {};
+      rs.forEach(function(r){ var m = mesDemandaRota(db, r); (anos[m.ano] = anos[m.ano] || {}); (anos[m.ano][m.mes] = anos[m.ano][m.mes] || []).push(r); });
+      corpo = Object.keys(anos).sort(function(a,b){return b-a;}).map(function(ano){
+        var meses = anos[ano], qtdAno = 0; Object.keys(meses).forEach(function(m){ qtdAno += meses[m].length; });
+        var corpoMeses = Object.keys(meses).sort(function(a,b){return b-a;}).map(function(m){
+          return htmlGrupoRotas(chave+'-'+ano+'-'+m, MESES_PT[m]+' de '+ano, meses[m].length, htmlRotasPorPrefixo(db, meses[m], chave+'-'+ano+'-'+m, 3), 2);
+        }).join('');
+        return htmlGrupoRotas(chave+'-'+ano, '📆 '+(ano>0?ano:'Sem data'), qtdAno, corpoMeses, 1);
       }).join('');
-      return htmlGrupoRotas('anuais-'+ano, '📆 '+(ano>0?ano:'Sem data'), qtdAno, corpoMeses, 0);
-    }).join('');
-    html += htmlGrupoRotas('anuais', '📆 Planejamento do ano (mês a mês)', anuais.length, corpoAnos, 0);
-  }
-  html += htmlGrupoRotas('avulsas', '📥 Fila de trabalho (atrasos e pedidos)', avulsas.length, avulsas.length ? htmlRotasPorPrefixo(db, avulsas, 'avulsas', 1) : '<div class="sub">Nenhuma rota na fila de trabalho.</div>', 0);
+    }
+    html += htmlGrupoRotas(chave, M[1], rs.length, corpo, 0);
+  });
   el.innerHTML = html;
 }
 
@@ -6510,7 +6627,7 @@ function calConfirmar(){
   });
   var contMes = {}, mesRef = null;
   edifs.forEach(function(e){ var d = parseDataBR(e.vigenciaFuncionamento && e.vigenciaFuncionamento.vencimento); if(!d) return; var k = d.getFullYear()+'-'+d.getMonth(); contMes[k] = (contMes[k]||0)+1; if(!mesRef || contMes[k]>contMes[mesRef]) mesRef = k; });
-  var extraRota = {origem:'calendario'}; if(mesRef){ var q = mesRef.split('-'); extraRota.mesRef = {ano:+q[0], mes:+q[1]}; }
+  var extraRota = {origem:'calendario', modelo:'anual'}; if(mesRef){ var q = mesRef.split('-'); extraRota.mesRef = {ano:+q[0], mes:+q[1]}; }
   var criadas = criarRotasRespeitandoLimite(db, vists, nome, extraRota);
   if(!criadas.length) return; // cancelado: nada é salvo
   saveDB(db);
@@ -6614,7 +6731,10 @@ function ccConfirmar(){
     else { v.cartorioSubtipo=a.m.tipo; v.cienciaDe=null; v.cienciaItemId=a.m.id; v.afSistemas = a.m.tipo==='af' ? sistemasDaAF(a.m) : []; v.cienciaBaixas=[]; v.conferirCumpridos=[]; }
     return v;
   });
-  var criadas = criarRotasRespeitandoLimite(db, vists, nome);
+  var contC = {}, mesC = null;
+  alvos.forEach(function(a){ var d = parseDataBR(a.m.prazo); if(!d) return; var k = d.getFullYear()+'-'+d.getMonth(); contC[k] = (contC[k]||0)+1; if(!mesC || contC[k]>contC[mesC]) mesC = k; });
+  var extraC = {modelo:'cartorio'}; if(mesC){ var qc = mesC.split('-'); extraC.mesRef = {ano:+qc[0], mes:+qc[1]}; }
+  var criadas = criarRotasRespeitandoLimite(db, vists, nome, extraC);
   if(!criadas.length) return;
   saveDB(db);
   ccSel = {};
@@ -6690,6 +6810,7 @@ function abrirFormRota(rotaId){
     document.getElementById('rt-btn-salvar').textContent = 'Salvar alterações';
     document.getElementById('rt-nome').value = r.nome||'';
     document.getElementById('rt-data').value = r.data||'';
+    document.getElementById('rt-modelo').value = modeloRota(db, r);
     // paradas = vistorias ainda não executadas da rota (as concluídas ficam como histórico)
     (r.vistorias||[]).forEach(function(vid){
       var v = db.vistorias.find(function(x){return x.id===vid;});
@@ -6702,7 +6823,9 @@ function abrirFormRota(rotaId){
     document.getElementById('rt-btn-salvar').textContent = 'Criar e otimizar rota';
     document.getElementById('rt-nome').value='';
     document.getElementById('rt-data').value='';
+    document.getElementById('rt-modelo').value='avulsa';
   }
+  rtMesPrepara(); document.getElementById('rt-mes-info').textContent='';
   rtPadraoMudou();
   renderRtEdifLista();
   renderRtParadas();
@@ -6750,6 +6873,53 @@ function rtAlternarEdif(edifId){
 }
 // atalho da coleta de ciência: uma parada de Ciência por AF/multa pendente (respeita o filtro da
 // busca — ex: digitar o bairro), já com o item escolhido
+function rtBuscaOk(e, busca){
+  return !busca || (e.re||'').toLowerCase().indexOf(busca)>=0 || (e.nome||'').toLowerCase().indexOf(busca)>=0 || (e.endereco||'').toLowerCase().indexOf(busca)>=0 || (e.bairro||'').toLowerCase().indexOf(busca)>=0 || (e.municipio||'').toLowerCase().indexOf(busca)>=0;
+}
+function rtMesContagem(db, ano, mes){
+  var busca = (document.getElementById('rt-busca').value||'').toLowerCase();
+  var f = [], c = [];
+  var pend = {}; (db.vistorias||[]).forEach(function(v){ if(!v.concluida && v.rotaId && (db.rotas||[]).some(function(r){return r.id===v.rotaId;})) pend[v.edificacaoId+'|'+(v.tipo==='cartorio'?(v.cienciaItemId||v.cartorioItemRef||''):'f')] = 1; });
+  (db.edificacoes||[]).forEach(function(e){
+    if(e.competencia==='fora' || !rtBuscaOk(e, busca)) return;
+    var d = parseDataBR(e.vigenciaFuncionamento && e.vigenciaFuncionamento.vencimento);
+    if(d && d.getFullYear()===ano && d.getMonth()===mes && !pend[e.id+'|f']) f.push(e);
+    (e.cartorio||[]).forEach(function(m){
+      if(m.resolvidaEm) return;
+      var dp = parseDataBR(m.prazo); if(!dp || dp.getFullYear()!==ano || dp.getMonth()!==mes) return;
+      if(pend[e.id+'|'+m.id]) return;
+      c.push({e:e, m:m});
+    });
+  });
+  return {f:f, c:c};
+}
+function rtMesPrepara(){
+  var sel = document.getElementById('rt-mes'); if(!sel || sel.options.length) return;
+  var h = new Date();
+  sel.innerHTML = MESES_PT.map(function(n,i){ return '<option value="'+i+'"'+(i===h.getMonth()?' selected':'')+'>'+n+'</option>'; }).join('');
+  document.getElementById('rt-mes-ano').value = h.getFullYear();
+}
+function rtPuxarMes(comFunc, comCart){
+  var db = loadDB(), mes = +document.getElementById('rt-mes').value, ano = +document.getElementById('rt-mes-ano').value;
+  var r = rtMesContagem(db, ano, mes), nf = 0, nc = 0;
+  if(comFunc) r.f.forEach(function(e){
+    if(rtParadas.some(function(p){return p.edificacaoId===e.id && p.tipo==='funcionamento';})) return;
+    var solta = (db.vistorias||[]).find(function(v){ return v.edificacaoId===e.id && !v.concluida && !v.rotaId && v.tipo==='funcionamento'; });
+    rtParadas.push({edificacaoId:e.id, vistoriaId:solta?solta.id:null, adotada:!!solta, tipo:'funcionamento', cartorioSubtipo:null, cienciaDe:null, cienciaItemId:null, afSistemas:[]});
+    nf++;
+  });
+  if(comCart) r.c.forEach(function(x){
+    if(rtParadas.some(function(p){return p.cienciaItemId===x.m.id;})) return;
+    var ciente = !!x.m.cienciaDadaEm;
+    rtParadas.push({edificacaoId:x.e.id, vistoriaId:null, adotada:false, tipo:'cartorio', cartorioSubtipo: ciente ? x.m.tipo : 'ciencia', cienciaDe: ciente ? null : x.m.tipo, cienciaItemId:x.m.id, afSistemas: ciente && x.m.tipo==='af' ? sistemasDaAF(x.m) : []});
+    nc++;
+  });
+  document.getElementById('rt-mes-info').textContent = MESES_PT[mes]+' de '+ano+': '+r.f.length+' funcionamento(s) e '+r.c.length+' item(ns) de cartório vencendo; adicionadas '+nf+' + '+nc+' paradas.';
+  if(nf+nc && nf && nc) document.getElementById('rt-modelo').value = 'mista';
+  else if(nf+nc && nc) document.getElementById('rt-modelo').value = 'cartorio';
+  else if(nf) document.getElementById('rt-modelo').value = 'anual';
+  renderRtEdifLista(); renderRtParadas();
+}
 function rtAdicionarCienciasPendentes(){
   var db = loadDB();
   var busca = (document.getElementById('rt-busca').value||'').toLowerCase();
@@ -6864,6 +7034,8 @@ function salvarRota(){
   };
   if(!db.rotas) db.rotas=[];
   var idx = rotaEmEdicaoId ? db.rotas.findIndex(function(x){return x.id===rotaEmEdicaoId;}) : -1;
+  rota.modelo = document.getElementById('rt-modelo').value || 'avulsa';
+  if(idx>=0){ var antiga = db.rotas[idx]; ['origem','rotaFixaId','mesRef'].forEach(function(k){ if(antiga[k]!==undefined) rota[k] = antiga[k]; }); }
   if(idx>=0) db.rotas[idx] = rota; else db.rotas.push(rota);
   saveDB(db);
   rotaEmEdicaoId = null;
