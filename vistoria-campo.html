@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v86</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v87</div>
   </header>
 
   <main>
@@ -3868,7 +3868,7 @@ var mapInited = false;
 var lyrEdif=null, lyrPontos=null, lyrTrajAtual=null, lyrTrajAnt=null, lyrForaComp=null, lyrDirecao=null;
 var meuMarcador = null;
 var meuPosicaoAtual = null; // [lat,lng] — última posição conhecida do GPS, pro indicador de direção
-var meuPosRefRumo = null, meuHeadingTs = 0;
+var meuPosRefRumo = null, meuHeadingTs = 0, gpsDominaTs = 0, meuUltimoFix = null;
 var meuHeadingAtual = null; // graus (0-360) — pra onde a pessoa está se deslocando, calculado pelo
                              // movimento entre duas leituras de GPS (não é bússola do aparelho)
 var mapFiltroRe = null; // id da edificação, quando o usuário busca/filtra por uma RE única no mapa
@@ -4385,6 +4385,7 @@ function onOrientacaoDispositivo(ev){
     h = compassHeadingTilt(ev.alpha, ev.beta, ev.gamma);
   }
   if(h==null) return;
+  if(Date.now()-gpsDominaTs < 5000) return; // em movimento rápido o rumo vem do GPS
   headingSensorTs = Date.now();
   definirHeading(h);
 }
@@ -4491,12 +4492,22 @@ function atualizarMeuMarcador(ll, acc, gpsHeading, speed){
     var limiteRef = Math.max(8, (acc||0)*0.6);
     if(distRef > limiteRef){ meuHeadingAtual = calcularBearing(meuPosRefRumo[0], meuPosRefRumo[1], ll[0], ll[1]); meuHeadingTs = Date.now(); meuPosRefRumo = ll; }
   }
+  // velocidade efetiva: a informada pelo GPS ou, se vier vazia, estimada pelo deslocamento entre leituras
+  var agoraFix = Date.now(), velEf = (speed>0) ? speed : 0;
+  if(!(speed>0) && meuUltimoFix && agoraFix>meuUltimoFix.t){ velEf = haversineKm(meuUltimoFix.ll[0], meuUltimoFix.ll[1], ll[0], ll[1])*1000 / ((agoraFix-meuUltimoFix.t)/1000); }
+  meuUltimoFix = {ll:ll, t:agoraFix};
   meuPosicaoAtual = ll;
   if(!meuMarcador) criarMeuMarcador(ll); else meuMarcador.setLatLng(ll);
   if(acc && acc<200){
     if(!meuCirculoAcc) meuCirculoAcc = L.circle(ll, {radius:acc, color:'#0A84FF', weight:1, fillColor:'#0A84FF', fillOpacity:.1, interactive:false}).addTo(map);
     else { meuCirculoAcc.setLatLng(ll); meuCirculoAcc.setRadius(acc); }
   }
+  // dirigindo (acima de ~9 km/h) a bússola do aparelho não representa o sentido do carro (celular no suporte, deitado, interferência
+  // do veículo): vale o rumo do GPS, e a bússola fica ignorada enquanto dura o movimento
+  if(velEf > 2.5){
+    var hgCar = (gpsHeading!=null && !isNaN(gpsHeading) && speed>0.8) ? gpsHeading : (meuHeadingAtual!=null && Date.now()-meuHeadingTs < 8000 ? meuHeadingAtual : null);
+    if(hgCar!=null){ gpsDominaTs = Date.now(); definirHeading(hgCar); }
+  } else
   // sem bússola (ou parada há tempo): usa o sentido do deslocamento quando está andando de verdade
   if(Date.now()-headingSensorTs > 2500){
     var hg = (gpsHeading!=null && !isNaN(gpsHeading) && speed>0.8) ? gpsHeading : null;

@@ -172,7 +172,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v123</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v124</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -8526,7 +8526,11 @@ function renderESCI(){
       '<div class="elist-t">'+ESCI_ROTULO[p.kind]+'</div>'+
       '<pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;margin:6px 0">'+escHtmlCart(txt)+'</pre>'+
       '<div class="btnrow" style="gap:8px;flex-wrap:wrap">'+acao+
-        '<button class="btn" style="width:auto" onclick="copiarESCI('+i+')">📋 Copiar</button></div>'+
+        '<button class="btn" style="width:auto" onclick="copiarESCI('+i+')">📋 Copiar</button>'+
+        (telefoneParaWhatsapp(p.e.responsavel && p.e.responsavel.tel)
+          ? '<button class="btn" style="width:auto;background:#25D366;color:#fff" title="Abre o WhatsApp com o responsável pela edificação" onclick="enviarMensagemGenericaEdificacao(\''+p.e.id+'\')">💬 WhatsApp</button>'
+          : '<button class="btn" style="width:auto;opacity:.55" title="Sem telefone cadastrado" onclick="alert(\'Esta edificação não tem telefone cadastrado.\')">💬 Sem telefone</button>')+
+      '</div>'+
     '</div>';
   }).join('') : '<div class="empty"><div class="ico">✅</div>Nada pendente para lançar no e-SCI.</div>';
   var feitos = listarPendenciasESCI(db, true).slice(0, 20);
