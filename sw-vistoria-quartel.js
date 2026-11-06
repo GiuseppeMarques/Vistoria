@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vistoria-quartel-v125';
+const CACHE_NAME = 'vistoria-quartel-v126';
 
 self.addEventListener('install', function(e){
   self.skipWaiting();
@@ -17,7 +17,7 @@ self.addEventListener('fetch', function(e){
   e.respondWith(
     caches.open(CACHE_NAME).then(function(cache){
       return cache.match(e.request).then(function(cached){
-        var fetchPromise = fetch(e.request).then(function(resp){
+        var fetchPromise = fetch(e.request, {cache: (new URL(e.request.url).origin===self.location.origin ? "no-cache" : "default")}).then(function(resp){
           if(resp && resp.status===200){ cache.put(e.request, resp.clone()); }
           return resp;
         }).catch(function(){ return cached; });
