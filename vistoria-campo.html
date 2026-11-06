@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v84</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v85</div>
   </header>
 
   <main>
@@ -3807,6 +3807,7 @@ var mapInited = false;
 var lyrEdif=null, lyrPontos=null, lyrTrajAtual=null, lyrTrajAnt=null, lyrForaComp=null, lyrDirecao=null;
 var meuMarcador = null;
 var meuPosicaoAtual = null; // [lat,lng] — última posição conhecida do GPS, pro indicador de direção
+var meuPosRefRumo = null, meuHeadingTs = 0;
 var meuHeadingAtual = null; // graus (0-360) — pra onde a pessoa está se deslocando, calculado pelo
                              // movimento entre duas leituras de GPS (não é bússola do aparelho)
 var mapFiltroRe = null; // id da edificação, quando o usuário busca/filtra por uma RE única no mapa
@@ -4421,9 +4422,13 @@ function desativarModoBussola(){
 
 function atualizarMeuMarcador(ll, acc, gpsHeading, speed){
   if(!map) return;
-  if(meuPosicaoAtual){
-    var deslocamentoKm = haversineKm(meuPosicaoAtual[0], meuPosicaoAtual[1], ll[0], ll[1]);
-    if(deslocamentoKm*1000 > 5) meuHeadingAtual = calcularBearing(meuPosicaoAtual[0], meuPosicaoAtual[1], ll[0], ll[1]);
+  // sentido do deslocamento: compara com o último ponto de referência (e não com o fix anterior, que a pé
+  // anda só ~1 m por leitura e nunca passava do limite); só conta quando o deslocamento supera o ruído do GPS
+  if(!meuPosRefRumo) meuPosRefRumo = ll;
+  else {
+    var distRef = haversineKm(meuPosRefRumo[0], meuPosRefRumo[1], ll[0], ll[1])*1000;
+    var limiteRef = Math.max(8, (acc||0)*0.6);
+    if(distRef > limiteRef){ meuHeadingAtual = calcularBearing(meuPosRefRumo[0], meuPosRefRumo[1], ll[0], ll[1]); meuHeadingTs = Date.now(); meuPosRefRumo = ll; }
   }
   meuPosicaoAtual = ll;
   if(!meuMarcador) criarMeuMarcador(ll); else meuMarcador.setLatLng(ll);
@@ -4433,8 +4438,8 @@ function atualizarMeuMarcador(ll, acc, gpsHeading, speed){
   }
   // sem bússola (ou parada há tempo): usa o sentido do deslocamento quando está andando de verdade
   if(Date.now()-headingSensorTs > 2500){
-    var hg = (gpsHeading!=null && !isNaN(gpsHeading) && speed>1) ? gpsHeading : null;
-    if(hg==null && speed>1 && meuHeadingAtual!=null) hg = meuHeadingAtual;
+    var hg = (gpsHeading!=null && !isNaN(gpsHeading) && speed>0.8) ? gpsHeading : null;
+    if(hg==null && meuHeadingAtual!=null && Date.now()-meuHeadingTs < 8000) hg = meuHeadingAtual;
     if(hg!=null) definirHeading(hg);
   }
   if(seguindoMinhaLocalizacao) map.panTo(ll, {animate:true, duration:.5, noMoveStart:true});
