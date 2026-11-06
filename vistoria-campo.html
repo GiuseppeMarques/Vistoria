@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v88</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v89</div>
   </header>
 
   <main>
@@ -1048,6 +1048,51 @@ function rotaPrefixoCampo(nome){
 }
 function recolherTodasVistCampo(){ vistChavesReg.forEach(function(k){ vistGrupoAberto[k] = false; }); try{ localStorage.setItem('vistoria_campo_grupos', JSON.stringify(vistGrupoAberto)); }catch(e){} renderVistoriasCampo(); }
 function expandirTodasVistCampo(){ vistChavesReg.forEach(function(k){ vistGrupoAberto[k] = true; }); try{ localStorage.setItem('vistoria_campo_grupos', JSON.stringify(vistGrupoAberto)); }catch(e){} renderVistoriasCampo(); }
+// ===== AGENDA: rotas em ordem cronológica (dia > manhã/tarde), qualquer modelo =====
+var visaoRotasCampo = (function(){ try{ return localStorage.getItem('vistoria_campo_visao')==='agenda' ? 'agenda' : 'modelo'; }catch(e){ return 'modelo'; } })();
+function setVisaoRotasCampo(v){ visaoRotasCampo = v==='agenda' ? 'agenda' : 'modelo'; try{ localStorage.setItem('vistoria_campo_visao', visaoRotasCampo); }catch(e){} renderVistoriasCampo(); }
+function turnoRotaCampo(nome){
+  var n = String(nome||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+  if(/manha/.test(n)) return 0; if(/tarde/.test(n)) return 1; if(/noite/.test(n)) return 2; return 3;
+}
+var TURNO_ROTULO_CAMPO = ['🌅 Manhã','🌇 Tarde','🌙 Noite','🕒 Sem turno'];
+var DIAS_SEM_CAMPO = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+function chaveDiaCampo(d){ var p=function(n){return (n<10?'0':'')+n;}; return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
+function segundaSemanaCampo(d){ var x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); var w = x.getDay(); x.setDate(x.getDate() - (w===0 ? 6 : w-1)); return x; }
+function htmlAgendaCampo(db, rotas, porRota, rotaHtml){
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  var semHoje = chaveDiaCampo(segundaSemanaCampo(hoje)), p2 = function(n){return (n<10?'0':'')+n;};
+  var dias = {}, semData = [], atrasadas = [];
+  rotas.forEach(function(r){
+    var d = dataBRCampo(r.data);
+    if(!d){ semData.push(r); return; }
+    var pend = (porRota[r.id]||[]).some(function(v){return !v.concluida;});
+    if(d < hoje && pend){ atrasadas.push(r); return; }
+    var k = chaveDiaCampo(d); (dias[k] = dias[k] || {d:d, rotas:[]}).rotas.push(r);
+  });
+  var ord = function(a,b){ var ta=turnoRotaCampo(a.nome), tb=turnoRotaCampo(b.nome); return ta!==tb ? ta-tb : compararRotasPorNomeCampo(a,b); };
+  var htmlDia = function(k){
+    var o = dias[k], d = o.d, dif = Math.round((d - hoje)/86400000), rs = o.rotas.slice().sort(ord), ult = -1, h = '', par = 0;
+    rs.forEach(function(r){ par += (porRota[r.id]||[]).filter(function(v){return !v.concluida;}).length; var t = turnoRotaCampo(r.nome); if(t!==ult){ h += '<div style="font-size:12px;font-weight:700;color:var(--sub);margin:8px 0 4px">'+TURNO_ROTULO_CAMPO[t]+'</div>'; ult = t; } h += rotaHtml(r, 0); });
+    return '<div style="margin:0 0 14px"><div style="padding:8px 2px;border-bottom:2px solid '+(dif===0?'var(--red2)':'rgba(255,255,255,.15)')+'"><b>'+DIAS_SEM_CAMPO[d.getDay()]+' '+p2(d.getDate())+'/'+p2(d.getMonth()+1)+(dif===0?' · HOJE':(dif===1?' · amanhã':''))+'</b><div style="font-size:12px;color:var(--sub)">'+rs.length+' rota(s) · '+par+' parada(s) pendente(s)</div></div><div style="margin-top:6px">'+h+'</div></div>';
+  };
+  var h = '';
+  if(atrasadas.length){
+    atrasadas.sort(function(a,b){ return dataBRCampo(a.data) - dataBRCampo(b.data) || ord(a,b); });
+    h += '<div style="border:1px solid var(--red2);border-radius:12px;padding:8px 10px;margin-bottom:14px"><b style="color:var(--red2)">⏰ Atrasadas ('+atrasadas.length+')</b><div style="font-size:12px;color:var(--sub);margin-bottom:6px">Data já passou e ainda há paradas pendentes.</div>'+atrasadas.map(function(r){ return rotaHtml(r, 0); }).join('')+'</div>';
+  }
+  var semanas = {};
+  Object.keys(dias).sort().forEach(function(k){ var sk = chaveDiaCampo(segundaSemanaCampo(dias[k].d)); (semanas[sk] = semanas[sk]||[]).push(k); });
+  Object.keys(semanas).sort().forEach(function(sk){
+    var seg = segundaSemanaCampo(dias[semanas[sk][0]].d), sex = new Date(seg); sex.setDate(sex.getDate()+4);
+    var qtd = 0; semanas[sk].forEach(function(k){ qtd += dias[k].rotas.length; });
+    var chave = 'ag-'+sk;
+    if(vistGrupoAberto[chave]===undefined) vistGrupoAberto[chave] = sk >= semHoje;
+    h += htmlGrupoVistCampo(chave, '🗓️ Semana '+p2(seg.getDate())+'/'+p2(seg.getMonth()+1)+' a '+p2(sex.getDate())+'/'+p2(sex.getMonth()+1)+(sk===semHoje?' · esta semana':''), qtd+' rota(s)', semanas[sk].map(htmlDia).join(''), 0);
+  });
+  if(semData.length) h += htmlGrupoVistCampo('ag-semdata', '❔ Sem data', semData.length+' rota(s)', semData.sort(compararRotasPorNomeCampo).map(function(r){ return rotaHtml(r, 0); }).join(''), 0);
+  return h || '<div style="color:var(--sub)">Nenhuma rota agendada.</div>';
+}
 function htmlVistoriasAgrupadasCampo(db, lista){
   vistChavesReg = [];
   var porRota = {}, semRota = [];
@@ -1072,8 +1117,10 @@ function htmlVistoriasAgrupadasCampo(db, lista){
     });
     return h;
   };
-  var h = '<div class="btnrow" style="gap:8px;margin-bottom:10px"><button class="btn" onclick="recolherTodasVistCampo()">⏫ Recolher tudo</button><button class="btn" onclick="expandirTodasVistCampo()">⏬ Expandir tudo</button></div>';
-  MODELOS_ROTA_CAMPO.forEach(function(M){
+  var h = '<div class="btnrow" style="gap:8px;margin-bottom:8px"><button class="btn'+(visaoRotasCampo==='modelo'?' primary':'')+'" onclick="setVisaoRotasCampo(\'modelo\')">📂 Por modelo</button><button class="btn'+(visaoRotasCampo==='agenda'?' primary':'')+'" onclick="setVisaoRotasCampo(\'agenda\')">🗓️ Agenda</button></div>'+
+    '<div class="btnrow" style="gap:8px;margin-bottom:10px"><button class="btn" onclick="recolherTodasVistCampo()">⏫ Recolher tudo</button><button class="btn" onclick="expandirTodasVistCampo()">⏬ Expandir tudo</button></div>';
+  if(visaoRotasCampo==='agenda') h += htmlAgendaCampo(db, rotas, porRota, rotaHtml);
+  else MODELOS_ROTA_CAMPO.forEach(function(M){
     var rs = rotas.filter(function(r){ return modeloRotaCampo(db, r)===M[0]; });
     if(!rs.length) return;
     var chave = 'mod-'+M[0], corpo;

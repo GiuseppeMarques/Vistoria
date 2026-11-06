@@ -172,7 +172,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v126</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v127</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -6537,6 +6537,62 @@ function proximoNomeRota(prefixo){
   return prefixo+' '+(max+1);
 }
 function usarNomeRota(prefixo){ document.getElementById('rt-nome').value = proximoNomeRota(prefixo); }
+// ===== AGENDA: todas as rotas em ordem cronológica (dia > manhã/tarde), qualquer modelo =====
+var rotasVisao = (function(){ try{ return localStorage.getItem('vistoria_rotas_visao')==='agenda' ? 'agenda' : 'modelo'; }catch(e){ return 'modelo'; } })();
+function setRotasVisao(v){ rotasVisao = v==='agenda' ? 'agenda' : 'modelo'; try{ localStorage.setItem('vistoria_rotas_visao', rotasVisao); }catch(e){} renderRotas(); }
+function turnoRotaAgenda(nome){
+  var n = String(nome||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+  if(/manha/.test(n)) return 0; if(/tarde/.test(n)) return 1; if(/noite/.test(n)) return 2; return 3;
+}
+var TURNO_ROTULO = ['🌅 Manhã','🌇 Tarde','🌙 Noite','🕒 Sem turno'];
+var DIAS_SEM_AG = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+function chaveDia(d){ var p=function(n){return (n<10?'0':'')+n;}; return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
+function segundaDaSemana(d){ var x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); var w = x.getDay(); x.setDate(x.getDate() - (w===0 ? 6 : w-1)); return x; }
+function htmlAgendaRotas(db, lista){
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  var semHoje = chaveDia(segundaDaSemana(hoje));
+  var dias = {}, semData = [], atrasadas = [];
+  lista.forEach(function(r){
+    var d = parseDataBR(r.data);
+    if(!d){ semData.push(r); return; }
+    d.setHours(0,0,0,0);
+    var vs = (r.vistorias||[]).map(function(id){ return db.vistorias.find(function(x){return x.id===id;}); }).filter(Boolean);
+    if(d < hoje && vs.some(function(v){return !v.concluida;})){ atrasadas.push(r); return; }
+    var k = chaveDia(d); (dias[k] = dias[k] || {d:d, rotas:[]}).rotas.push(r);
+  });
+  var ordRotas = function(a,b){ var ta=turnoRotaAgenda(a.nome), tb=turnoRotaAgenda(b.nome); return ta!==tb ? ta-tb : compararRotasPorNome(a,b); };
+  var p2 = function(n){return (n<10?'0':'')+n;};
+  var resumoDia = function(rs){
+    var par = 0, min = 0, ed = 0;
+    rs.forEach(function(r){ var vs = (r.vistorias||[]).map(function(id){ return db.vistorias.find(function(x){return x.id===id;}); }).filter(function(v){return v && !v.concluida;}); par += vs.length; var e = estimarRota(db, vs); min += e.minutos||0; ed += e.edificacoes||0; });
+    return rs.length+' rota(s) · '+par+' parada(s) pendente(s) · ~'+fmtMinutosRota(min);
+  };
+  var htmlDia = function(k){
+    var o = dias[k], d = o.d, dif = Math.round((d - hoje)/86400000);
+    var rot = dif===0 ? ' · HOJE' : (dif===1 ? ' · amanhã' : '');
+    var rs = o.rotas.slice().sort(ordRotas), ultimoT = -1, h = '';
+    rs.forEach(function(r){ var t = turnoRotaAgenda(r.nome); if(t!==ultimoT){ h += '<div class="sub" style="font-weight:700;margin:8px 0 2px">'+TURNO_ROTULO[t]+'</div>'; ultimoT = t; } h += htmlRotaItem(db, r); });
+    return '<div style="margin:0 0 14px"><div style="padding:8px 2px;border-bottom:2px solid '+(dif===0?'var(--red2)':'var(--line,rgba(255,255,255,.12))')+'"><b>'+DIAS_SEM_AG[d.getDay()]+' '+p2(d.getDate())+'/'+p2(d.getMonth()+1)+rot+'</b><div class="sub">'+resumoDia(rs)+'</div></div>'+
+      '<div style="display:flex;flex-direction:column;gap:10px;margin-top:6px">'+h+'</div></div>';
+  };
+  var h = '';
+  if(atrasadas.length){
+    atrasadas.sort(function(a,b){ return parseDataBR(a.data) - parseDataBR(b.data) || ordRotas(a,b); });
+    h += '<div style="border:1px solid var(--red2);border-radius:10px;padding:8px 10px;margin-bottom:14px"><b style="color:var(--red2)">⏰ Atrasadas ('+atrasadas.length+')</b><div class="sub">Data já passou e ainda há paradas pendentes. Edite a data ou conclua.</div><div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">'+atrasadas.map(function(r){ return htmlRotaItem(db, r); }).join('')+'</div></div>';
+  }
+  var semanas = {};
+  Object.keys(dias).sort().forEach(function(k){ var sk = chaveDia(segundaDaSemana(dias[k].d)); (semanas[sk] = semanas[sk] || []).push(k); });
+  Object.keys(semanas).sort().forEach(function(sk){
+    var seg = segundaDaSemana(dias[semanas[sk][0]].d), sex = new Date(seg); sex.setDate(sex.getDate()+4);
+    var qtd = 0; semanas[sk].forEach(function(k){ qtd += dias[k].rotas.length; });
+    var chave = 'ag-'+sk, atual = sk===semHoje;
+    if(rotasGrupoAberto[chave]===undefined) rotasGrupoAberto[chave] = sk >= semHoje;
+    var tit = '🗓️ Semana '+p2(seg.getDate())+'/'+p2(seg.getMonth()+1)+' a '+p2(sex.getDate())+'/'+p2(sex.getMonth()+1)+(atual?' · esta semana':'');
+    h += htmlGrupoRotas(chave, tit, qtd, semanas[sk].map(htmlDia).join(''), 0);
+  });
+  if(semData.length) h += htmlGrupoRotas('ag-semdata', '❔ Sem data', semData.length, semData.sort(compararRotasPorNome).map(function(r){ return htmlRotaItem(db, r); }).join(''), 0);
+  return h || '<div class="sub">Nenhuma rota agendada.</div>';
+}
 function renderRotas(){
   var db = loadDB();
   if(encerrarRotasConcluidas(db)) saveDB(db);
@@ -6551,7 +6607,9 @@ function renderRotas(){
   }
   var selIds = Object.keys(rotasSelJuntar).filter(function(i){ return rotasSelJuntar[i] && (db.rotas||[]).some(function(r){return r.id===i;}); });
   var html = (selIds.length ? '<div style="position:sticky;top:0;z-index:5;background:var(--card,#1c1c1e);border:1px solid var(--red2);border-radius:10px;padding:8px 10px;margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>'+selIds.length+' rota(s) marcada(s)</b>'+(selIds.length>=2 ? '<button class="btn primary" onclick="juntarRotas()">🔗 Juntar rotas selecionadas</button>' : '<span class="sub">marque mais uma para juntar</span>')+'<button class="btn" onclick="rotasSelJuntar={};renderRotas()">Limpar seleção</button></div>' : '')+
+    '<div class="btnrow" style="gap:8px;margin-bottom:8px"><button class="btn'+(rotasVisao==='modelo'?' primary':'')+'" onclick="setRotasVisao(\'modelo\')">📂 Por modelo</button><button class="btn'+(rotasVisao==='agenda'?' primary':'')+'" onclick="setRotasVisao(\'agenda\')">🗓️ Agenda</button></div>'+
     '<div class="btnrow" style="gap:8px;margin-bottom:12px"><button class="btn" onclick="recolherTodasRotas()">⏫ Recolher tudo</button><button class="btn" onclick="expandirTodasRotas()">⏬ Expandir tudo</button></div>';
+  if(rotasVisao==='agenda'){ el.innerHTML = html + htmlAgendaRotas(db, lista); return; }
   // 4 modelos: Anual, Cartório, Mista (ano > mês > grupo pelo nome) e Avulsa (grupo pelo nome)
   MODELOS_ROTA.forEach(function(M){
     var rs = lista.filter(function(r){ return modeloRota(db, r)===M[0]; });
