@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v85</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v86</div>
   </header>
 
   <main>
@@ -1722,6 +1722,56 @@ function concluirCartorioCampo(){
   renderExecucao();
 }
 
+
+// ===== Corrigir a estrutura da edificação durante a vistoria (excluir bloco, andar ou preventivo que não existe) =====
+// As contagens da vistoria são guardadas por posição ("bloco_andar_sistema"), então ao remover é preciso reindexar as chaves de todas as vistorias da edificação.
+function reindexarQtvEdif(db, edifId, bi, pi){
+  (db.vistorias||[]).forEach(function(vv){
+    if(vv.edificacaoId!==edifId || !vv.qtvPrevBloco) return;
+    var novo = {};
+    Object.keys(vv.qtvPrevBloco).forEach(function(k){
+      var p = k.split('_'); if(p.length<3){ novo[k] = vv.qtvPrevBloco[k]; return; }
+      var b = +p[0], a = +p[1], sid = p.slice(2).join('_');
+      if(pi==null){ if(b===bi) return; if(b>bi) b--; }
+      else { if(b===bi && a===pi) return; if(b===bi && a>pi) a--; }
+      novo[b+'_'+a+'_'+sid] = vv.qtvPrevBloco[k];
+    });
+    vv.qtvPrevBloco = novo;
+  });
+}
+function edifExecEditavel(){
+  var db = loadDB(), e = db.edificacoes.find(function(x){return x.id===execEdificacaoId;});
+  return e ? {db:db, e:e} : null;
+}
+function removerBlocoExec(bi){
+  var c = edifExecEditavel(); if(!c || !c.e.blocos || !c.e.blocos[bi]) return;
+  if(!confirm('Remover "'+c.e.blocos[bi].nome+'" e todos os andares e sistemas dele?\n\nUse quando o bloco não existe de verdade na edificação.')) return;
+  c.e.blocos.splice(bi,1);
+  reindexarQtvEdif(c.db, c.e.id, bi, null);
+  pavimentosExpandidosCampo = {}; blocosExpandidosCampo = {};
+  c.e.atualizadoEm = new Date().toISOString(); saveDB(c.db); renderExecucao();
+}
+function removerPavExec(bi,pi){
+  var c = edifExecEditavel(); if(!c || !c.e.blocos || !c.e.blocos[bi] || !c.e.blocos[bi].pavimentos[pi]) return;
+  var b = c.e.blocos[bi];
+  if(!confirm('Remover o andar "'+b.pavimentos[pi].label+'" de '+b.nome+' e os sistemas dele?\n\nUse quando o andar não existe de verdade.')) return;
+  b.pavimentos.splice(pi,1);
+  b.nPavimentos = Math.max(0, b.pavimentos.length - (b.terreoCfg!=='nao' ? 1 : 0));
+  reindexarQtvEdif(c.db, c.e.id, bi, pi);
+  pavimentosExpandidosCampo = {};
+  c.e.atualizadoEm = new Date().toISOString(); saveDB(c.db); renderExecucao();
+}
+function removerSistPavExec(bi,pi,sid){
+  var c = edifExecEditavel(); if(!c || !c.e.blocos || !c.e.blocos[bi] || !c.e.blocos[bi].pavimentos[pi]) return;
+  var pav = c.e.blocos[bi].pavimentos[pi], s = SIST.find(function(x){return x.id===sid;});
+  if(!confirm('Remover '+(s?s.l:sid)+' do andar "'+pav.label+'"?\n\nUse quando esse sistema não existe de verdade aqui.')) return;
+  delete pav.sist[sid];
+  // se nenhum andar da edificação tem mais esse sistema, ele sai também da lista geral de preventivos
+  var aindaTem = c.e.blocos.some(function(b){ return (b.pavimentos||[]).some(function(p){ return p.sist && p.sist[sid] && p.sist[sid].ativo; }); });
+  if(!aindaTem && c.e.preventivos && c.e.preventivos[sid]) c.e.preventivos[sid].ativo = false;
+  if(c.db.vistorias){ c.db.vistorias.forEach(function(vv){ if(vv.edificacaoId===c.e.id && !vv.concluida && vv.qtvPrevBloco) delete vv.qtvPrevBloco[bi+'_'+pi+'_'+sid]; }); }
+  c.e.atualizadoEm = new Date().toISOString(); saveDB(c.db); renderExecucao();
+}
 function prefillBasicoCampo(){
   var db = loadDB(), e = db.edificacoes.find(function(x){return x.id===execEdificacaoId;}); if(!e) return;
   e.preventivos = e.preventivos || {}; e.blocos = e.blocos || [];
@@ -2036,7 +2086,7 @@ function renderExecucao(){
     var motivos = qd.motivos || [];
     var reprovadosTotal = motivos.reduce(function(s,m){return s+(m.qtd||0);}, 0);
     var totalContado = (aprovados||0) + reprovadosTotal;
-    if(aprovados==null && motivos.length===0) return true;
+    if(aprovados==null && motivos.length===0) return esperado>0; // esperado 0 (pré-preenchido): zero é igual a zero, não há o que contar
     if(totalContado < esperado || reprovadosTotal>0) return true;
     return false;
   }
@@ -2055,7 +2105,8 @@ function renderExecucao(){
       html += '<div class="pav-card" style="margin-bottom:8px;cursor:pointer" onclick="toggleBlocoExpandidoCampo('+bi+')">'+
         '<div style="display:flex;justify-content:space-between;align-items:center">'+
           '<div class="pav-h" style="margin:0">'+bloco.nome+'</div>'+
-          '<div style="font-size:12px;text-align:right">'+
+          '<div style="font-size:12px;text-align:right;display:flex;align-items:center;gap:6px">'+
+            (v.concluida ? '' : '<button class="btn" style="width:auto;padding:3px 8px;font-size:12px" title="Remover este bloco" onclick="event.stopPropagation();removerBlocoExec('+bi+')">🗑️</button>')+
             '<span style="color:'+(pendBloco>0?'var(--red2)':(totalSidsBloco?'var(--verde)':'var(--sub)'))+';font-weight:700">'+(totalSidsBloco?(pendBloco>0?pendBloco+' pendência(s)':'✓ tudo OK'):'sem sistemas')+'</span>'+
             ' · '+(bloco.pavimentos||[]).length+' andar(es) '+(blocoAberto?'▲':'▼')+
           '</div>'+
@@ -2074,7 +2125,8 @@ function renderExecucao(){
           html += '<div class="pav-card" style="margin:6px 0 6px 18px;cursor:pointer" onclick="togglePavimentoExpandidoCampo(\''+chavePav+'\')">'+
             '<div style="display:flex;justify-content:space-between;align-items:center">'+
               '<div class="pav-h" style="margin:0">'+pav.label+'</div>'+
-              '<div style="font-size:12px;text-align:right">'+
+              '<div style="font-size:12px;text-align:right;display:flex;align-items:center;gap:6px">'+
+                (v.concluida ? '' : '<button class="btn" style="width:auto;padding:3px 8px;font-size:12px" title="Remover este andar" onclick="event.stopPropagation();removerPavExec('+bi+','+pi+')">🗑️</button>')+
                 '<span style="color:'+(pendPav>0?'var(--red2)':(sids.length?'var(--verde)':'var(--sub)'))+';font-weight:700">'+(sids.length?(pendPav>0?pendPav+' pendência(s)':'✓ tudo OK'):'sem sistemas')+'</span>'+
                 ' · '+sids.length+' sistema(s) '+(pavAberto?'▲':'▼')+
               '</div>'+
@@ -2089,7 +2141,8 @@ function renderExecucao(){
                 var chave = bi+'_'+pi+'_'+sid;
                 var qd = (v.qtvPrevBloco && v.qtvPrevBloco[chave]) || {};
                 var anteriorInfo = calcAnteriorInfo(vAnterior, chave);
-                html += '<div style="margin-left:18px">'+renderCardPrev(s?s.l:sid, pav.sist[sid].qty||0, chave, qd, anteriorInfo, sid, e.preventivos && e.preventivos[sid])+'</div>';
+                html += '<div style="margin-left:18px">'+renderCardPrev(s?s.l:sid, pav.sist[sid].qty||0, chave, qd, anteriorInfo, sid, e.preventivos && e.preventivos[sid])+
+                  (v.concluida ? '' : '<div style="text-align:right;margin:-4px 0 8px"><button class="btn" style="width:auto;padding:3px 10px;font-size:12px" onclick="removerSistPavExec('+bi+','+pi+',\''+sid+'\')">🗑️ Remover '+(s?s.l:sid)+' deste andar</button></div>')+'</div>';
               });
             }
           }
@@ -2891,19 +2944,27 @@ function dadosFaltando(e){
 }
 function basicoAplicar(prev, blocos, risco){
   // Pré-preenchimento do básico: extintores, sinalização de abandono, iluminação de emergência e gás.
+  // Sem blocos: 2 blocos (A e B) com Térreo, 1º e 2º pavimento. Extintor, iluminação e sinalização em todos os andares; gás só no térreo do 1º bloco.
   // Só acrescenta o que falta (não desmarca nem apaga nada); quantidade zero em cada, só com o sistema marcado.
   var maior = Object.keys(prev).reduce(function(m,k){ return prev[k] && prev[k].ativo && prev[k].ordem ? Math.max(m, prev[k].ordem) : m; }, 0);
   BASICO_SIST.forEach(function(sid){
     if(!prev[sid]) prev[sid] = {ativo:false, qty:0, info:''};
     if(!prev[sid].ativo){ prev[sid].ativo = true; prev[sid].ordem = ++maior; if(!prev[sid].qty) prev[sid].qty = 0; }
   });
-  if(!blocos.length) blocos.push({nome:'Bloco 1', grauRisco:risco||null, nPavimentos:0, terreoCfg:'sim', pavimentos:[]});
-  blocos.forEach(function(b){
-    if(!(b.pavimentos||[]).length) b.pavimentos = [{label:'Pavimento único', sist:{}}];
-    b.pavimentos.forEach(function(p){
+  var novoBloco = function(nome){ return {nome:nome, grauRisco:risco||null, nPavimentos:2, terreoCfg:'sim', pavimentos:[]}; };
+  if(!blocos.length){ blocos.push(novoBloco('Bloco A')); blocos.push(novoBloco('Bloco B')); }
+  blocos.forEach(function(b, bi){
+    if(!(b.pavimentos||[]).length){
+      b.pavimentos = [{label:'Térreo', sist:{}}, {label:'1º pavimento', sist:{}}, {label:'2º pavimento', sist:{}}];
+      if(!b.nPavimentos) b.nPavimentos = 2; b.terreoCfg = b.terreoCfg || 'sim';
+    }
+    b.pavimentos.forEach(function(p, pi){
       p.sist = p.sist || {};
       var tem = Object.keys(p.sist).some(function(k){ return p.sist[k] && p.sist[k].ativo; });
-      if(!tem) BASICO_SIST.forEach(function(sid){ p.sist[sid] = {ativo:true, qty:0, info:''}; });
+      if(!tem) BASICO_SIST.forEach(function(sid){
+        if(sid==='gas' && !(bi===0 && pi===0)) return;
+        p.sist[sid] = {ativo:true, qty:0, info:''};
+      });
     });
   });
 }

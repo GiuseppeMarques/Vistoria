@@ -172,7 +172,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v122</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v123</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -2082,19 +2082,27 @@ function dadosFaltando(e){
 }
 function basicoAplicar(prev, blocos, risco){
   // Pré-preenchimento do básico: extintores, sinalização de abandono, iluminação de emergência e gás.
+  // Sem blocos: 2 blocos (A e B) com Térreo, 1º e 2º pavimento. Extintor, iluminação e sinalização em todos os andares; gás só no térreo do 1º bloco.
   // Só acrescenta o que falta (não desmarca nem apaga nada); quantidade zero em cada, só com o sistema marcado.
   var maior = Object.keys(prev).reduce(function(m,k){ return prev[k] && prev[k].ativo && prev[k].ordem ? Math.max(m, prev[k].ordem) : m; }, 0);
   BASICO_SIST.forEach(function(sid){
     if(!prev[sid]) prev[sid] = {ativo:false, qty:0, info:''};
     if(!prev[sid].ativo){ prev[sid].ativo = true; prev[sid].ordem = ++maior; if(!prev[sid].qty) prev[sid].qty = 0; }
   });
-  if(!blocos.length) blocos.push({nome:'Bloco 1', grauRisco:risco||null, nPavimentos:0, terreoCfg:'sim', pavimentos:[]});
-  blocos.forEach(function(b){
-    if(!(b.pavimentos||[]).length) b.pavimentos = [{label:'Pavimento único', sist:{}}];
-    b.pavimentos.forEach(function(p){
+  var novoBloco = function(nome){ return {nome:nome, grauRisco:risco||null, nPavimentos:2, terreoCfg:'sim', pavimentos:[]}; };
+  if(!blocos.length){ blocos.push(novoBloco('Bloco A')); blocos.push(novoBloco('Bloco B')); }
+  blocos.forEach(function(b, bi){
+    if(!(b.pavimentos||[]).length){
+      b.pavimentos = [{label:'Térreo', sist:{}}, {label:'1º pavimento', sist:{}}, {label:'2º pavimento', sist:{}}];
+      if(!b.nPavimentos) b.nPavimentos = 2; b.terreoCfg = b.terreoCfg || 'sim';
+    }
+    b.pavimentos.forEach(function(p, pi){
       p.sist = p.sist || {};
       var tem = Object.keys(p.sist).some(function(k){ return p.sist[k] && p.sist[k].ativo; });
-      if(!tem) BASICO_SIST.forEach(function(sid){ p.sist[sid] = {ativo:true, qty:0, info:''}; });
+      if(!tem) BASICO_SIST.forEach(function(sid){
+        if(sid==='gas' && !(bi===0 && pi===0)) return;
+        p.sist[sid] = {ativo:true, qty:0, info:''};
+      });
     });
   });
 }
