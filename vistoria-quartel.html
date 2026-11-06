@@ -172,7 +172,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v121</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v122</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -5101,6 +5101,82 @@ function mistaCriar(){
   if(typeof qmap!=='undefined' && qmap) renderQMapaConteudo();
   alert(criadas.length+' rota(s) Mista criada(s), com '+vists.length+' parada(s), já ordenadas.\n\n'+resumoRotasCriadas(db, criadas));
 }
+
+// ===== Juntar e dividir rotas =====
+var rotasSelJuntar = {};
+function rotaSelAlternar(id){ rotasSelJuntar[id] = !rotasSelJuntar[id]; renderRotas(); }
+function reordenarRota(db, r){
+  var vs = (r.vistorias||[]).map(function(id){ return db.vistorias.find(function(x){return x.id===id;}); }).filter(Boolean);
+  var abertas = vs.filter(function(v){return !v.concluida;}), feitas = vs.filter(function(v){return v.concluida;});
+  var ot = otimizarOrdemRota(db, abertas);
+  r.vistorias = ot.ids.concat(feitas.map(function(v){return v.id;}));
+  r.distanciaEstimadaKm = ot.dist; r.ordemOtimizada = true; r.atualizadoEm = new Date().toISOString();
+}
+function juntarRotas(){
+  var db = loadDB();
+  var rs = Object.keys(rotasSelJuntar).filter(function(i){return rotasSelJuntar[i];}).map(function(i){ return (db.rotas||[]).find(function(r){return r.id===i;}); }).filter(Boolean);
+  if(rs.length<2) return;
+  var base = rs[0], ids = [];
+  rs.forEach(function(r){ (r.vistorias||[]).forEach(function(id){ if(ids.indexOf(id)<0) ids.push(id); }); });
+  var vs = ids.map(function(id){ return db.vistorias.find(function(x){return x.id===id;}); }).filter(Boolean);
+  var est = estimarRota(db, vs), feitas = vs.filter(function(v){return v.concluida;}).length;
+  var msg = 'Juntar '+rs.length+' rotas em uma só?\n\n• '+rs.map(function(r){return r.nome;}).join('\n• ')+'\n\nTotal: '+vs.length+' parada(s), '+est.edificacoes+' edificação(ões), ~'+fmtMinutosRota(est.minutos)+'.';
+  if(excedeLimiteRota(est)) msg += '\n\n⚠️ Passa do limite ('+textoLimiteRota(est)+'). Dá para juntar assim mesmo.';
+  if(feitas) msg += '\n\nObs.: '+feitas+' parada(s) já concluída(s) vão junto, no fim da lista.';
+  if(!confirm(msg)) return;
+  var nome = prompt('Nome da rota juntada:', base.nome);
+  if(nome===null) return;
+  var modelos = {}; rs.forEach(function(r){ modelos[modeloRota(db, r)] = true; });
+  var ks = Object.keys(modelos);
+  base.modelo = ks.length===1 ? ks[0] : 'mista';
+  base.nome = nome.trim() || base.nome;
+  base.vistorias = ids;
+  vs.forEach(function(v){ v.rotaId = base.id; });
+  var apagar = rs.slice(1).map(function(r){return r.id;});
+  db.rotas = db.rotas.filter(function(r){ return apagar.indexOf(r.id)<0; });
+  registrarExclusao(db, 'rotasExcluidas', apagar);
+  reordenarRota(db, base);
+  saveDB(db);
+  rotasSelJuntar = {};
+  renderRotas();
+  if(typeof qmap!=='undefined' && qmap) renderQMapaConteudo();
+}
+var dividirRotaId = null, dividirSel = {};
+function dividirAbrir(id){
+  var db = loadDB(), r = (db.rotas||[]).find(function(x){return x.id===id;}); if(!r) return;
+  dividirRotaId = id; dividirSel = {};
+  var ov = document.getElementById('modalDividir');
+  if(!ov){ ov = document.createElement('div'); ov.id='modalDividir'; ov.className='modal-overlay'; document.body.appendChild(ov); }
+  ov.style.display='flex'; dividirDesenhar();
+}
+function dividirMarcar(id){ dividirSel[id] = !dividirSel[id]; dividirDesenhar(); }
+function dividirDesenhar(){
+  var db = loadDB(), r = (db.rotas||[]).find(function(x){return x.id===dividirRotaId;}), ov = document.getElementById('modalDividir'); if(!r) return;
+  var vs = (r.vistorias||[]).map(function(id){ return db.vistorias.find(function(x){return x.id===id;}); }).filter(function(v){ return v && !v.concluida; });
+  var n = vs.filter(function(v){return dividirSel[v.id];}).length;
+  ov.innerHTML = '<div class="modal"><h3>✂️ Dividir "'+r.nome+'"</h3><div class="sub" style="margin-bottom:8px">Marque as paradas que vão para uma nova rota. As demais ficam nesta.</div>'+
+    '<div style="max-height:50vh;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:0 8px">'+
+    (vs.map(function(v){ var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;})||{};
+      return '<label style="display:flex;gap:8px;padding:6px 4px;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer"><input type="checkbox" '+(dividirSel[v.id]?'checked':'')+' onchange="dividirMarcar(\''+v.id+'\')"><span><b>'+(e.re||'')+'</b> — '+(e.nome||'')+'<br><span class="sub">'+(e.bairro||'')+' · '+(v.tipo==='cartorio'?'Cartório':'Funcionamento')+'</span></span></label>'; }).join('')||'<div class="sub" style="padding:10px">Sem paradas pendentes.</div>')+'</div>'+
+    '<div class="btnrow" style="gap:8px;margin-top:10px"><button class="btn" onclick="document.getElementById(\'modalDividir\').style.display=\'none\'">Cancelar</button>'+
+    '<button class="btn primary" style="flex:1" onclick="dividirConfirmar()" '+((n&&n<vs.length)?'':'disabled')+'>Mover '+n+' para nova rota</button></div></div>';
+}
+function dividirConfirmar(){
+  var db = loadDB(), r = (db.rotas||[]).find(function(x){return x.id===dividirRotaId;}); if(!r) return;
+  var mover = (r.vistorias||[]).filter(function(id){ return dividirSel[id]; });
+  if(!mover.length) return;
+  var nome = prompt('Nome da nova rota:', r.nome+' (parte 2)'); if(nome===null) return;
+  var nova = {id:novoId('rota'), nome:nome.trim()||(r.nome+' (parte 2)'), data:r.data||'', vistorias:mover, modelo:modeloRota(db, r), distanciaEstimadaKm:0, ordemOtimizada:true, atualizadoEm:new Date().toISOString()};
+  ['origem','rotaFixaId','mesRef'].forEach(function(k){ if(r[k]!==undefined) nova[k]=r[k]; });
+  r.vistorias = r.vistorias.filter(function(id){ return mover.indexOf(id)<0; });
+  db.rotas.push(nova);
+  mover.forEach(function(id){ var v = db.vistorias.find(function(x){return x.id===id;}); if(v) v.rotaId = nova.id; });
+  reordenarRota(db, r); reordenarRota(db, nova);
+  saveDB(db);
+  document.getElementById('modalDividir').style.display='none';
+  renderRotas();
+  if(typeof qmap!=='undefined' && qmap) renderQMapaConteudo();
+}
 function resumoRotasCriadas(db, criadas){
   return criadas.map(function(r){
     var vs = r.vistorias.map(function(id){ return db.vistorias.find(function(x){return x.id===id;}); }).filter(Boolean);
@@ -6401,17 +6477,18 @@ function htmlRotaItem(db, r){
     (vistsDaRota.length ? vistsDaRota.slice().sort(function(a,b){return (a.concluida?1:0)-(b.concluida?1:0);}).map(function(v){ return renderVistoriaCard(v, db); }).join('') : '<div class="sub">Esta rota não tem paradas.</div>')+
   '</div>' : '';
   return '<div class="vist-item"><div class="elist-row">'+
-    '<div><div class="elist-t">'+r.nome+'</div>'+
+    '<div style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" '+(rotasSelJuntar[r.id]?'checked':'')+' onchange="rotaSelAlternar(\''+r.id+'\')" title="Selecionar para juntar" style="margin-top:4px;flex:0 0 auto"><div style="min-width:0"><div class="elist-t">'+r.nome+'</div>'+
     '<div class="elist-s">'+(r.data||'')+' · '+r.vistorias.length+' parada(s) ('+concluidas+' concluída(s)) · ~'+(r.distanciaEstimadaKm||0).toFixed(1)+' km</div>'+
     (function(){ var est = estimarRota(db, vistsDaRota); if(!est.paradas) return '';
       return excedeLimiteRota(est)
         ? '<div class="elist-s" style="color:var(--red2);font-weight:700">⚠️ Acima do limite: '+textoLimiteRota(est)+'</div>'
         : '<div class="elist-s">'+est.edificacoes+' edificação(ões) a visitar · ~'+fmtMinutosRota(est.minutos)+'</div>'; })()+
-    '</div>'+
+    '</div></div>'+
   '</div>'+
   '<div class="btnrow" style="margin-top:8px;gap:8px">'+
     '<button class="btn" onclick="toggleRotaPainel(\''+r.id+'\')">'+(aberto?'▲ Esconder paradas':'▼ Ver paradas ('+vistsDaRota.length+')')+'</button>'+
     '<button class="btn" onclick="abrirFormRota(\''+r.id+'\')">✏️ Editar</button>'+
+    '<button class="btn" onclick="dividirAbrir(\''+r.id+'\')">✂️ Dividir</button>'+
     '<button class="btn primary" style="flex:1" onclick="copiarRelatorioRotaTexto(\''+r.id+'\')">📋 Relatório consolidado da rota</button>'+
     '<button class="btn" style="background:var(--red2)" onclick="excluirRota(\''+r.id+'\')">Excluir</button>'+
   '</div>'+paradasHtml+'</div>';
@@ -6463,7 +6540,9 @@ function renderRotas(){
     el.innerHTML = '<div class="empty"><div class="ico">🧭</div>Nenhuma rota criada ainda.</div>';
     return;
   }
-  var html = '<div class="btnrow" style="gap:8px;margin-bottom:12px"><button class="btn" onclick="recolherTodasRotas()">⏫ Recolher tudo</button><button class="btn" onclick="expandirTodasRotas()">⏬ Expandir tudo</button></div>';
+  var selIds = Object.keys(rotasSelJuntar).filter(function(i){ return rotasSelJuntar[i] && (db.rotas||[]).some(function(r){return r.id===i;}); });
+  var html = (selIds.length ? '<div style="position:sticky;top:0;z-index:5;background:var(--card,#1c1c1e);border:1px solid var(--red2);border-radius:10px;padding:8px 10px;margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>'+selIds.length+' rota(s) marcada(s)</b>'+(selIds.length>=2 ? '<button class="btn primary" onclick="juntarRotas()">🔗 Juntar rotas selecionadas</button>' : '<span class="sub">marque mais uma para juntar</span>')+'<button class="btn" onclick="rotasSelJuntar={};renderRotas()">Limpar seleção</button></div>' : '')+
+    '<div class="btnrow" style="gap:8px;margin-bottom:12px"><button class="btn" onclick="recolherTodasRotas()">⏫ Recolher tudo</button><button class="btn" onclick="expandirTodasRotas()">⏬ Expandir tudo</button></div>';
   // 4 modelos: Anual, Cartório, Mista (ano > mês > grupo pelo nome) e Avulsa (grupo pelo nome)
   MODELOS_ROTA.forEach(function(M){
     var rs = lista.filter(function(r){ return modeloRota(db, r)===M[0]; });
