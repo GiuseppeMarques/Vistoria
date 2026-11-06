@@ -172,7 +172,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v120</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v121</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -6716,8 +6716,9 @@ function ccConfirmar(){
   (db.edificacoes||[]).forEach(function(e){ (e.cartorio||[]).forEach(function(m){ if(ccSel[m.id]) alvos.push({e:e, m:m}); }); });
   if(!alvos.length) return;
   var bairros = []; alvos.forEach(function(a){ var b=a.e.bairro||'Sem bairro'; if(bairros.indexOf(b)<0) bairros.push(b); });
-  var sugestao = 'Cartório '+(bairros.length<=2 ? bairros.join(' e ') : bairros.length+' bairros')+' · '+alvos.length+' item(ns)';
-  var nome = prompt('Nome da rota ('+alvos.length+' item(ns), '+bairros.length+' bairro(s)):', sugestao);
+  var agrupar = alvos.length>1 && confirm(alvos.length+' item(ns) de cartório selecionados.\n\nOK = organizar automaticamente de '+ROTA_MAX_EDIF+' em '+ROTA_MAX_EDIF+' (ou até '+(ROTA_MAX_MIN/60)+'h) por proximidade: Ciência 10, 11, 12...\nCancelar = criar uma rota só com tudo.');
+  var sugestao = agrupar ? 'Ciência' : 'Cartório '+(bairros.length<=2 ? bairros.join(' e ') : bairros.length+' bairros')+' · '+alvos.length+' item(ns)';
+  var nome = prompt(agrupar ? 'Nome-base das rotas (viram "Ciência 10", "Ciência 11"...):' : 'Nome da rota ('+alvos.length+' item(ns), '+bairros.length+' bairro(s)):', sugestao);
   if(nome===null) return;
   nome = nome.trim() || sugestao;
   var agora = new Date().toISOString();
@@ -6734,8 +6735,14 @@ function ccConfirmar(){
   var contC = {}, mesC = null;
   alvos.forEach(function(a){ var d = parseDataBR(a.m.prazo); if(!d) return; var k = d.getFullYear()+'-'+d.getMonth(); contC[k] = (contC[k]||0)+1; if(!mesC || contC[k]>contC[mesC]) mesC = k; });
   var extraC = {modelo:'cartorio'}; if(mesC){ var qc = mesC.split('-'); extraC.mesRef = {ano:+qc[0], mes:+qc[1]}; }
-  var criadas = criarRotasRespeitandoLimite(db, vists, nome, extraC);
+  var criadas = criarRotasRespeitandoLimite(db, vists, nome, extraC, agrupar);
   if(!criadas.length) return;
+  if(agrupar){
+    // numera em sequência a partir do maior número já usado com esse nome
+    var norm = function(t){ return String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim(); }, baseN = norm(nome), maxN = 0;
+    (db.rotas||[]).forEach(function(r){ if(criadas.indexOf(r)>=0) return; var t = norm(r.nome); if(t.indexOf(baseN)!==0) return; var mm = /^\s*(\d{1,3})\b/.exec(t.slice(baseN.length)); if(mm) maxN = Math.max(maxN, +mm[1]); });
+    criadas.forEach(function(r, i){ var n = maxN+1+i; r.nome = nome+' '+(n<10?'0':'')+n; });
+  }
   saveDB(db);
   ccSel = {};
   renderCalendarioCartorio();
