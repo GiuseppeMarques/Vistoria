@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v83</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v84</div>
   </header>
 
   <main>
@@ -1223,11 +1223,34 @@ function excluirVistoriaCampo(vistId){
   renderVistoriasCampo();
 }
 
+var execConcluiuRotaId = null;
 function fecharExecucao(){
   document.getElementById('execOverlay').style.display='none';
   execEdificacaoId = null; execVistoriaId = null; execTipo = null;
   renderVistoriasCampo();
   if(map){ renderMapEdificacoes(); }
+  if(execConcluiuRotaId){ var rid = execConcluiuRotaId; execConcluiuRotaId = null; irParaProximaDaRota(rid); }
+}
+function avisoMapaCampo(html){
+  var el = document.getElementById('avisoMapaCampo');
+  if(!el){ el = document.createElement('div'); el.id='avisoMapaCampo'; el.style.cssText='position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 62px);z-index:9999;background:#1f9d4d;color:#fff;padding:10px 14px;border-radius:10px;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.45);text-align:center'; document.body.appendChild(el); }
+  el.innerHTML = html; el.style.display='block';
+  clearTimeout(el._t); el._t = setTimeout(function(){ el.style.display='none'; }, 6000);
+}
+// depois de concluir uma vistoria de rota: vai ao mapa, filtra a rota e aponta a próxima mais perto de você
+function irParaProximaDaRota(rotaId){
+  var db = loadDB(), r = (db.rotas||[]).find(function(x){return x.id===rotaId;}); if(!r) return;
+  navTo('mapa');
+  mapFiltroRota = rotaId;
+  setTimeout(function(){
+    var sel = document.getElementById('mapFiltroRota'); if(sel){ popularFiltroRotaMapa(); sel.value = rotaId; }
+    renderMapEdificacoes(); renderMapFiltroReBanner();
+    var db2 = loadDB(), alvo = escolherAlvoMapa(db2);
+    if(!alvo){ avisoMapaCampo('🏁 Rota concluída! Todas as paradas de "'+r.nome+'" foram feitas.'); return; }
+    var e = alvo.e, dist = meuPosicaoAtual ? haversineKm(meuPosicaoAtual[0], meuPosicaoAtual[1], e.lat, e.lng) : null;
+    if(map) map.setView([e.lat, e.lng], Math.max(map.getZoom()||0, 16));
+    avisoMapaCampo('✅ Concluída. Próxima: <b>'+(e.re||'Sem RE')+'</b> — '+(e.nome||'')+(dist!=null ? ' ('+(dist<1 ? Math.round(dist*1000)+' m' : dist.toFixed(1)+' km')+')' : '')+' · faltam '+alvo.restantes);
+  }, 250);
 }
 
 function buscarVistoriaAnterior(edificacaoId, vistoriaAtualId){
@@ -1695,6 +1718,7 @@ function concluirCartorioCampo(){
   v.concluida = true;
   v.concluidaEm = new Date().toISOString();
   salvarVistoria(v);
+  execConcluiuRotaId = v.rotaId || null;
   renderExecucao();
 }
 
@@ -2260,7 +2284,7 @@ function renderExecucao(){
   html += htmlEncerramento(e, v, db);
   html += '<div class="exec-footer"><div class="btnrow">'+
     (v.concluida
-      ? '<button class="btn" disabled>✅ Vistoria concluída</button>'
+      ? '<button class="btn" disabled style="flex:1">✅ Vistoria concluída</button>'+(v.rotaId ? '<button class="btn primary" style="flex:1" onclick="fecharExecucao()">➡️ Próxima da rota</button>' : '')
       : '<button class="btn primary" onclick="concluirExecucao()">Concluir vistoria</button>')+
   '</div></div>';
 
@@ -2464,6 +2488,7 @@ function concluirExecucao(){
   v.concluida = true;
   v.concluidaEm = new Date().toISOString();
   salvarVistoria(v);
+  execConcluiuRotaId = v.rotaId || null;
   if(traj && traj.edificacoesEncontradas.indexOf(execEdificacaoId)<0){
     traj.edificacoesEncontradas.push(execEdificacaoId);
     persistirTrajAtiva();
@@ -4561,9 +4586,17 @@ function renderMapEdificacoes(){
   renderMapFiltroGeoBanner();
   renderMapFiltroReBanner();
   var edifIdsDaRota = null;
+  var feitasMapa = {}, alvoMapaId = null;
   if(mapFiltroRota){
     edifIdsDaRota = {};
-    (db.vistorias||[]).forEach(function(v){ if(v.rotaId===mapFiltroRota) edifIdsDaRota[v.edificacaoId] = true; });
+    (db.vistorias||[]).forEach(function(v){ if(v.rotaId===mapFiltroRota){ edifIdsDaRota[v.edificacaoId] = true; if(v.concluida) feitasMapa[v.edificacaoId] = true; } });
+    // se a edificação ainda tem alguma pendente na rota, não conta como feita
+    (db.vistorias||[]).forEach(function(v){ if(v.rotaId===mapFiltroRota && !v.concluida) delete feitasMapa[v.edificacaoId]; });
+    var alvoM = escolherAlvoMapa(db); if(alvoM && alvoM.modo==='rota') alvoMapaId = alvoM.e.id;
+  } else {
+    // sem rota escolhida: marca com ✓ o que foi concluído hoje
+    var hojeStr = new Date().toDateString();
+    (db.vistorias||[]).forEach(function(v){ if(v.concluida && v.concluidaEm && new Date(v.concluidaEm).toDateString()===hojeStr) feitasMapa[v.edificacaoId] = true; });
   }
   (db.edificacoes||[]).forEach(function(e){
     if(!e.lat || !e.lng) return;
@@ -4584,11 +4617,14 @@ function renderMapEdificacoes(){
     var cor = {1:'#34C759',2:'#A8D93A',3:'#FF9F0A',4:'#FF5E3A',5:'#C0272D'}[riscoM] || '#8E8E93';
     var num = riscoM || '?';
     var badgeDesocupada = e.desocupada ? '<div style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;background:#6b6b70;border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px">🏚️</div>' : '';
+    var feita = !!feitasMapa[e.id], ehProxima = !!(alvoMapaId && alvoMapaId===e.id);
+    var fundo = feita ? '#1f9d4d' : cor, miolo = feita ? '✓' : num, borda = ehProxima ? '3px solid #0A84FF' : '2px solid #fff';
+    var tam = ehProxima ? 30 : 24;
     var icon = L.divIcon({
-      html:'<div style="position:relative;width:24px;height:24px;border-radius:50%;background:'+cor+';border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">'+num+badgeDesocupada+'</div>',
-      className:'', iconSize:[24,24], iconAnchor:[12,12]
+      html:'<div style="position:relative;width:'+tam+'px;height:'+tam+'px;border-radius:50%;background:'+fundo+';border:'+borda+';box-shadow:'+(ehProxima?'0 0 0 4px rgba(10,132,255,.35),':'')+'0 1px 3px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:'+(feita?15:12)+'px;font-weight:800;color:#fff;'+(feita?'opacity:.85;':'')+'">'+miolo+badgeDesocupada+'</div>',
+      className:'', iconSize:[tam,tam], iconAnchor:[tam/2,tam/2]
     });
-    var mk = L.marker([e.lat, e.lng], {icon:icon}).addTo(lyrEdif);
+    var mk = L.marker([e.lat, e.lng], {icon:icon, zIndexOffset: ehProxima ? 1000 : 0}).addTo(lyrEdif);
     if(e.desocupada) mk.bindTooltip((e.re||'Sem RE')+' — '+(e.nome||'')+' (desocupada)', {direction:'top'});
     mk.on('click', function(){ abrirCartaoEdificacao(e); });
   });
