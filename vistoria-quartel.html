@@ -172,7 +172,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v127</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v128</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -2874,33 +2874,100 @@ function renderCampo(){
   if(pendentes.length){ badge.style.display='inline-block'; badge.textContent=pendentes.length; }
   else { badge.style.display='none'; }
 
-  var grid = document.getElementById('campoGrid');
-  if(!pendentes.length){
-    grid.innerHTML = '<div class="empty"><div class="ico">📍</div>Nenhuma edificação desconhecida pendente de cadastro.<br>'+
-      'Marque uma no Vistoria Campo (categoria "Edificação desconhecida") pra ela aparecer aqui.</div>';
-    return;
-  }
+  var jaTratados = (db.pontos||[]).filter(function(p){
+    return p.tipo==='edificacao_desconhecida' && p.status!=='pendente';
+  }).sort(function(a,b){ return new Date(b.dataHora)-new Date(a.dataHora); });
 
-  grid.innerHTML = '<div class="grid-campo">'+pendentes.map(function(p){
-    var traj = (db.trajetorias||[]).find(function(t){return t.id===p.trajetoriaId;});
-    var data = new Date(p.dataHora).toLocaleString('pt-BR');
-    return '<div class="pcard">'+
-      '<div class="tipo"><span class="ic">🏢</span>Edificação desconhecida</div>'+
-      '<div class="nome">'+(p.nome || p.numeroProvisorio || 'Sem nome provisório')+'</div>'+
-      '<div class="meta">'+
-        '📅 '+data+'<br>'+
-        '📌 '+p.lat.toFixed(6)+', '+p.lng.toFixed(6)+'<br>'+
-        (traj ? '🧭 Trajetória: '+traj.nome : '')+
-      '</div>'+
-      (p.descricao ? '<div class="obs">"'+p.descricao+'"</div>' : '')+
-      (p.foto ? '<img src="'+p.foto+'">' : '')+
-      '<div class="actions">'+
+  var grid = document.getElementById('campoGrid');
+  var h = '';
+  if(!pendentes.length){
+    h += '<div class="empty"><div class="ico">📍</div>Nenhuma edificação desconhecida pendente de cadastro.<br>'+
+      'Marque uma no Vistoria Campo (categoria "Edificação desconhecida") pra ela aparecer aqui.</div>';
+  } else {
+    h += '<div class="grid-campo">'+pendentes.map(function(p){ return htmlCardPontoCampo(db,p,true); }).join('')+'</div>';
+  }
+  if(jaTratados.length){
+    h += '<details style="margin-top:18px"><summary style="cursor:pointer;font-weight:700;padding:8px 0">📂 Já tratadas ('+jaTratados.length+'): cadastradas ou fora de competência</summary>'+
+      '<div class="grid-campo" style="margin-top:10px">'+jaTratados.map(function(p){ return htmlCardPontoCampo(db,p,false); }).join('')+'</div></details>';
+  }
+  grid.innerHTML = h;
+}
+
+function escHtmlCampo(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function htmlCardPontoCampo(db, p, pendente){
+  var traj = (db.trajetorias||[]).find(function(t){return t.id===p.trajetoriaId;});
+  var data = new Date(p.dataHora).toLocaleString('pt-BR');
+  var ed = p.edificacaoGeradaId ? (db.edificacoes||[]).find(function(x){return x.id===p.edificacaoGeradaId;}) : null;
+  var situ = '';
+  if(!pendente){
+    if(ed && ed.competencia==='fora') situ = '🚫 Fora de competência'+(ed.competenciaMotivo?': '+escHtmlCampo(ed.competenciaMotivo):'');
+    else if(ed) situ = '✅ Cadastrada'+(ed.re?' (RE '+escHtmlCampo(ed.re)+')':'')+(ed.endereco?' · '+escHtmlCampo(ed.endereco):'');
+    else situ = '✅ Tratada';
+  }
+  return '<div class="pcard">'+
+    '<div class="tipo"><span class="ic">🏢</span>Edificação desconhecida</div>'+
+    '<div class="nome">'+escHtmlCampo(p.nome || p.numeroProvisorio || 'Sem nome provisório')+'</div>'+
+    '<div class="meta">'+
+      '📅 '+data+'<br>'+
+      '📌 '+p.lat.toFixed(6)+', '+p.lng.toFixed(6)+'<br>'+
+      (traj ? '🧭 Trajetória: '+escHtmlCampo(traj.nome)+'<br>' : '')+
+      (situ ? situ : '')+
+    '</div>'+
+    (p.descricao ? '<div class="obs">"'+escHtmlCampo(p.descricao)+'"</div>' : '')+
+    (p.foto ? '<img src="'+p.foto+'">' : '<div class="sub">Sem foto registrada.</div>')+
+    '<div class="actions">'+
+      '<button class="btn" onclick="verPontoNoMapa(\''+p.id+'\')">🗺️ Ver no mapa</button>'+
+      '<button class="btn" onclick="encaminharPontoCampo(\''+p.id+'\')">📤 Encaminhar mensagem</button>'+
+      (pendente ?
         '<button class="btn primary" onclick="abrirModalCadastro(\''+p.id+'\')">Cadastrar como Edificação</button>'+
         '<button class="btn" onclick="marcarForaCompetencia(\''+p.id+'\')" title="Fica registrada no mapa, fora da lista de pendências">🚫 Não é caso de Bombeiro</button>'+
-        '<button class="btn" style="color:var(--red2)" onclick="excluirPontoCampo(\''+p.id+'\')">🗑️ Excluir</button>'+
-      '</div>'+
-    '</div>';
-  }).join('')+'</div>';
+        '<button class="btn" style="color:var(--red2)" onclick="excluirPontoCampo(\''+p.id+'\')">🗑️ Excluir</button>' : '')+
+    '</div>'+
+  '</div>';
+}
+
+function linkMapaPonto(p){
+  return 'https://www.google.com/maps?q='+p.lat.toFixed(6)+','+p.lng.toFixed(6);
+}
+function verPontoNoMapa(pontoId){
+  var p = (loadDB().pontos||[]).find(function(x){return x.id===pontoId;});
+  if(!p) return;
+  window.open(linkMapaPonto(p), '_blank', 'noopener');
+}
+function textoPontoCampo(p){
+  var L = ['*Edificação encontrada em campo*'];
+  L.push('Nome: '+(p.nome || p.numeroProvisorio || 'sem nome provisório'));
+  L.push('Data: '+new Date(p.dataHora).toLocaleString('pt-BR'));
+  if(p.descricao) L.push('Observação: '+p.descricao);
+  L.push('Localização: '+linkMapaPonto(p));
+  return L.join('\n');
+}
+function dataUrlParaFile(dataUrl, nome){
+  var partes = dataUrl.split(','), mime = (partes[0].match(/:(.*?);/)||[])[1] || 'image/jpeg';
+  var bin = atob(partes[1]), n = bin.length, u8 = new Uint8Array(n);
+  while(n--) u8[n] = bin.charCodeAt(n);
+  return new File([u8], nome, {type:mime});
+}
+function encaminharPontoCampo(pontoId){
+  var p = (loadDB().pontos||[]).find(function(x){return x.id===pontoId;});
+  if(!p) return;
+  var texto = textoPontoCampo(p);
+  // No celular/tablet: compartilha texto + foto direto pro WhatsApp ou outro app
+  if(navigator.share){
+    var dados = {text: texto, title: 'Edificação encontrada em campo'};
+    try{
+      if(p.foto){
+        var f = dataUrlParaFile(p.foto, 'edificacao-campo.jpg');
+        if(navigator.canShare && navigator.canShare({files:[f]})) dados.files = [f];
+      }
+    }catch(e){}
+    navigator.share(dados).catch(function(){});
+    return;
+  }
+  // No computador: abre o WhatsApp Web com o texto pronto (foto não vai junto)
+  window.open('https://wa.me/?text='+encodeURIComponent(texto), '_blank', 'noopener');
+  if(p.foto) alert('O texto abriu no WhatsApp. A foto não vai junto por aqui; para enviá-la, salve a imagem do card (botão direito) e anexe.');
 }
 
 function marcarForaCompetencia(pontoId){

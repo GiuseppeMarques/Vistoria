@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v89</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v90</div>
   </header>
 
   <main>
@@ -1639,7 +1639,7 @@ function htmlConferenciaCartorio(v, m, fnToggle){
 function htmlCartorioCampo(e, v, db){
   var h = '<div class="sec-title" style="margin-top:0">Visita de Cartório</div>';
   if(v.concluida){
-    return h + '<div class="sub">'+rotuloVistoria(v)+' — ✅ concluída. Será lançada no Cartório quando importar no Vistoria Quartel.</div>'+htmlEscopoCartorio(db, v, {set:'vcSetCampo', tipo:'vcTipoCampo', abrir:'vcAbrirCampo'});
+    return h + '<div class="sub">'+rotuloVistoria(v)+' — ✅ concluída. Será lançada no Cartório quando importar no Vistoria Quartel.</div>'+htmlEscopoCartorio(db, v, {set:'vcSetCampo', tipo:'vcTipoCampo', abrir:'vcAbrirCampo'})+htmlMsgLocal(e, v, db);
   }
   var sub = v.cartorioSubtipo;
   function btn(campo, valor, rot, ativo){
@@ -1713,6 +1713,7 @@ function htmlCartorioCampo(e, v, db){
     h += '<div class="sub">Escolha acima o que vai ser feito nesta visita.</div>';
   }
   h += htmlEscopoCartorio(db, v, {set:'vcSetCampo', tipo:'vcTipoCampo', abrir:'vcAbrirCampo'});
+  if(sub) h += htmlMsgLocal(e, v, db);
   return h;
 }
 function setCartorioCampo(campo, valor){
@@ -2333,6 +2334,12 @@ function renderExecucao(){
 
   var sugeridoRes = (qtvForcaIndeferido || nao>0) ? 'indeferido' : ((qtvInfracaoPorAno || false) ? 'deferido_af' : 'deferido');
   var finalRes = v.decisaoResultado || sugeridoRes;
+  // guarda o resumo pra montar a mensagem de resultado ao responsável (botão no fim da vistoria)
+  window._msgExec = {vid:v.id, res:finalRes, motivo:(motivoQtv||'').replace(/^\s*—\s*/,''), pend:[]};
+  grupos.forEach(function(g){ (cl[g]||[]).forEach(function(it){
+    var dd = v.checklist[it.id];
+    if(dd && dd.status==='nao') window._msgExec.pend.push(it.c+(dd.causa?' ('+dd.causa+')':'')+(dd.local?' - '+dd.local:''));
+  }); });
   if(finalRes==='indeferido'){
     html += '<div class="resultado-banner indef">'+(v.concluida?'':'(parcial) ')+'⚠️ Indeferido'+(v.decisaoResultado?' (decisão manual)':(qtvForcaIndeferido?motivoQtv:' — '+nao+' não conformidade(s)'))+'</div>';
   } else if(finalRes==='deferido_af'){
@@ -2382,6 +2389,7 @@ function renderExecucao(){
   });
 
   html += htmlEncerramento(e, v, db);
+  html += htmlMsgLocal(e, v, db);
   html += '<div class="exec-footer"><div class="btnrow">'+
     (v.concluida
       ? '<button class="btn" disabled style="flex:1">✅ Vistoria concluída</button>'+(v.rotaId ? '<button class="btn primary" style="flex:1" onclick="fecharExecucao()">➡️ Próxima da rota</button>' : '')
@@ -2580,6 +2588,123 @@ function htmlEncerramento(e, v, db){
     '<label class="lbl">Foto da edificação</label><div id="encFotoFim">'+encFotoFimInner(e, db)+'</div>'+
     '<label class="lbl">Registro no e-SCI</label><div id="encEsciBox">'+encEsciInner(v)+'</div>'+
   '</div>';
+}
+
+// ════════════════════════════════════════
+// MENSAGEM NO LOCAL — avisa o responsável do resultado, com os prazos já calculados,
+// e pede a resposta de ciência (ciente + nome completo + CPF + cargo).
+// ════════════════════════════════════════
+function telWhatsCampo(t){
+  var d = String(t||'').replace(/\D/g,'').replace(/^0+/,'');
+  if(!d) return '';
+  if(d.length<=11) d = '55'+d;
+  return d;
+}
+function listaMsgLocal(itens){ return itens.map(function(t){ return '- '+t; }); }
+function obmNomeCampo(){
+  var n = ''; try{ n = localStorage.getItem('vistoria_obm_nome') || ''; }catch(_){}
+  return n || '5º/1º/2ª/10º BATALHÃO – ALFREDO WAGNER';
+}
+function saudacaoCampo(){
+  var h = new Date().getHours();
+  return h<12 ? 'bom dia' : (h<18 ? 'boa tarde' : 'boa noite');
+}
+// Mensagem no padrão das demais do app: cabeçalho CBMSC + OBM, itens em romano, assinatura "SSCI da OBM".
+function montarMensagemLocal(e, v, db){
+  var blocos = [];   // cada bloco vira um item I., II., III. ...
+  var hoje = new Date(v.concluidaEm||Date.now()).toLocaleDateString('pt-BR');
+  var nomeRe = '*'+(e.nome||'')+(e.re?' - '+reMsgCampo(e.re):'')+'*';
+  var prazo = '';
+  if(v.tipo==='cartorio'){
+    var sub = v.cartorioSubtipo;
+    var ref = v.cienciaItemId ? (e.cartorio||[]).find(function(m){return m.id===v.cienciaItemId;}) : null;
+    var rotTipo = (sub==='ciencia' ? v.cienciaDe : sub)==='multa' ? 'multa' : 'AF';
+    if(sub==='af' && ref){
+      var itens = normalizarItensPendencia(ref.itensPendencia);
+      var cumpr = v.conferirCumpridos || [];
+      var pend = itens.filter(function(it,i){ return !it.resolvidoEm && cumpr.indexOf(i)<0; }).map(function(it){return it.texto;});
+      var feitos = itens.filter(function(it,i){ return cumpr.indexOf(i)>=0; }).map(function(it){return it.texto;});
+      var t = 'Em '+hoje+' conferimos o cumprimento da AF nº *'+(ref.numero||'(sem número)')+'* na edificação '+nomeRe+'.';
+      if(feitos.length) t += '\nExigências cumpridas:\n'+listaMsgLocal(feitos).join('\n');
+      if(pend.length){ t += '\nAinda pendente:\n'+listaMsgLocal(pend).join('\n'); prazo = ref.prazo||''; }
+      else t += '\nTodas as exigências foram cumpridas.';
+      blocos.push(t);
+    } else if(sub==='ciencia'){
+      var t2 = 'Em '+hoje+' foi dada ciência da '+rotTipo+(ref?' nº *'+(ref.numero||'(sem número)')+'*':'')+' na edificação '+nomeRe+'.';
+      if(ref && ref.tipo==='af'){
+        var pi = normalizarItensPendencia(ref.itensPendencia).map(function(x){return x.texto;});
+        if(pi.length) t2 += '\nExigências da AF:\n'+listaMsgLocal(pi).join('\n');
+      } else if(ref && ref.motivo){ t2 += '\nMotivo: '+ref.motivo.replace(/\n/g,'; '); }
+      blocos.push(t2);
+      prazo = (ref && ref.prazo) || '';
+    } else if(sub==='af' || sub==='multa'){
+      var nomes = (v.afSistemas||[]).map(function(id){ var x = SISTEMAS_AF.find(function(y){return y.id===id;}); return x?x.l:id; });
+      var t3 = 'Em '+hoje+' foi '+(sub==='af' ? 'lavrado Auto de Infração (AF)' : 'registrada multa')+((v.cartorioNumero||'').trim()?' nº *'+v.cartorioNumero.trim()+'*':'')+' na edificação '+nomeRe+'.';
+      if(nomes.length) t3 += '\nSistemas a regularizar:\n'+listaMsgLocal(nomes).join('\n');
+      if((v.cartorioMotivo||'').trim()) t3 += '\n'+(sub==='af'?'Detalhe: ':'Motivo: ')+v.cartorioMotivo.trim();
+      blocos.push(t3);
+      prazo = (v.cartorioPrazo!=null && v.cartorioPrazo!=='') ? v.cartorioPrazo : (sub==='af' ? prazoPadraoCartorioCampo(v) : '');
+    }
+  } else {
+    var m = window._msgExec && window._msgExec.vid===v.id ? window._msgExec : null;
+    var res = m ? m.res : (v.decisaoResultado||'');
+    var t4 = 'Em '+hoje+' realizamos a vistoria de *'+rotuloVistoria(v)+'* na edificação '+nomeRe+'.\nResultado: ';
+    if(res==='indeferido') t4 += '*INDEFERIDA* (há pendências a regularizar).';
+    else if(res==='deferido_af') t4 += '*DEFERIDA, com Auto de Infração (AF)*.';
+    else if(res==='deferido') t4 += '*DEFERIDA*.';
+    else t4 = 'Em '+hoje+' realizamos a vistoria de *'+rotuloVistoria(v)+'* na edificação '+nomeRe+'.';
+    var pend2 = m ? m.pend.slice() : [];
+    if(m && m.motivo) pend2.push(m.motivo);
+    if(pend2.length) t4 += '\nPendências encontradas:\n'+listaMsgLocal(pend2).join('\n');
+    blocos.push(t4);
+    if(res==='indeferido' || res==='deferido_af') prazo = prazoPadraoCartorioCampo({});
+  }
+  if(prazo) blocos.push('Prazo para regularização: *'+prazo+'*.');
+  if(v.msgFuncionamento) blocos.push('Solicitamos que seja requerido o funcionamento da edificação (por bloco) no sistema, conforme a regularização.');
+  blocos.push('Para registro da ciência, pedimos que responda esta mensagem com:\n1) "Ciente";\n2) Nome completo;\n3) CPF;\n4) Cargo ou vínculo com a edificação.\nAcesse também o sistema e-SCI (esci.cbm.sc.gov.br) para acompanhar a notificação.');
+  var romanos = ['I','II','III','IV','V','VI'];
+  var obm = obmNomeCampo();
+  return '*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*\n*'+obm+'*\n\n'+
+    'Olá, '+saudacaoCampo()+'.\n'+
+    blocos.map(function(b,i){ return romanos[i]+'. '+b; }).join('\n\n')+
+    '\n\nAtt.,\nSSCI da '+obm;
+}
+function reMsgCampo(re){ re=String(re||'').trim(); return re && !/^RE/i.test(re) ? 'RE'+re : re; }
+function htmlMsgLocal(e, v, db){
+  var r = e.responsavel || {};
+  var tel = telWhatsCampo(r.tel);
+  return '<div style="background:rgba(255,255,255,.06);border-radius:12px;padding:12px;margin:14px 0">'+
+    '<div class="sec-title" style="margin-top:0">📲 Avisar o responsável no local</div>'+
+    '<div class="sub" style="margin-bottom:8px">Envia o resultado, as pendências e os prazos já calculados, e pede a resposta com "ciente", nome completo, CPF e cargo.'+
+      (tel ? ' Destino: '+encAttr(r.nome||'responsável')+' ('+encAttr(r.tel)+').' : ' Sem telefone do responsável: o WhatsApp abre pra você escolher o contato.')+'</div>'+
+    '<label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-bottom:10px"><input type="checkbox" style="width:auto;margin-top:3px" '+(v.msgFuncionamento?'checked':'')+' onchange="setMsgFuncionamento(this.checked)"> <span>Pedir que o responsável solicite o funcionamento (por bloco) no sistema</span></label>'+
+    '<div class="btnrow" style="gap:6px;flex-wrap:wrap">'+
+      '<button type="button" class="btn primary" style="flex:1" onclick="enviarMensagemLocal()">📤 Enviar mensagem</button>'+
+      '<button type="button" class="btn" style="flex:1" onclick="verMensagemLocal()">👁️ Ver texto</button></div>'+
+    (v.msgEnviadaEm ? '<div class="sub" style="margin-top:6px;color:var(--verde)">✔ Mensagem aberta pra envio em '+new Date(v.msgEnviadaEm).toLocaleString('pt-BR')+'</div>' : '')+
+  '</div>';
+}
+function setMsgFuncionamento(on){
+  var v = garantirVistoria(); v.msgFuncionamento = !!on; salvarVistoria(v);
+}
+function ctxMensagemLocal(){
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===execEdificacaoId;});
+  var v = garantirVistoria();
+  return {db:db, e:e, v:v};
+}
+function verMensagemLocal(){
+  var c = ctxMensagemLocal(); if(!c.e) return;
+  alert(montarMensagemLocal(c.e, c.v, c.db));
+}
+function enviarMensagemLocal(){
+  var c = ctxMensagemLocal(); if(!c.e) return;
+  var texto = montarMensagemLocal(c.e, c.v, c.db);
+  var tel = telWhatsCampo((c.e.responsavel||{}).tel);
+  c.v.msgEnviadaEm = new Date().toISOString();
+  salvarVistoria(c.v);
+  window.open('https://wa.me/'+tel+'?text='+encodeURIComponent(texto), '_blank');
+  renderExecucao();
 }
 
 function concluirExecucao(){
