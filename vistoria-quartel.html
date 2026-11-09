@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v130</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v131</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -3538,7 +3538,7 @@ function htmlAFDaParada(db, v){
   }
   var m = ref.m;
   h += '<div style="font-weight:700;margin-bottom:4px">🔍 Conferir cumprimento da AF nº '+escHtmlCart(m.numero||'(sem número)')+'</div>'+
-    '<div class="sub">'+(m.prazo?'Prazo: '+escHtmlCart(m.prazo)+' · ':'')+(m.cienciaDadaEm?'ciência em '+new Date(m.cienciaDadaEm).toLocaleDateString('pt-BR'):'ainda sem ciência')+
+    '<div class="sub">'+(m.prazo?'Prazo: '+escHtmlCart(m.prazo)+' · ':'')+(m.cienciaDadaEm?'ciência em '+new Date(m.cienciaDadaEm).toLocaleDateString('pt-BR')+textoRecebidaPor(m):'ainda sem ciência')+
     (ref.e.id!==v.edificacaoId?' · AF de outra edificação ('+escHtmlCart(ref.e.re||ref.e.nome||'')+')':'')+'</div>';
   var sis = sistemasDaAF(m);
   if(sis.length) h += '<div style="margin-top:6px;font-size:13px"><b>Preventivos a olhar:</b> '+sis.map(function(id){ var x = SISTEMAS_AF.find(function(y){return y.id===id;}); return x?x.l:id; }).join(', ')+'</div>';
@@ -3662,6 +3662,11 @@ function htmlSeletorCartorio(st, fn, e){
   }
   return h;
 }
+function textoRecebidaPor(m){
+  var r = m && m.cienciaRecebidaPor; if(!r) return '';
+  var p = [r.nome, r.cpf?'CPF '+r.cpf:'', r.tel].filter(Boolean).join(' · ');
+  return p ? ' · por '+String(p).replace(/</g,'&lt;') : '';
+}
 function escHtmlCart(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function itemCartorioPorId(db, id){
   var achou = null;
@@ -3689,7 +3694,7 @@ function htmlConferenciaCartorio(v, m, fnToggle){
   if(m.tipo==='af'){
     h += '<div class="pav-card" style="margin:6px 0 10px;border-color:var(--amar)">'+
       '<div style="font-weight:700;margin-bottom:4px">🔍 Conferir cumprimento da AF nº '+escHtmlCart(m.numero||'(sem número)')+'</div>'+
-      '<div class="sub">'+(m.prazo?'Prazo: '+escHtmlCart(m.prazo)+' · ':'')+(m.cienciaDadaEm?'ciência em '+new Date(m.cienciaDadaEm).toLocaleDateString('pt-BR'):'ainda sem ciência')+'</div>';
+      '<div class="sub">'+(m.prazo?'Prazo: '+escHtmlCart(m.prazo)+' · ':'')+(m.cienciaDadaEm?'ciência em '+new Date(m.cienciaDadaEm).toLocaleDateString('pt-BR')+textoRecebidaPor(m):'ainda sem ciência')+'</div>';
     var sis = (v.afSistemas&&v.afSistemas.length) ? v.afSistemas : sistemasDaAF(m);
     if(sis.length) h += '<div style="margin-top:6px;font-size:13px"><b>Preventivos a olhar:</b> '+sis.map(function(id){ var x = SISTEMAS_AF.find(function(y){return y.id===id;}); return x?x.l:id; }).join(', ')+'</div>';
     var itens = normalizarItensPendencia(m.itensPendencia);
@@ -3707,7 +3712,7 @@ function htmlConferenciaCartorio(v, m, fnToggle){
   } else {
     h += '<div class="pav-card" style="margin:6px 0 10px;border-color:var(--amar)">'+
       '<div style="font-weight:700;margin-bottom:4px">💰 Multa nº '+escHtmlCart(m.numero||'(sem número)')+'</div>'+
-      '<div class="sub">'+(m.prazo?'Prazo/vencimento: '+escHtmlCart(m.prazo)+' · ':'')+(m.cienciaDadaEm?'ciência em '+new Date(m.cienciaDadaEm).toLocaleDateString('pt-BR'):'ainda sem ciência')+'</div>'+
+      '<div class="sub">'+(m.prazo?'Prazo/vencimento: '+escHtmlCart(m.prazo)+' · ':'')+(m.cienciaDadaEm?'ciência em '+new Date(m.cienciaDadaEm).toLocaleDateString('pt-BR')+textoRecebidaPor(m):'ainda sem ciência')+'</div>'+
       '<div style="margin-top:6px;font-size:13px"><b>Motivo (para explicar à pessoa):</b><br>'+(m.motivo?escHtmlCart(m.motivo).replace(/\n/g,'<br>'):'<span class="sub">(motivo não cadastrado)</span>')+'</div>'+
     '</div>';
   }
@@ -3757,6 +3762,9 @@ function aplicarCartorioDaVistoria(db, v){
     var item = e.cartorio.find(function(x){return x.id===v.cienciaItemId;});
     if(item){
       item.cienciaDadaEm = agora;
+      if((v.cienciaRecebeuNome||v.cienciaRecebeuCpf||v.cienciaRecebeuTel)){
+        item.cienciaRecebidaPor = {nome:(v.cienciaRecebeuNome||'').trim(), cpf:(v.cienciaRecebeuCpf||'').trim(), tel:(v.cienciaRecebeuTel||'').trim()};
+      }
       if(item.tipo==='af' && v.cienciaBaixas && v.cienciaBaixas.length){
         item.itensPendencia = normalizarItensPendencia(item.itensPendencia);
         v.cienciaBaixas.forEach(function(i){

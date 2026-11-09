@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v92</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v93</div>
   </header>
 
   <main>
@@ -1639,7 +1639,7 @@ function htmlConferenciaCartorio(v, m, fnToggle){
 function htmlCartorioCampo(e, v, db){
   var h = '<div class="sec-title" style="margin-top:0">Visita de Cartório</div>';
   if(v.concluida){
-    return h + '<div class="sub">'+rotuloVistoria(v)+' — ✅ concluída. Será lançada no Cartório quando importar no Vistoria Quartel.</div>'+htmlEscopoCartorio(db, v, {set:'vcSetCampo', tipo:'vcTipoCampo', abrir:'vcAbrirCampo'})+htmlMsgLocal(e, v, db);
+    return h + '<div class="sub">'+rotuloVistoria(v)+' — ✅ concluída. Será lançada no Cartório quando importar no Vistoria Quartel.</div>'+htmlEscopoCartorio(db, v, {set:'vcSetCampo', tipo:'vcTipoCampo', abrir:'vcAbrirCampo'})+(v.cartorioSubtipo==='ciencia' ? htmlRecebedorCiencia(v) : '')+htmlMsgLocal(e, v, db);
   }
   var sub = v.cartorioSubtipo;
   function btn(campo, valor, rot, ativo){
@@ -1713,9 +1713,28 @@ function htmlCartorioCampo(e, v, db){
     h += '<div class="sub">Escolha acima o que vai ser feito nesta visita.</div>';
   }
   h += htmlEscopoCartorio(db, v, {set:'vcSetCampo', tipo:'vcTipoCampo', abrir:'vcAbrirCampo'});
+  if(sub==='ciencia') h += htmlRecebedorCiencia(v);
   if(sub) h += htmlSituacaoOcupacao(e);
   if(sub) h += htmlMsgLocal(e, v, db);
   return h;
+}
+function maskCpfCampo(t){
+  var d = String(t||'').replace(/\D/g,'').slice(0,11);
+  return d.replace(/^(\d{3})(\d)/,'$1.$2').replace(/^(\d{3})\.(\d{3})(\d)/,'$1.$2.$3').replace(/\.(\d{3})(\d)/,'.$1-$2');
+}
+function htmlRecebedorCiencia(v){
+  function esc(x){ return String(x||'').replace(/"/g,'&quot;'); }
+  return '<div style="background:rgba(255,255,255,.06);border-radius:12px;padding:12px;margin:14px 0">'+
+    '<div class="sec-title" style="margin-top:0">✍️ Quem recebeu a notificação</div>'+
+    '<label class="lbl">Nome completo</label><input type="text" value="'+esc(v.cienciaRecebeuNome)+'" placeholder="Nome de quem assinou a ciência" style="margin-bottom:10px" onchange="setRecebedorCiencia(\'cienciaRecebeuNome\',this.value)">'+
+    '<label class="lbl">CPF</label><input type="text" inputmode="numeric" value="'+esc(v.cienciaRecebeuCpf)+'" placeholder="000.000.000-00" style="margin-bottom:10px" oninput="this.value=maskCpfCampo(this.value)" onchange="setRecebedorCiencia(\'cienciaRecebeuCpf\',this.value)">'+
+    '<label class="lbl">Telefone (WhatsApp)</label><input type="tel" value="'+esc(v.cienciaRecebeuTel)+'" placeholder="(48) 99999-9999" style="margin-bottom:4px" onchange="setRecebedorCiencia(\'cienciaRecebeuTel\',this.value)">'+
+    '<div class="sub" style="margin-top:6px">Vai na mensagem de ciência e fica registrado na multa ou AF quando você importar no Quartel.</div></div>';
+}
+function setRecebedorCiencia(campo, val){
+  var v = garantirVistoria();
+  v[campo] = campo==='cienciaRecebeuCpf' ? maskCpfCampo(val) : String(val||'').trim();
+  salvarVistoria(v);
 }
 function htmlSituacaoOcupacao(e){
   var sit = e.situacaoOcupacao || (e.desocupada ? 'desocupada' : '');
@@ -2759,6 +2778,11 @@ function montarMensagemLocal(e, v, db){
       var dtC = new Date(v.concluidaEm||Date.now());
       var hora = dtC.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
       var tC = 'Em '+dtC.toLocaleDateString('pt-BR')+', às '+hora+', foi efetuada a ciência da '+(rotTipo==='multa'?'multa':'AF')+(ref?' nº *'+(ref.numero||'(sem número)')+'*':'')+' referente à edificação '+nomeRe+'.';
+      var rec = [];
+      if((v.cienciaRecebeuNome||'').trim()) rec.push('Nome: *'+v.cienciaRecebeuNome.trim()+'*');
+      if((v.cienciaRecebeuCpf||'').trim()) rec.push('CPF: '+v.cienciaRecebeuCpf.trim());
+      if((v.cienciaRecebeuTel||'').trim()) rec.push('Telefone: '+v.cienciaRecebeuTel.trim());
+      if(rec.length) tC += '\nRecebida por:\n'+rec.join('\n');
       blocos.push(tC);
       apenasCiencia = true;   // sem prazo: já consta no documento
     } else if(sub==='af' || sub==='multa'){
@@ -2850,7 +2874,7 @@ function verMensagemLocal(){
 function enviarMensagemLocal(){
   var c = ctxMensagemLocal(); if(!c.e) return;
   var texto = montarMensagemLocal(c.e, c.v, c.db);
-  var tel = telWhatsCampo((c.e.responsavel||{}).tel);
+  var tel = telWhatsCampo((c.v.tipo==='cartorio' && c.v.cartorioSubtipo==='ciencia' && c.v.cienciaRecebeuTel) ? c.v.cienciaRecebeuTel : (c.e.responsavel||{}).tel);
   c.v.msgEnviadaEm = new Date().toISOString();
   salvarVistoria(c.v);
   window.open('https://wa.me/'+tel+'?text='+encodeURIComponent(texto), '_blank');
