@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v91</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v92</div>
   </header>
 
   <main>
@@ -1713,8 +1713,27 @@ function htmlCartorioCampo(e, v, db){
     h += '<div class="sub">Escolha acima o que vai ser feito nesta visita.</div>';
   }
   h += htmlEscopoCartorio(db, v, {set:'vcSetCampo', tipo:'vcTipoCampo', abrir:'vcAbrirCampo'});
+  if(sub) h += htmlSituacaoOcupacao(e);
   if(sub) h += htmlMsgLocal(e, v, db);
   return h;
+}
+function htmlSituacaoOcupacao(e){
+  var sit = e.situacaoOcupacao || (e.desocupada ? 'desocupada' : '');
+  return '<div style="background:rgba(255,255,255,.06);border-radius:12px;padding:12px;margin:14px 0">'+
+    '<div class="sec-title" style="margin-top:0">🏚️ Situação da edificação</div>'+
+    '<select onchange="setSituacaoOcupacao(this.value)">'+
+      '<option value=""'+(sit===''?' selected':'')+'>Em funcionamento / ocupada</option>'+
+      '<option value="desocupada"'+(sit==='desocupada'?' selected':'')+'>🏚️ Desocupada</option>'+
+      '<option value="desativada"'+(sit==='desativada'?' selected':'')+'>⛔ Atividade desativada</option>'+
+    '</select>'+
+    '<div class="sub" style="margin-top:6px">Fica registrada na edificação (aparece no mapa e no Quartel).</div></div>';
+}
+function setSituacaoOcupacao(val){
+  var c = encCtx(); if(!c.e) return;
+  c.e.situacaoOcupacao = val || '';
+  c.e.desocupada = !!val;
+  c.e.atualizadoEm = new Date().toISOString();
+  saveDB(c.db);
 }
 function setCartorioCampo(campo, valor){
   var v = garantirVistoria();
@@ -2521,18 +2540,20 @@ function encFotoFimInner(e, db){
 }
 function encRedimensionar(file, cb){
   var r = new FileReader();
-  r.onload = function(ev){
-    var img = new Image();
-    img.onload = function(){
-      var max = 900, k = Math.min(1, max/Math.max(img.width, img.height));
-      var cv = document.createElement('canvas'); cv.width = Math.round(img.width*k); cv.height = Math.round(img.height*k);
-      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-      cb(cv.toDataURL('image/jpeg', 0.72));
-    };
-    img.onerror = function(){ alert('Não consegui ler essa foto.'); };
-    img.src = ev.target.result;
-  };
+  r.onload = function(ev){ comprimirDataUrl(ev.target.result, 900, 0.7, cb, function(){ alert('Não consegui ler essa foto.'); }); };
   r.readAsDataURL(file);
+}
+// Reduz uma imagem (data URL) para no máx. "max" px no maior lado, em JPEG de qualidade "q".
+function comprimirDataUrl(dataUrl, max, q, cb, erroCb){
+  var img = new Image();
+  img.onload = function(){
+    var k = Math.min(1, max/Math.max(img.width, img.height));
+    var cv = document.createElement('canvas'); cv.width = Math.max(1,Math.round(img.width*k)); cv.height = Math.max(1,Math.round(img.height*k));
+    cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+    cb(cv.toDataURL('image/jpeg', q));
+  };
+  img.onerror = function(){ if(erroCb) erroCb(); else cb(dataUrl); };
+  img.src = dataUrl;
 }
 function encFotoEscolhida(input){
   var file = input.files && input.files[0]; if(!file) return;
@@ -2891,7 +2912,65 @@ function loadDB(){
   try{ return JSON.parse(localStorage.getItem(DB_KEY)) || {edificacoes:[],vistorias:[],trajetorias:[],pontos:[],rotas:[]}; }
   catch(e){ return {edificacoes:[],vistorias:[],trajetorias:[],pontos:[],rotas:[]}; }
 }
-function saveDB(db){ localStorage.setItem(DB_KEY, JSON.stringify(db)); }
+var _compactando = false;
+function saveDB(db){
+  try{ localStorage.setItem(DB_KEY, JSON.stringify(db)); }
+  catch(err){
+    // armazenamento cheio: comprime as fotos já guardadas e tenta de novo (não perde o que você acabou de registrar)
+    compactarFotosCampo(db, 1000, 0.6, function(liberouKB){
+      try{
+        localStorage.setItem(DB_KEY, JSON.stringify(db));
+        avisoCampo('Armazenamento estava cheio: comprimi as fotos e gravei ('+liberouKB+' KB liberados).');
+      }catch(err2){
+        alert('O armazenamento do celular está cheio e não consegui gravar. Exporte o arquivo .vst e importe no Quartel; depois use o menu para limpar vistorias já concluídas.');
+      }
+    });
+  }
+}
+function avisoCampo(msg){
+  try{
+    var t = document.createElement('div');
+    t.textContent = msg;
+    t.style.cssText = 'position:fixed;left:12px;right:12px;bottom:14px;z-index:99999;background:#1c3d2a;color:#fff;padding:12px 14px;border-radius:12px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.4)';
+    document.body.appendChild(t); setTimeout(function(){ t.remove(); }, 6000);
+  }catch(_){}
+}
+// Comprime todas as fotos grandes (edificações e pontos) do objeto db. cb(kbLiberados) ao terminar.
+function compactarFotosCampo(db, max, q, cb){
+  var itens = [];
+  (db.edificacoes||[]).forEach(function(e){ if(e.foto && e.foto.length>120000) itens.push(e); });
+  (db.pontos||[]).forEach(function(p){ if(p.foto && p.foto.length>120000) itens.push(p); });
+  if(!itens.length){ cb(0); return; }
+  var antes = 0, depois = 0, i = 0;
+  (function prox(){
+    if(i>=itens.length){ cb(Math.round((antes-depois)/1024)); return; }
+    var it = itens[i++], orig = it.foto; antes += orig.length;
+    comprimirDataUrl(orig, max, q, function(nova){
+      if(nova.length < orig.length){ it.foto = nova; depois += nova.length; } else depois += orig.length;
+      prox();
+    }, function(){ depois += orig.length; prox(); });
+  })();
+}
+// Ao abrir o app: se há fotos pesadas guardadas, comprime em segundo plano e libera espaço.
+function compactarFotosAoAbrir(){
+  try{
+    var db = loadDB();
+    var pesada = (db.edificacoes||[]).some(function(e){return e.foto && e.foto.length>250000;}) ||
+                 (db.pontos||[]).some(function(p){return p.foto && p.foto.length>250000;});
+    if(!pesada) return;
+    compactarFotosCampo(db, 1000, 0.65, function(kb){
+      if(kb<=0) return;
+      // regrava sobre o banco atual, só trocando as fotos (não desfaz nada que foi registrado nesse meio tempo)
+      var atual = loadDB(), mapa = {};
+      (db.edificacoes||[]).forEach(function(e){ mapa['e'+e.id] = e.foto; });
+      (db.pontos||[]).forEach(function(p){ mapa['p'+p.id] = p.foto; });
+      (atual.edificacoes||[]).forEach(function(e){ if(e.foto && mapa['e'+e.id] && mapa['e'+e.id].length<e.foto.length) e.foto = mapa['e'+e.id]; });
+      (atual.pontos||[]).forEach(function(p){ if(p.foto && mapa['p'+p.id] && mapa['p'+p.id].length<p.foto.length) p.foto = mapa['p'+p.id]; });
+      try{ localStorage.setItem(DB_KEY, JSON.stringify(atual)); avisoCampo('Fotos comprimidas: '+kb+' KB de espaço liberados.'); }catch(_){}
+    });
+  }catch(_){}
+}
+window.addEventListener('load', function(){ setTimeout(compactarFotosAoAbrir, 2000); });
 
 function novoId(prefixo){
   return prefixo+'_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
@@ -4020,14 +4099,13 @@ var fotoBase64Atual = null;
 function previewFoto(input){
   var file = input.files && input.files[0];
   if(!file) return;
-  var reader = new FileReader();
-  reader.onload = function(e){
-    fotoBase64Atual = e.target.result;
+  // reduz a foto da câmera (vários MB) antes de guardar: foi isso que enchia o armazenamento
+  encRedimensionar(file, function(dataUrl){
+    fotoBase64Atual = dataUrl;
     var img = document.getElementById('detFotoPrev');
     img.src = fotoBase64Atual;
     img.style.display='block';
-  };
-  reader.readAsDataURL(file);
+  });
 }
 
 function marcarPontoForaCompetencia(){
