@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v93</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v94</div>
   </header>
 
   <main>
@@ -1651,7 +1651,7 @@ function htmlCartorioCampo(e, v, db){
     h += '<div class="sub" style="margin-bottom:4px">Ciência de:</div><div class="btnrow" style="gap:6px;margin-bottom:8px">'+
       btn('cienciaDe','multa','Multa',v.cienciaDe==='multa')+btn('cienciaDe','af','AF',v.cienciaDe==='af')+'</div>';
   }
-  var candRef = (sub==='af' || sub==='multa') ? (e.cartorio||[]).filter(function(m){ return m.tipo===sub && !m.resolvidaEm; }) : [];
+  var candRef = (sub==='af' || sub==='multa') ? (e.cartorio||[]).filter(function(m){ return m.tipo===sub && !m.resolvidaEm && !m.suspensaEm; }) : [];
   if(candRef.length){
     h += '<div class="sub" style="margin:4px 0">'+(sub==='af' ? 'Qual AF vai conferir?' : 'Qual multa vai tratar?')+'</div>';
     candRef.forEach(function(m){
@@ -1688,7 +1688,7 @@ function htmlCartorioCampo(e, v, db){
       // não oferece de novo o que já recebeu ciência em outra visita deste aparelho (ainda não importada no Quartel)
       var jaCiente = {};
       (db.vistorias||[]).forEach(function(x){ if(x.id!==v.id && x.tipo==='cartorio' && x.cartorioSubtipo==='ciencia' && x.concluida && x.cienciaItemId) jaCiente[x.cienciaItemId] = true; });
-      var cand = (e.cartorio||[]).filter(function(m){ return m.tipo===v.cienciaDe && !m.resolvidaEm && !m.cienciaDadaEm && !jaCiente[m.id]; });
+      var cand = (e.cartorio||[]).filter(function(m){ return m.tipo===v.cienciaDe && !m.resolvidaEm && !m.suspensaEm && !m.cienciaDadaEm && !jaCiente[m.id]; });
       if(!cand.length){
         h += '<div class="sub">Nenhuma '+(v.cienciaDe==='af'?'AF':'multa')+' pendente de ciência nesta edificação (confira se o Quartel já exportou o Cartório pra cá).</div>';
       } else {

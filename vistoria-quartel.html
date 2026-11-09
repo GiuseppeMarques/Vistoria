@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v131</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v132</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -628,6 +628,9 @@
         </div>
       </div>
       <div id="multasAtivasLista"></div>
+
+      <div class="sec-title" style="margin-top:20px">⏸️ Suspensas</div>
+      <div id="multasSuspensasLista"></div>
 
       <div class="sec-title" style="margin-top:20px">Histórico (resolvidos)</div>
       <div id="multasResolvidasLista"></div>
@@ -3642,7 +3645,7 @@ function htmlSeletorCartorio(st, fn, e){
       btn('cienciaDe','multa','Multa',st.cienciaDe==='multa')+btn('cienciaDe','af','AF',st.cienciaDe==='af')+'</div>';
   }
   // AF / Multa: escolher qual registro do Cartório esta parada vai tratar
-  var cand = (e && (sub==='af' || sub==='multa')) ? (e.cartorio||[]).filter(function(m){ return m.tipo===sub && !m.resolvidaEm; }) : [];
+  var cand = (e && (sub==='af' || sub==='multa')) ? (e.cartorio||[]).filter(function(m){ return m.tipo===sub && !m.resolvidaEm && !m.suspensaEm; }) : [];
   if(cand.length){
     h += '<div class="sub" style="margin:4px 0">'+(sub==='af' ? 'Qual AF vai conferir?' : 'Qual multa vai tratar?')+'</div>';
     cand.forEach(function(m){
@@ -3807,7 +3810,7 @@ function quHtmlCartorio(e, v){
   } else if(sub==='ciencia'){
     if(!v.cienciaDe){ h += '<div class="sub">Escolha acima se é ciência de Multa ou de AF.</div>'; }
     else {
-      var cand = (e.cartorio||[]).filter(function(m){ return m.tipo===v.cienciaDe && !m.resolvidaEm && !m.cienciaDadaEm; });
+      var cand = (e.cartorio||[]).filter(function(m){ return m.tipo===v.cienciaDe && !m.resolvidaEm && !m.suspensaEm && !m.cienciaDadaEm; });
       if(!cand.length){
         h += '<div class="sub">Nenhuma '+(v.cienciaDe==='af'?'AF':'multa')+' pendente de ciência nesta edificação.</div>';
       } else {
@@ -5149,7 +5152,7 @@ function mistaItens(db){
     var d = parseDataBR(e.vigenciaFuncionamento && e.vigenciaFuncionamento.vencimento);
     if(noMes(d)) itens.push({k:'F|'+e.id, t:'F', e:e, d:d, rota:rotaDe['E'+e.id+'|F']||null});
     (e.cartorio||[]).forEach(function(m){
-      if(m.resolvidaEm) return;
+      if(m.resolvidaEm||m.suspensaEm) return;
       var dp = parseDataBR(m.prazo); if(!noMes(dp)) return;
       itens.push({k:'C|'+m.id, t:'C', e:e, m:m, d:dp, rota:rotaDe['E'+e.id+'|C'+m.id]||null});
     });
@@ -6935,7 +6938,7 @@ function ccAgrupar(db){
   (db.edificacoes||[]).forEach(function(e){
     if(e.competencia==='fora') return;
     (e.cartorio||[]).forEach(function(m){
-      if(m.resolvidaEm) return;
+      if(m.resolvidaEm||m.suspensaEm) return;
       if(ccFiltro==='aguardando' && m.cienciaDadaEm) return;
       if(ccFiltro==='ciente' && !m.cienciaDadaEm) return;
       if(ccFiltro==='af' && m.tipo!=='af') return;
@@ -7152,7 +7155,7 @@ function rtMesContagem(db, ano, mes){
     var d = parseDataBR(e.vigenciaFuncionamento && e.vigenciaFuncionamento.vencimento);
     if(d && d.getFullYear()===ano && d.getMonth()===mes && !pend[e.id+'|f']) f.push(e);
     (e.cartorio||[]).forEach(function(m){
-      if(m.resolvidaEm) return;
+      if(m.resolvidaEm||m.suspensaEm) return;
       var dp = parseDataBR(m.prazo); if(!dp || dp.getFullYear()!==ano || dp.getMonth()!==mes) return;
       if(pend[e.id+'|'+m.id]) return;
       c.push({e:e, m:m});
@@ -7197,7 +7200,7 @@ function rtAdicionarCienciasPendentes(){
       (e.endereco||'').toLowerCase().indexOf(busca)>=0 || (e.bairro||'').toLowerCase().indexOf(busca)>=0 ||
       (e.municipio||'').toLowerCase().indexOf(busca)>=0)) return;
     (e.cartorio||[]).forEach(function(m){
-      if(m.resolvidaEm || m.cienciaDadaEm) return;
+      if(m.resolvidaEm || m.suspensaEm || m.cienciaDadaEm) return;
       if(rtParadas.some(function(p){return p.cienciaItemId===m.id;})) return;
       // não duplica se já existe uma visita de ciência planejada pra esse mesmo item
       if((db.vistorias||[]).some(function(v){return !v.concluida && v.cienciaItemId===m.id;})) return;
@@ -7962,10 +7965,10 @@ var CHAVES_CONFIG_AVISOS = [
 // ════════════════════════════════════════
 function multaAtivaDe(e){
   // pro marcador do mapa — continua mostrando só MULTA (não AF), já que é o sinal mais grave
-  return (e.cartorio||[]).find(function(m){ return m.tipo==='multa' && !m.resolvidaEm; }) || null;
+  return (e.cartorio||[]).find(function(m){ return m.tipo==='multa' && !m.resolvidaEm && !m.suspensaEm; }) || null;
 }
 function afAtivaDe(e){
-  return (e.cartorio||[]).find(function(m){ return m.tipo==='af' && !m.resolvidaEm; }) || null;
+  return (e.cartorio||[]).find(function(m){ return m.tipo==='af' && !m.resolvidaEm && !m.suspensaEm; }) || null;
 }
 
 var mtEdifSelecionadaId = null;
@@ -7994,7 +7997,7 @@ function renderMtEdifLista(){
   el.innerHTML = lista.length ? lista.map(function(e){
     // uma edificação pode ter QUALQUER quantidade de AF/Multa — nunca bloqueia a seleção,
     // só mostra quantos registros pendentes ela já tem, como contexto
-    var pendentes = (e.cartorio||[]).filter(function(m){return !m.resolvidaEm;}).length;
+    var pendentes = (e.cartorio||[]).filter(function(m){return !m.resolvidaEm && !m.suspensaEm;}).length;
     return '<div onclick="selecionarEdifMulta(\''+e.id+'\')" style="padding:10px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px">'+
       '<div style="font-weight:700">'+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+(pendentes?' <span style="color:var(--amar);font-weight:400">('+pendentes+' pendente(s))</span>':'')+'</div>'+
       '<div style="color:var(--sub);font-size:11px">'+(e.municipio||'')+(e.bairro?' · '+e.bairro:'')+'</div>'+
@@ -8157,7 +8160,7 @@ function planejarCarregarAF(db, linhas){
     var cart = e.cartorio || [];
     var jaTem = cart.find(function(m){ return m.tipo===l.tipo && normalizarNumeroAF(m.numero)===l.af; });
     if(jaTem){ plano.existentes.push({e:e, item:jaTem, l:l}); return; }
-    var rascunho = cart.filter(function(m){ return m.tipo===l.tipo && !m.numero && !m.resolvidaEm && !usados[m.id]; })
+    var rascunho = cart.filter(function(m){ return m.tipo===l.tipo && !m.numero && !m.resolvidaEm && !m.suspensaEm && !usados[m.id]; })
       .sort(function(a,b){ return new Date(a.criadaEm||0)-new Date(b.criadaEm||0); })[0];
     if(rascunho){ usados[rascunho.id] = true; plano.completar.push({e:e, item:rascunho, l:l}); }
     else plano.criar.push({e:e, l:l});
@@ -8272,6 +8275,36 @@ function resolverMulta(edifId, multaId){
   renderMultas();
   if(qmap) renderQMapaConteudo();
 }
+function suspenderMulta(edifId, multaId){
+  var obs = prompt('Suspender este registro (AF/multa). Informe a observação (motivo da suspensão):','');
+  if(obs===null) return;
+  obs = obs.trim();
+  if(!obs){ alert('A observação é obrigatória para suspender.'); return; }
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===edifId;});
+  if(!e) return;
+  var m = (e.cartorio||[]).find(function(x){return x.id===multaId;});
+  if(m){ m.suspensaEm = new Date().toISOString(); m.suspensaObs = obs; }
+  saveDB(db);
+  renderMultas();
+  if(qmap) renderQMapaConteudo();
+}
+function reativarMulta(edifId, multaId){
+  if(!confirm('Reativar este registro? Ele volta para os pendentes.')) return;
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===edifId;});
+  if(!e) return;
+  var m = (e.cartorio||[]).find(function(x){return x.id===multaId;});
+  if(m){
+    m.reativadaEm = new Date().toISOString();
+    m.suspensaEm = null;
+    m.suspensaObsAnterior = m.suspensaObs || '';
+    m.suspensaObs = '';
+  }
+  saveDB(db);
+  renderMultas();
+  if(qmap) renderQMapaConteudo();
+}
 function excluirRegistroMulta(edifId, multaId){
   if(!confirm('Excluir este registro permanentemente? Não vai mais aparecer no histórico nem no relatório.')) return;
   var db = loadDB();
@@ -8300,10 +8333,11 @@ function renderMultas(){
   mtEdifSelecionadaId = null;
 
   var db = loadDB();
-  var ativas = [], resolvidas = [];
+  var ativas = [], resolvidas = [], suspensas = [];
   (db.edificacoes||[]).forEach(function(e){
     (e.cartorio||[]).forEach(function(m){
       if(m.resolvidaEm) resolvidas.push({e:e, m:m});
+      else if(m.suspensaEm) suspensas.push({e:e, m:m});
       else ativas.push({e:e, m:m});
     });
   });
@@ -8367,11 +8401,26 @@ function renderMultas(){
         (m.numero ? '' : '<button class="btn" style="background:var(--amar);color:#000" onclick="informarNumeroCartorio(\''+e.id+'\',\''+m.id+'\')">🔢 Informar número</button>')+
         btnCienciaHtml+
         btnGerarMultaHtml+
+        '<button class="btn" onclick="suspenderMulta(\''+e.id+'\',\''+m.id+'\')">⏸️ Suspender</button>'+
         '<button class="btn primary" style="flex:1" onclick="resolverMulta(\''+e.id+'\',\''+m.id+'\')">✓ Resolvido</button>'+
         '<button class="btn" onclick="excluirRegistroMulta(\''+e.id+'\',\''+m.id+'\')">Excluir</button>'+
       '</div>'+
     '</div>';
   }).join('') : '<div class="empty"><div class="ico">✅</div>Nenhum registro pendente no momento.</div>';
+
+  var elSus = document.getElementById('multasSuspensasLista');
+  if(elSus) elSus.innerHTML = suspensas.length ? suspensas.map(function(x){
+    var m = x.m, e = x.e;
+    var tipoLabel = m.tipo==='af' ? 'AF' : 'Multa';
+    return '<div class="elist-item" style="margin-bottom:8px;border-color:var(--amar)"><div class="elist-row"><div>'+
+      '<div class="elist-t">⏸️ '+tipoLabel+' · '+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+'</div>'+
+      '<div class="elist-s">'+(m.numero?'Nº '+m.numero+' · ':'')+'suspensa em '+new Date(m.suspensaEm).toLocaleDateString('pt-BR')+'</div>'+
+      '<div class="sub" style="margin-top:4px"><b>Observação:</b> '+escHtmlCart(m.suspensaObs||'')+'</div></div></div>'+
+      '<div class="btnrow" style="margin-top:8px;gap:8px">'+
+        '<button class="btn primary" onclick="reativarMulta(\''+e.id+'\',\''+m.id+'\')">▶️ Reativar</button>'+
+        '<button class="btn" onclick="excluirRegistroMulta(\''+e.id+'\',\''+m.id+'\')">Excluir</button>'+
+      '</div></div>';
+  }).join('') : '<div class="sub">Nenhum registro suspenso.</div>';
 
   var elRes = document.getElementById('multasResolvidasLista');
   elRes.innerHTML = resolvidas.length ? resolvidas.map(function(x){
@@ -8635,7 +8684,7 @@ function listarPendenciasESCI(db, feitos){
   });
   (db.edificacoes||[]).forEach(function(e){
     (e.cartorio||[]).forEach(function(m){
-      if(m.tipo!=='af' || m.resolvidaEm) return;
+      if(m.tipo!=='af' || m.resolvidaEm || m.suspensaEm) return;
       if(feitos ? !m.esciLancadoEm : (m.numero || m.esciLancadoEm)) return;
       out.push({kind:'af', e:e, m:m, quando:m.criadaEm||''});
     });
