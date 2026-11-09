@@ -46,7 +46,7 @@
   .empty{text-align:center;padding:80px 20px;color:var(--sub);}
   .empty .ico{font-size:44px;margin-bottom:12px;}
 
-  .grid-campo{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;}
+  .grid-campo{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;}
   .pcard{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;}
   .pcard .tipo{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--sub);margin-bottom:8px;}
   .pcard .tipo .ic{font-size:18px;}
@@ -54,7 +54,9 @@
   .pcard .meta{font-size:12px;color:var(--sub);line-height:1.6;}
   .pcard .obs{font-size:12px;color:var(--txt);background:var(--card2);border-radius:10px;padding:8px 10px;margin-top:8px;}
   .pcard img{width:100%;border-radius:10px;margin-top:10px;max-height:150px;object-fit:cover;}
-  .pcard .actions{display:flex;gap:8px;margin-top:14px;}
+  .pcard .actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px;}
+  .pcard .actions .btn{width:100%;min-width:0;white-space:normal;line-height:1.25;padding:9px 6px;text-align:center;}
+  .pcard .actions .btn.primary{grid-column:1/-1;}
 
   .btn{border:none;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;color:#fff;
     background:var(--card2);cursor:pointer;}
@@ -172,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v128</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v130</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -210,6 +212,7 @@
         </select>
         <select id="edifFiltroMunicipio" onchange="renderEdificacoes()" style="width:auto"><option value="">Município: todos</option></select>
         <select id="edifFiltroBairro" onchange="renderEdificacoes()" style="width:auto"><option value="">Bairro: todos</option></select>
+        <select id="edifFiltroRota" onchange="renderEdificacoes()" style="width:auto"><option value="">Rota: todas</option></select>
         <select id="edifOrdenacao" onchange="renderEdificacoes()" style="width:auto">
           <option value="nome">Ordenar: Nome</option>
           <option value="re">Ordenar: RE (crescente)</option>
@@ -1481,6 +1484,24 @@ function renderPendentesCampoNaEdif(db){
   '</div>';
 }
 
+function popularFiltroRotaEdif(db){
+  var sel = document.getElementById('edifFiltroRota');
+  if(!sel) return;
+  var val = sel.value;
+  var rotas = (db.rotas||[]).slice().sort(function(a,b){
+    var da = parseDataBR(a.data), dbb = parseDataBR(b.data);
+    if(da && dbb && da-dbb) return da-dbb;
+    if(da && !dbb) return -1;
+    if(!da && dbb) return 1;
+    return String(a.nome||'').localeCompare(String(b.nome||''), undefined, {numeric:true});
+  });
+  sel.innerHTML = '<option value="">Rota: todas</option>' + rotas.map(function(r){
+    var q = (r.vistorias||[]).length;
+    return '<option value="'+r.id+'">'+String(r.nome||'Rota').replace(/</g,'&lt;')+(r.data?' · '+r.data.slice(0,5):'')+' ('+q+')</option>';
+  }).join('');
+  if(rotas.some(function(r){return r.id===val;})) sel.value = val;
+}
+
 function popularFiltrosEdif(edificacoes){
   var selMun = document.getElementById('edifFiltroMunicipio');
   var selBai = document.getElementById('edifFiltroBairro');
@@ -1513,6 +1534,7 @@ function renderEdificacoes(){
   var db = loadDB();
   var todas = db.edificacoes||[];
   popularFiltrosEdif(todas);
+  popularFiltroRotaEdif(db);
   renderPendentesCampoNaEdif(db);
 
   var busca = (document.getElementById('edifBusca').value||'').toLowerCase();
@@ -1524,8 +1546,18 @@ function renderEdificacoes(){
   var qtdFalta = todas.filter(function(e){ return dadosFaltando(e).length; }).length;
   document.getElementById('edifFaltaQtd').textContent = '('+qtdFalta+')';
   var ordenacao = document.getElementById('edifOrdenacao').value;
+  var fRotaId = document.getElementById('edifFiltroRota').value;
+  var rotaSel = fRotaId ? (db.rotas||[]).find(function(r){return r.id===fRotaId;}) : null;
+  var ordemRota = {};   // edificacaoId -> posição da parada na rota (1, 2, 3...)
+  if(rotaSel){
+    (rotaSel.vistorias||[]).forEach(function(vid, i){
+      var vv = (db.vistorias||[]).find(function(x){return x.id===vid;});
+      if(vv && ordemRota[vv.edificacaoId]==null) ordemRota[vv.edificacaoId] = i+1;
+    });
+  }
 
   var lista = todas.filter(function(e){
+    if(rotaSel && ordemRota[e.id]==null) return false;
     if(e.competencia==='fora' && !fMostrarForaComp) return false;
     if(fFalta && !dadosFaltando(e).length) return false;
     if(fRisco && String(riscoEfetivo(e)||'')!==fRisco) return false;
@@ -1538,6 +1570,7 @@ function renderEdificacoes(){
            (e.endereco||'').toLowerCase().indexOf(busca)>=0 ||
            (e.bairro||'').toLowerCase().indexOf(busca)>=0;
   }).sort(function(a,b){
+    if(rotaSel && ordenacao==='nome') return ordemRota[a.id]-ordemRota[b.id];   // na rota, a ordem padrão é a das paradas
     if(ordenacao==='re'){
       return (a.re||'').localeCompare(b.re||'', undefined, {numeric:true});
     }
@@ -1553,18 +1586,24 @@ function renderEdificacoes(){
   });
 
   var el = document.getElementById('edifGrid');
+  var resumoRota = '';
+  if(rotaSel){
+    var nFalta = lista.filter(function(e){return dadosFaltando(e).length;}).length;
+    resumoRota = '<div class="sub" style="margin-bottom:10px;padding:10px 12px;background:var(--card2);border-radius:10px">🧭 <b>'+String(rotaSel.nome||'Rota').replace(/</g,'&lt;')+'</b>'+(rotaSel.data?' · '+rotaSel.data:'')+': '+lista.length+' edificação(ões) na ordem das paradas'+(nFalta?' · <span style="color:#FF9F0A">⚠️ '+nFalta+' com dados faltando</span> (marque "Só com dados faltando" para ver só elas)':' · todas com os dados completos')+'</div>';
+  }
   if(!lista.length){
-    el.innerHTML = '<div class="empty"><div class="ico">🏢</div>'+(todas.length?'Nenhuma edificação encontrada com esses filtros.':'Nenhuma edificação cadastrada ainda.')+'</div>';
+    el.innerHTML = resumoRota+'<div class="empty"><div class="ico">🏢</div>'+(todas.length?'Nenhuma edificação encontrada com esses filtros.':'Nenhuma edificação cadastrada ainda.')+'</div>';
     return;
   }
   var dbLista = loadDB();
-  el.innerHTML = lista.map(function(e){
+  el.innerHTML = resumoRota + lista.map(function(e){
     var venc = (e.vigenciaFuncionamento && e.vigenciaFuncionamento.vencimento) || '';
     var hsMap = {possui:['✅','Possui HS'], andamento:['⏳','HS andamento'], nao_possui:['❌','Sem HS']};
     var hsInfo = hsMap[(e.habiteSe&&e.habiteSe.situacao)] || ['❔','HS não informado'];
     var origemTag = e.origem==='campo' ? '<span style="font-size:10px;font-weight:700;color:#5AC8FA;border:1px solid #5AC8FA;border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle">📍 CAMPO</span>' : '';
     var foraCompTag = e.competencia==='fora' ? '<span style="font-size:10px;font-weight:700;color:#8E8E93;border:1px solid #8E8E93;border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle">🚫 FORA CBM</span>' : '';
     var desocupadaTag = e.desocupada ? '<span style="font-size:10px;font-weight:700;color:#8E8E93;border:1px solid #8E8E93;border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle">🏚️ DESOCUPADA</span>' : '';
+    var paradaTag = ordemRota[e.id]!=null ? '<span style="font-size:10px;font-weight:700;color:#0A84FF;border:1px solid #0A84FF;border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle">🧭 PARADA '+ordemRota[e.id]+'</span>' : '';
     var riscoMostrar = riscoEfetivo(e);
     var badge = e.competencia==='fora' ? '<div class="elist-badge" style="background:#6b6b70">🚫</div>' : '<div class="elist-badge" style="background:'+corRisco(riscoMostrar)+'">'+(riscoMostrar||'—')+'</div>';
     var telWaEdif = e.competencia!=='fora' ? telefoneParaWhatsapp(e.responsavel && e.responsavel.tel) : null;
@@ -1573,7 +1612,7 @@ function renderEdificacoes(){
       '<div class="elist-row">'+
         badge+
         '<div style="flex:1;min-width:0">'+
-          '<div class="elist-t">'+(e.nome||'Sem nome')+tagConferir(e)+origemTag+foraCompTag+desocupadaTag+'</div>'+
+          '<div class="elist-t">'+(e.nome||'Sem nome')+tagConferir(e)+paradaTag+origemTag+foraCompTag+desocupadaTag+'</div>'+
           '<div class="elist-s">'+(e.competencia==='fora' ? (e.competenciaMotivo||'Sem motivo informado') : (e.re||'Sem RE')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(venc?' · vence '+venc:'')+' · '+hsInfo[0]+' '+hsInfo[1])+'</div>'+
           ultTxt+ocupLinhaCard(ocupLista(e))+tagFaltando(e)+
         '</div>'+
