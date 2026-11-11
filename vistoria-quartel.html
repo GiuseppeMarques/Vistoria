@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v132</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v133</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -3311,6 +3311,7 @@ function renderVistoriaCard(v, db){
         '<div class="vsub">'+(e?e.re:'esta vistoria não está ligada a nenhuma edificação')+' · '+rotuloVistoria(v)+(v.motivo?' · '+v.motivo:'')+'</div>'+
         ocupLinhaCard(ocupListaVist(v,e))+
         (v.obs ? '<div class="vsub" style="margin-top:4px;font-style:italic">📝 '+v.obs+'</div>' : '')+
+        (v.correcoesQuartel && v.correcoesQuartel.length ? '<div class="vsub" style="margin-top:4px;color:var(--amar)">✏️ Corrigida no Quartel em '+new Date(v.corrigidaEm||v.correcoesQuartel[v.correcoesQuartel.length-1].em).toLocaleDateString('pt-BR')+' ('+v.correcoesQuartel[v.correcoesQuartel.length-1].resumo+')'+(v.correcoesQuartel.length>1?' · '+v.correcoesQuartel.length+' correções':'')+(v.alteradaAposEsci?' · ⚠️ já estava no e-SCI':'')+'</div>' : '')+
         (v.esciLancadoEm ? '<div class="vsub" style="margin-top:4px;color:var(--verde)">📤 Lançada no e-SCI em '+new Date(v.esciLancadoEm).toLocaleDateString('pt-BR')+'</div>' : (v.concluida && v.concluidaEm && v.concluidaEm>=ESCI_DESDE && !(v.tipo==='cartorio' && v.cartorioSubtipo==='multa' && v.cienciaItemId) ? '<div class="vsub" style="margin-top:4px;color:var(--amar)">📤 Falta lançar no e-SCI</div>' : ''))+
       '</div>'+
       '<span class="vist-status '+statusCls+'">'+statusTxt+'</span>'+badgeEsci(v)+
@@ -3318,8 +3319,9 @@ function renderVistoriaCard(v, db){
     '<div class="btnrow" style="margin-top:10px;gap:8px;flex-wrap:wrap">'+
       (orfa ? '<button class="btn primary" onclick="abrirVincularVistoria(\''+v.id+'\')">🔗 Vincular edificação</button>' :
         (v.concluida
-          ? '<button class="btn" style="'+(v.relatorioCopiadoEm?'border:1px solid var(--verde);color:var(--verde)':'')+'" onclick="abrirRelatorio(\''+v.id+'\')">'+(v.relatorioCopiadoEm?'✅ Fechada (copiada em '+new Date(v.relatorioCopiadoEm).toLocaleDateString('pt-BR')+')':'Ver relatório')+'</button>'+(telWaVist && !ehCart ? renderBotaoResultadoWhatsapp(v) : '')
+          ? (function(){ var cop = v.relatorioCopiadoEm && (!v.corrigidaEm || v.relatorioCopiadoEm>=v.corrigidaEm); return '<button class="btn" style="'+(cop?'border:1px solid var(--verde);color:var(--verde)':'')+'" onclick="abrirRelatorio(\''+v.id+'\')">'+(cop?'✅ Fechada (copiada em '+new Date(v.relatorioCopiadoEm).toLocaleDateString('pt-BR')+')':(v.relatorioCopiadoEm?'Ver relatório (corrigido, copiar de novo)':'Ver relatório'))+'</button>'; })()+(telWaVist && !ehCart ? renderBotaoResultadoWhatsapp(v) : '')
           : '<button class="btn primary" onclick="abrirExecucaoQuartel(\''+v.id+'\')">'+(ehCart?'Executar visita':'Executar vistoria')+'</button>'))+
+      (v.concluida && !ehCart && !orfa ? '<button class="btn" onclick="corrigirVistoriaQuartel(\''+v.id+'\')">✏️ Corrigir vistoria</button>' : '')+
       (!v.concluida && telWaVist ? renderBotaoConversarWhatsapp(v) : '')+
       (!v.concluida && v.rotaId ? '<button class="btn" onclick="removerVistoriaDaRota(\''+v.id+'\')">↩️ Remover da rota</button>' : '')+
       '<button class="btn" onclick="abrirObsVistoria(\''+v.id+'\')">'+(v.obs?'📝 Editar observação':'📝 Adicionar observação')+'</button>'+
@@ -4120,6 +4122,13 @@ function gerarRelatorioTexto(e, v, pendGerais, duvidasGerais, porBloco, aprovado
     linhas.push('⚠️ Diante das pendências acima, será lavrado Auto de Infração (AF) com prazo pra regularização. '+
       'Pra darmos andamento, envie: nome completo, CPF, e a ciência deste AF.');
   }
+  var cobrarC = ((e && e.dossie && e.dossie.cienciasPendentes) || []).filter(function(c){ return c.cobrar; });
+  if(cobrarC.length){
+    linhas.push('');
+    linhas.push('=== 📌 PENDENTE DE CIÊNCIA NO e-SCI ===');
+    cobrarC.forEach(function(c){ linhas.push('- '+(c.tipo||'AF')+' nº '+(c.numero||'(sem número)')+(c.descricao?' ('+c.descricao+')':'')); });
+    linhas.push('Pedimos que dê ciência no sistema e-SCI (esci.cbm.sc.gov.br).');
+  }
   if(duvidasGerais.length){
     linhas.push('');
     linhas.push('=== ❔ ITENS COM DÚVIDA (precisam de confirmação) ===');
@@ -4295,9 +4304,78 @@ function abrirExecucaoQuartel(vistId){
   document.getElementById('modalExecucao').style.display='flex';
   renderExecucaoQuartel();
 }
+// ── Correção, no Quartel, de uma vistoria já concluída (feita em campo) ──
+// Guarda uma cópia da versão original (a que veio do campo) na primeira correção e registra cada
+// correção com data e resumo. Os dados corrigidos valem daí em diante (atualizadoEm novo = o Quartel
+// ganha de uma importação antiga do mesmo arquivo do campo).
+var quCorrSnap = null;
+function quCorrFoto(v){
+  return {checklist:v.checklist||{}, qtv:v.qtv||{}, qtvPrevBloco:v.qtvPrevBloco||{}, ocupacoes:v.ocupacoes||[], ocupacao:v.ocupacao||'', decisaoResultado:v.decisaoResultado||'', obs:v.obs||''};
+}
+function corrigirVistoriaQuartel(vistId){
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===vistId;});
+  if(!v || !v.concluida) return;
+  if(!confirm('Corrigir esta vistoria?\n\nA versão original fica guardada e a correção é registrada com data. O resultado e a pré-AF são recalculados ao fechar.')) return;
+  if(!v.versaoOriginal) v.versaoOriginal = {guardadaEm:new Date().toISOString(), dados:JSON.parse(JSON.stringify(quCorrFoto(v)))};
+  v.corrigindoEm = new Date().toISOString();
+  quCorrSnap = JSON.parse(JSON.stringify(quCorrFoto(v)));
+  saveDB(db);
+  abrirExecucaoQuartel(vistId);
+}
+function quCorrResumo(antes, depois){
+  var r = [], ck = {};
+  Object.keys(antes.checklist).concat(Object.keys(depois.checklist)).forEach(function(k){ ck[k] = 1; });
+  var nck = Object.keys(ck).filter(function(k){ return JSON.stringify(antes.checklist[k]||null) !== JSON.stringify(depois.checklist[k]||null); }).length;
+  if(nck) r.push(nck+' item(ns) do checklist');
+  if(JSON.stringify(antes.qtvPrevBloco)!==JSON.stringify(depois.qtvPrevBloco)) r.push('quantitativos dos preventivos');
+  if(JSON.stringify(antes.qtv)!==JSON.stringify(depois.qtv)) r.push('quantitativos gerais');
+  if(JSON.stringify(antes.ocupacoes)!==JSON.stringify(depois.ocupacoes) || antes.ocupacao!==depois.ocupacao) r.push('ocupação');
+  if(antes.decisaoResultado!==depois.decisaoResultado) r.push('decisão do resultado');
+  if(antes.obs!==depois.obs) r.push('observação');
+  return r.join(', ');
+}
+// depois da correção: ajusta a pré-AF que ainda é rascunho (sem número do e-SCI) ao novo resultado
+function quCorrAtualizarPreAF(db, v){
+  var e = (db.edificacoes||[]).find(function(x){return x.id===v.edificacaoId;});
+  if(!e || ['funcionamento','habite-se','ex-oficio'].indexOf(v.tipo)<0) return '';
+  e.cartorio = e.cartorio || [];
+  var res = calcularResumoPendenciasVistoria(e, v);
+  var novoMotivo = (res.indeferido || res.deferidoComAF) ? res.alteracoes.join('\n') : '';
+  var oficial = e.cartorio.find(function(m){return m.vistoriaOrigemId===v.id && m.tipo==='af' && m.numero;});
+  var pre = e.cartorio.find(function(m){return m.vistoriaOrigemId===v.id && m.tipo==='af' && m.preAF && !m.numero && !m.resolvidaEm && !m.cienciaDadaEm;});
+  if(oficial){ return (oficial.motivo||'') === novoMotivo ? '' : 'Atenção: já existe a AF '+oficial.numero+' lançada no e-SCI com base na vistoria anterior à correção. Confira se ela precisa mudar.'; }
+  if(pre && (pre.motivo||'') === novoMotivo) return '';
+  if(!pre && !novoMotivo) return '';
+  if(pre) e.cartorio = e.cartorio.filter(function(m){return m!==pre;});
+  delete v.preAFGeradaEm;
+  gerarPreAFDaVistoria(db, v);
+  return novoMotivo ? 'A pré-AF do Cartório foi refeita com o resultado corrigido.' : 'A pré-AF rascunho foi removida porque, corrigida, a vistoria não tem mais pendência.';
+}
+function quCorrFinalizar(){
+  if(!quExecVistId) return '';
+  var db = loadDB();
+  var v = db.vistorias.find(function(x){return x.id===quExecVistId;});
+  if(!v || !v.corrigindoEm) return '';
+  var resumo = quCorrResumo(quCorrSnap || quCorrFoto(v), quCorrFoto(v));
+  delete v.corrigindoEm;
+  var msg = '';
+  if(resumo){
+    var agora = new Date().toISOString();
+    v.correcoesQuartel = (v.correcoesQuartel||[]).concat([{em:agora, resumo:resumo}]);
+    v.corrigidaEm = agora; v.atualizadoEm = agora;
+    if(v.esciLancadoEm) v.alteradaAposEsci = true;
+    msg = quCorrAtualizarPreAF(db, v);
+  }
+  quCorrSnap = null;
+  saveDB(db);
+  return resumo ? ('Correção registrada: '+resumo+'.'+(msg?'\n'+msg:'')+(v.alteradaAposEsci?'\nEsta vistoria já tinha sido lançada no e-SCI: confira o lançamento.':'')) : 'Nenhuma alteração feita.';
+}
 function fecharExecucaoQuartel(){
+  var msgCorr = quCorrFinalizar();
   document.getElementById('modalExecucao').style.display='none';
   quExecVistId = null;
+  if(msgCorr) alert(msgCorr);
   renderVistorias();
   try{ if(typeof qmap!=='undefined' && qmap) renderQMapaConteudo(); }catch(err){}
 }
@@ -4684,6 +4762,7 @@ function renderExecucaoQuartel(){
 
   var html = '<h3>'+(e.nome||'Sem nome')+'</h3><div class="sub">'+(e.re||'Sem RE')+' · '+rotuloVistoria(v)+'</div>';
   if(v.origemCartorioId) html += '<div style="margin:8px 0"><button class="btn" onclick="quVoltarAoCartorio()">← Voltar à visita de Cartório</button></div>';
+  if(v.corrigindoEm) html += '<div style="margin:10px 0;padding:8px 10px;border-radius:8px;background:rgba(255,159,10,.15);border:1px solid var(--amar);font-size:12px">✏️ <b>Modo correção.</b> Altere o que for preciso; ao fechar, a correção fica registrada e o resultado é recalculado. A versão original (de campo) fica guardada.<br><button class="btn primary" style="margin-top:8px;width:100%" onclick="fecharExecucaoQuartel()">💾 Registrar correção e fechar</button></div>';
   html += encTopHtml(e, db);
 
   if(v.tipo==='cartorio'){
@@ -8593,13 +8672,31 @@ function mergeArray(local, importados, contador){
         // MESCLA campo a campo em vez de substituir o objeto inteiro — o Campo não conhece
         // campos exclusivos do Quartel (multas, avisos enviados, laudo, ordem dos preventivos
         // etc.), então uma substituição completa apagaria esses dados silenciosamente.
+        var dossieMantido = (loc.dossie && item.dossie && String(item.dossie.geradoEm||'') < String(loc.dossie.geradoEm||'')) ? loc.dossie : null;
         local[idx] = Object.assign({}, loc, item);
+        if(dossieMantido) local[idx].dossie = dossieMantido; // o dossiê mais recente vence
         contador.atualizados++;
       }
     }
     else { local.push(item); contador.novos++; }
   });
   return local;
+}
+
+// Dossiê de notificações (levantamento do e-SCI por rota). Fica em edificacao.dossie e segue
+// no .vst para o Campo, onde é lido (botão "📋 Dossiê" no cartão da edificação e na vistoria).
+function dossieImportar(pacote, input){
+  var db = loadDB(), n = 0, sem = [];
+  (pacote.edificacoes||[]).forEach(function(d){
+    var re = String(d.re||'').trim().toUpperCase();
+    var e = (db.edificacoes||[]).find(function(x){ return String(x.re||'').trim().toUpperCase()===re; });
+    if(!e){ sem.push(d.re); return; }
+    var novo = Object.assign({}, d, {geradoEm:pacote.geradoEm, rota:pacote.rota||'', fonte:pacote.fonte||'e-SCI'}); delete novo.re;
+    e.dossie = novo; e.atualizadoEm = new Date().toISOString(); n++;
+  });
+  saveDB(db);
+  document.getElementById('importResumo').innerHTML = '<div class="card2-box"><div class="sec-title" style="margin-top:0">Dossiê importado</div><div class="resumo-item">📋 '+n+' edificação(ões) com dossiê atualizado. Vai para o Campo no próximo arquivo .vst.'+(sem.length?'<br>⚠️ Sem cadastro aqui: '+sem.join(', '):'')+'</div></div>';
+  input.value = '';
 }
 
 function importarArquivo(input){
@@ -8610,6 +8707,7 @@ function importarArquivo(input){
     var pacote;
     try{ pacote = JSON.parse(e.target.result); }
     catch(err){ alert('Arquivo inválido ou corrompido.'); return; }
+    if(pacote.tipo==='dossie-notificacoes'){ dossieImportar(pacote, input); return; }
 
     var db = loadDB();
     var tumVist = db.vistoriasExcluidas || [], tumRota = db.rotasExcluidas || [];

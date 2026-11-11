@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v95</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v96</div>
   </header>
 
   <main>
@@ -529,6 +529,7 @@
         <div class="exec-hdr-t" id="execHdrNome">—</div>
         <div class="exec-hdr-s" id="execHdrRe">—</div>
       </div>
+      <button id="execDossieBtn" class="exec-back" style="display:none;width:auto;padding:0 12px;font-size:13px;font-weight:700" onclick="abrirDossie(execEdificacaoId)">📋 Dossiê</button>
     </div>
     <div id="execBody" class="exec-body"></div>
   </div>
@@ -998,7 +999,7 @@ function vistCardHtmlCampo(v, db){
       '</div>'+
       ocupLinhaCard(ocupListaVist(v,e))+
       '<div class="vsub">'+(v.concluida ? 'Concluída em '+new Date(v.concluidaEm).toLocaleString('pt-BR') : 'Toque pra continuar')+'</div>'+
-      (temLocal ? '<button class="btn" style="width:100%;margin-top:8px" onclick="event.stopPropagation();window.open(\'https://www.google.com/maps/dir/?api=1&destination='+e.lat+','+e.lng+'\', \'_blank\')">🧭 Navegar até aqui</button>' : '')+
+      (temLocal ? '<button class="btn" style="width:100%;margin-top:8px" onclick="event.stopPropagation();navegarComVias(\''+e.id+'\')">🧭 Navegar até aqui</button>' : '')+
       '<button class="btn stop" style="width:100%;margin-top:8px" onclick="event.stopPropagation();excluirVistoriaCampo(\''+v.id+'\')">Excluir</button>'+
     '</div>';
 }
@@ -1157,9 +1158,16 @@ function navegarRotaInteira(rotaId){
     var v = db.vistorias.find(function(x){return x.id===vid;});
     if(!v || v.concluida) return null; // só as ainda não feitas, na ordem da rota
     var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
-    return (e && e.lat && e.lng) ? e.lat+','+e.lng : null;
+    return (e && e.lat && e.lng) ? {p:e.lat+','+e.lng, vias:(e.vias||[]).map(function(q){ return q[0].toFixed(6)+','+q[1].toFixed(6); })} : null;
   }).filter(Boolean);
   if(!paradas.length){ alert('Nenhuma parada com localização cadastrada nessa rota.'); return; }
+  // usa os pontos de passagem salvos de cada parada (antes dela); o Google aceita no máximo 9 intermediários
+  var comVias = []; paradas.forEach(function(x){ comVias = comVias.concat(x.vias, [x.p]); });
+  if(comVias.length-1 > 9){
+    if(comVias.length !== paradas.length) alert('Com os pontos de passagem salvos passa de 9 pontos intermediários (limite do Google Maps). Abrindo só com as paradas.');
+    comVias = paradas.map(function(x){ return x.p; });
+  }
+  paradas = comVias;
   var destino = paradas[paradas.length-1];
   var waypoints = paradas.slice(0,-1);
   var url = 'https://www.google.com/maps/dir/?api=1&destination='+destino;
@@ -1210,6 +1218,7 @@ function abrirExecucao(edificacaoId, vistoriaId){
 
   document.getElementById('execHdrNome').textContent = e.nome;
   document.getElementById('execHdrRe').textContent = e.re || 'Sem RE';
+  document.getElementById('execDossieBtn').style.display = e.dossie ? '' : 'none';
 
   // reaproveita vistoria não concluída mais recente pra essa edificação, se existir
   var pendente = (db.vistorias||[]).filter(function(v){return v.edificacaoId===edificacaoId && !v.concluida;})
@@ -2836,6 +2845,8 @@ function montarMensagemLocal(e, v, db){
     }
     if(res==='indeferido' || res==='deferido_af') prazo = prazoPadraoCartorioCampo({});
   }
+  var cobrarC = dossieCienciasMarcadas(e);
+  if(cobrarC.length && !apenasCiencia) blocos.push('Pendente de ciência no e-SCI:\n'+cobrarC.map(function(c){ return '- '+(c.tipo||'AF')+' nº *'+(c.numero||'(sem número)')+'*'+(c.descricao?' ('+c.descricao+')':''); }).join('\n')+'\nPedimos que dê ciência no sistema e-SCI (esci.cbm.sc.gov.br).');
   if(prazo) blocos.push('Prazo para regularização: *'+prazo+'*.');
   if(v.msgFuncionamento && !apenasCiencia) blocos.push('Solicitamos que seja requerido o funcionamento da edificação (por bloco) no sistema, conforme a regularização.');
   if(!apenasCiencia) blocos.push('Para registro da ciência, pedimos que responda esta mensagem com:\n1) "Ciente";\n2) Nome completo;\n3) CPF;\n4) Cargo ou vínculo com a edificação.\nAcesse também o sistema e-SCI (esci.cbm.sc.gov.br) para acompanhar a notificação.');
@@ -4864,6 +4875,7 @@ function initMap(){
   lyrDirecao = L.layerGroup().addTo(map);
 
   map.on('click', function(e){
+    if(mapMarcandoVias && mapAlvoIdAnterior){ adicionarVia(mapAlvoIdAnterior, e.latlng.lat, e.latlng.lng); return; }
     if(modoEscolherCentro){
       centroSelecionadoPacote = {lat:e.latlng.lat, lng:e.latlng.lng};
       document.getElementById('npCentroTxt').textContent =
@@ -5165,8 +5177,12 @@ function renderMapFiltroReBanner(){
 
   var direcaoHtml = '';
   if(meuPosicaoAtual && e.lat && e.lng){
-    var dist = haversineKm(meuPosicaoAtual[0], meuPosicaoAtual[1], e.lat, e.lng);
-    var bear = calcularBearing(meuPosicaoAtual[0], meuPosicaoAtual[1], e.lat, e.lng);
+    // guia pelos cruzamentos marcados: a seta e a distância apontam para o próximo ponto; depois, a edificação
+    var viasE = viasDe(e.id), idxVia = viaAvancar(e.id, viasE);
+    var temVia = idxVia < viasE.length;
+    var tLat = temVia ? viasE[idxVia][0] : e.lat, tLng = temVia ? viasE[idxVia][1] : e.lng;
+    var dist = haversineKm(meuPosicaoAtual[0], meuPosicaoAtual[1], tLat, tLng);
+    var bear = calcularBearing(meuPosicaoAtual[0], meuPosicaoAtual[1], tLat, tLng);
     mapAlvoBearing = bear;
     var distTxt = dist<1 ? Math.round(dist*1000)+' m' : dist.toFixed(1)+' km';
     var aproxHtml = '';
@@ -5176,13 +5192,17 @@ function renderMapFiltroReBanner(){
     }
     mapDistanciaAnteriorAlvo = dist;
     var rel = headingSuave==null ? bear : ((bear-headingSuave)+360)%360;
+    var faltaPts = [meuPosicaoAtual].concat(viasE.slice(idxVia), [[e.lat,e.lng]]);
+    var totalKm = kmCaminho(faltaPts), totalTxt = totalKm<1 ? Math.round(totalKm*1000)+' m' : totalKm.toFixed(1)+' km';
+    var rotuloAlvo = temVia ? '📍 Cruzamento '+(idxVia+1)+' de '+viasE.length : 'a edificação';
     direcaoHtml = '<div style="display:flex;align-items:center;gap:10px;margin-top:6px">'+
       '<span id="hudSeta" style="display:inline-block;font-size:30px;line-height:1;transform:rotate('+rel.toFixed(1)+'deg)">⬆️</span>'+
-      '<div><div style="font-size:19px;font-weight:800">'+distTxt+'</div>'+
+      '<div><div style="font-size:19px;font-weight:800">'+distTxt+' <span style="font-size:12px;font-weight:600;opacity:.9">até '+rotuloAlvo+'</span></div>'+
+      (temVia ? '<div style="font-size:12px;opacity:.95">Pelo trajeto marcado, faltam '+totalTxt+' até a edificação</div>' : '')+
       '<div style="font-size:11px;opacity:.9">🕑 Última vistoria: '+textoUltimaVistoria(db, e.id, false)+'</div>'+
-      '<div style="font-size:11px;opacity:.9">'+(headingSuave==null ? 'ao '+bearingParaCardinal(bear) : 'a seta aponta a edificação')+(aproxHtml?' · '+aproxHtml:'')+'</div></div>'+
+      '<div style="font-size:11px;opacity:.9">'+(headingSuave==null ? 'ao '+bearingParaCardinal(bear) : 'a seta aponta '+(temVia?'o próximo cruzamento':'a edificação'))+(aproxHtml?' · '+aproxHtml:'')+'</div></div>'+
     '</div>';
-    if(lyrDirecao && map) L.polyline([meuPosicaoAtual, [e.lat,e.lng]], {color:'#0A84FF', weight:4, dashArray:'6,8'}).addTo(lyrDirecao);
+    if(lyrDirecao && map && !viasE.length) L.polyline([meuPosicaoAtual, [e.lat,e.lng]], {color:'#0A84FF', weight:4, dashArray:'6,8'}).addTo(lyrDirecao);
   } else {
     mapAlvoBearing = null;
     direcaoHtml = '<div class="sub" style="margin-top:4px;color:#fff">Toque em 📍 pra ativar sua localização e ver a direção.</div>';
@@ -5193,11 +5213,91 @@ function renderMapFiltroReBanner(){
   var botao = alvo.modo==='re'
     ? '<button class="btn" style="width:auto;padding:4px 10px;background:rgba(255,255,255,.2);color:#fff" onclick="limparMapFiltroRe()">✕ Limpar</button>'
     : '<button class="btn" style="width:auto;padding:4px 10px;background:rgba(255,255,255,.2);color:#fff" onclick="abrirCartaoEdificacaoPorId(\''+e.id+'\')">Abrir</button>';
+  desenharViasNoMapa(e);
   el.innerHTML = '<div style="background:var(--red2);color:#fff;padding:8px 12px;border-radius:10px;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.4)">'+
     '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'+
       '<span>'+titulo+'</span>'+botao+
-    '</div>'+direcaoHtml+
+    '</div>'+direcaoHtml+viasHtmlHud(e)+
   '</div>';
+}
+
+// ════════════════════════════════════════
+// PONTOS DE PASSAGEM (cruzamentos) até a edificação-alvo
+//  Liga "Marcar cruzamentos" e toca no NOSSO mapa (funciona sem internet) onde quer passar, na ordem.
+//  A seta e a distância do aviso passam a guiar de cruzamento em cruzamento até a edificação.
+//  Ficam gravados NA EDIFICAÇÃO (edificacao.vias): valem para as próximas vistorias ali, aparecem no
+//  mapa quando a rota é escolhida, entram no "Navegar rota inteira" e seguem no .vst para o Quartel.
+// ════════════════════════════════════════
+var mapMarcandoVias = false;
+function viasDe(id){
+  if(!id) return [];
+  var e = (loadDB().edificacoes||[]).find(function(x){return x.id===id;});
+  return (e && e.vias) || [];
+}
+function viasGravar(id, lista){
+  var db = loadDB(), e = (db.edificacoes||[]).find(function(x){return x.id===id;});
+  if(!e) return;
+  if(lista.length) e.vias = lista; else delete e.vias;
+  e.atualizadoEm = new Date().toISOString();
+  saveDB(db);
+}
+function toggleMarcarVias(){ mapMarcandoVias = !mapMarcandoVias; renderMapFiltroReBanner(); }
+function adicionarVia(id, lat, lng){
+  var v = viasDe(id).slice();
+  if(v.length >= 30){ alert('Máximo de 30 pontos de passagem por edificação. Apague algum para marcar outro.'); return; }
+  v.push([lat, lng]); viasGravar(id, v); renderMapFiltroReBanner(); renderMapEdificacoes();
+}
+function removerVia(id, i){ var v = viasDe(id).slice(); v.splice(i,1); viaProgSet(id, 0); viasGravar(id, v); renderMapFiltroReBanner(); renderMapEdificacoes(); }
+function desfazerUltimaVia(id){ var v = viasDe(id); if(v.length) removerVia(id, v.length-1); }
+function limparVias(id){ viaProgSet(id, 0); viasGravar(id, []); renderMapFiltroReBanner(); renderMapEdificacoes(); }
+function kmCaminho(pts){ var t = 0; for(var i=1;i<pts.length;i++) t += haversineKm(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1]); return t; }
+
+// Progresso no trajeto: qual cruzamento é o próximo. Avança sozinho ao chegar a ~30 m dele (GPS);
+// "Pular" avança à mão e "Recomeçar" volta ao primeiro. Guardado no aparelho (vale para o dia).
+var VIAPROG_KEY = 'vistoria_campo_viaprog';
+function viaProgLer(){ try{ var o = JSON.parse(localStorage.getItem(VIAPROG_KEY)) || {}; return o.dia===new Date().toDateString() ? o : {dia:new Date().toDateString(), idx:{}}; }catch(err){ return {dia:new Date().toDateString(), idx:{}}; } }
+function viaProgSet(id, n){ var o = viaProgLer(); o.idx[id] = n; try{ localStorage.setItem(VIAPROG_KEY, JSON.stringify(o)); }catch(err){} }
+function viaAvancar(id, vias){
+  var idx = Math.min(viaProgLer().idx[id]||0, vias.length), orig = idx;
+  while(meuPosicaoAtual && idx < vias.length && haversineKm(meuPosicaoAtual[0], meuPosicaoAtual[1], vias[idx][0], vias[idx][1]) < 0.03) idx++;
+  if(idx !== orig){ viaProgSet(id, idx); mapDistanciaAnteriorAlvo = null; }
+  return idx;
+}
+function pularVia(id){ var n = viasDe(id).length; viaProgSet(id, Math.min((viaProgLer().idx[id]||0)+1, n)); mapDistanciaAnteriorAlvo = null; renderMapFiltroReBanner(); renderMapEdificacoes(); }
+function recomecarVias(id){ viaProgSet(id, 0); mapDistanciaAnteriorAlvo = null; renderMapFiltroReBanner(); renderMapEdificacoes(); }
+
+function desenharViasNoMapa(e){
+  if(!lyrDirecao || !map) return;
+  var vias = viasDe(e.id);
+  if(!vias.length) return;
+  var idx = Math.min(viaProgLer().idx[e.id]||0, vias.length);
+  var pts = (meuPosicaoAtual ? [meuPosicaoAtual] : []).concat(vias.slice(idx), [[e.lat,e.lng]]);
+  L.polyline(pts, {color:'#0A84FF', weight:5, dashArray:'6,8'}).addTo(lyrDirecao);
+  vias.forEach(function(p, i){
+    var feito = i < idx, prox = i === idx;
+    var ic = L.divIcon({html:'<div style="width:'+(prox?30:24)+'px;height:'+(prox?30:24)+'px;border-radius:50%;background:'+(feito?'#1f9d4d':'#0A84FF')+';border:'+(prox?'3px solid #FFD60A':'2px solid #fff')+';color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.5);'+(feito?'opacity:.6':'')+'">'+(feito?'✓':(i+1))+'</div>', className:'', iconSize:[prox?30:24,prox?30:24], iconAnchor:[prox?15:12,prox?15:12]});
+    L.marker(p, {icon:ic, zIndexOffset:900}).addTo(lyrDirecao).on('click', function(){ if(mapMarcandoVias) removerVia(e.id, i); });
+  });
+}
+function viasHtmlHud(e){
+  var vias = viasDe(e.id), est = 'width:auto;padding:4px 8px;font-size:12px;background:rgba(255,255,255,.2);color:#fff';
+  var idx = Math.min(viaProgLer().idx[e.id]||0, vias.length);
+  var dica = mapMarcandoVias ? '<div style="font-size:11px;margin-top:4px;background:rgba(0,0,0,.25);border-radius:6px;padding:4px 6px">Toque no mapa onde quer passar, na ordem (cruzamento 1, 2, 3…). Toque num número para apagá-lo. Funciona sem internet.</div>' : '';
+  return '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">'+
+    '<button class="btn" style="'+est+(mapMarcandoVias?';background:#fff;color:var(--red2);font-weight:800':'')+'" onclick="toggleMarcarVias()">'+(mapMarcandoVias?'✅ Concluir marcação':'📍 Marcar cruzamentos'+(vias.length?' ('+vias.length+')':''))+'</button>'+
+    (vias.length ? '<button class="btn" style="'+est+'" onclick="desfazerUltimaVia(\''+e.id+'\')">↩️ Desfazer</button><button class="btn" style="'+est+'" onclick="limparVias(\''+e.id+'\')">🗑 Limpar</button>' : '')+
+    (vias.length && idx < vias.length ? '<button class="btn" style="'+est+'" onclick="pularVia(\''+e.id+'\')">⏭ Pular ponto</button>' : '')+
+    (vias.length && idx > 0 ? '<button class="btn" style="'+est+'" onclick="recomecarVias(\''+e.id+'\')">↺ Recomeçar</button>' : '')+
+  '</div>'+dica;
+}
+function navegarComVias(id){
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===id;});
+  if(!e || !e.lat || !e.lng){ alert('Edificação sem localização cadastrada.'); return; }
+  var url = 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+e.lat+','+e.lng;
+  var vias = viasDe(id);
+  if(vias.length) url += '&waypoints='+vias.map(function(p){ return p[0].toFixed(6)+','+p[1].toFixed(6); }).join('|');
+  window.open(url, '_blank');
 }
 
 var mapFiltroRota = '';
@@ -5237,7 +5337,8 @@ function renderMapEdificacoes(){
   (db.edificacoes||[]).forEach(function(e){
     if(!e.lat || !e.lng) return;
     if(mapFiltroRe && e.id!==mapFiltroRe) return;
-    if(edifIdsDaRota && !edifIdsDaRota[e.id]) return;
+    // com rota escolhida, as da rota ficam em destaque e as demais continuam no mapa, esmaecidas
+    var foraDaRota = !!(edifIdsDaRota && !edifIdsDaRota[e.id]);
     if(mapFiltroGeo && ((e.municipio||'Sem município')!==mapFiltroGeo.municipio || (e.bairro||'Sem bairro')!==mapFiltroGeo.bairro)) return;
     if(e.competencia==='fora'){
       var iconFora = L.divIcon({
@@ -5255,14 +5356,23 @@ function renderMapEdificacoes(){
     var badgeDesocupada = e.desocupada ? '<div style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;background:#6b6b70;border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px">🏚️</div>' : '';
     var feita = !!feitasMapa[e.id], ehProxima = !!(alvoMapaId && alvoMapaId===e.id);
     var fundo = feita ? '#1f9d4d' : cor, miolo = feita ? '✓' : num, borda = ehProxima ? '3px solid #0A84FF' : '2px solid #fff';
-    var tam = ehProxima ? 30 : 24;
+    var tam = ehProxima ? 30 : 24, brilho = '';
+    if(edifIdsDaRota && !foraDaRota && !ehProxima){ tam = 28; if(!feita){ borda = '3px solid #FFD60A'; brilho = '0 0 0 3px rgba(255,214,10,.4),'; } }
+    if(foraDaRota) tam = 18;
     var icon = L.divIcon({
-      html:'<div style="position:relative;width:'+tam+'px;height:'+tam+'px;border-radius:50%;background:'+fundo+';border:'+borda+';box-shadow:'+(ehProxima?'0 0 0 4px rgba(10,132,255,.35),':'')+'0 1px 3px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:'+(feita?15:12)+'px;font-weight:800;color:#fff;'+(feita?'opacity:.85;':'')+'">'+miolo+badgeDesocupada+'</div>',
+      html:'<div style="position:relative;width:'+tam+'px;height:'+tam+'px;border-radius:50%;background:'+fundo+';border:'+(foraDaRota?'1px solid #fff':borda)+';box-shadow:'+(ehProxima?'0 0 0 4px rgba(10,132,255,.35),':brilho)+'0 1px 3px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:'+(foraDaRota?10:(feita?15:12))+'px;font-weight:800;color:#fff;'+(foraDaRota?'opacity:.5;':(feita?'opacity:.85;':''))+'">'+miolo+(foraDaRota?'':badgeDesocupada)+'</div>',
       className:'', iconSize:[tam,tam], iconAnchor:[tam/2,tam/2]
     });
-    var mk = L.marker([e.lat, e.lng], {icon:icon, zIndexOffset: ehProxima ? 1000 : 0}).addTo(lyrEdif);
-    if(e.desocupada) mk.bindTooltip((e.re||'Sem RE')+' — '+(e.nome||'')+' (desocupada)', {direction:'top'});
+    var mk = L.marker([e.lat, e.lng], {icon:icon, zIndexOffset: ehProxima ? 1000 : (foraDaRota ? -500 : (edifIdsDaRota ? 300 : 0))}).addTo(lyrEdif);
+    if(e.desocupada || foraDaRota) mk.bindTooltip((e.re||'Sem RE')+' — '+(e.nome||'')+(e.desocupada?' (desocupada)':'')+(foraDaRota?' (fora da rota)':''), {direction:'top'});
     mk.on('click', function(){ abrirCartaoEdificacao(e); });
+    // trajeto salvo (pontos de passagem) das paradas da rota, discreto, para ver o caminho combinado
+    if(edifIdsDaRota && !foraDaRota && !feita && e.vias && e.vias.length){
+      L.polyline(e.vias.concat([[e.lat,e.lng]]), {color:'#0A84FF', weight:3, opacity:.55, dashArray:'2,8'}).addTo(lyrEdif);
+      e.vias.forEach(function(p, i){
+        L.marker(p, {icon:L.divIcon({html:'<div style="width:16px;height:16px;border-radius:50%;background:#0A84FF;border:1px solid #fff;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;opacity:.8">'+(i+1)+'</div>', className:'', iconSize:[16,16], iconAnchor:[8,8]}), interactive:false}).addTo(lyrEdif);
+      });
+    }
   });
 }
 
@@ -5333,11 +5443,12 @@ function abrirCartaoEdificacao(e){
       '<div class="ecard-row" style="border-bottom:none"><span class="l">Endereço</span><span style="text-align:right">'+(e.endereco||'—')+(e.bairro?' — '+e.bairro:'')+'</span></div>'+
     '</div>'+
     (textoProgramadaCampo(db, e.id) ? '<div style="font-size:12px;background:rgba(10,132,255,.12);border:1px solid rgba(10,132,255,.4);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.6">'+textoProgramadaCampo(db, e.id)+'</div>' : '')+
+    dossieBannerHtml(e)+
     '<div class="btnrow">'+
       '<button class="btn" onclick="abrirDetalhesCompletos(\''+e.id+'\')">Detalhes</button>'+
       '<button class="btn primary" onclick="vistoriarDaRotaCampo(\''+e.id+'\')">Vistoriar</button>'+
     '</div>'+
-    '<button class="btn stop" style="width:100%;margin-top:8px" onclick="window.open(\'https://www.google.com/maps/dir/?api=1&destination='+e.lat+','+e.lng+'\',\'_blank\')">🧭 Navegar</button>';
+    '<button class="btn stop" style="width:100%;margin-top:8px" onclick="navegarComVias(\''+e.id+'\')">🧭 Navegar'+(viasDe(e.id).length?' ('+viasDe(e.id).length+' pontos de passagem)':'')+'</button>';
 
   document.getElementById('modalEdif').style.display='flex';
 }
@@ -5473,6 +5584,110 @@ function exportarParaQuartel2(){
   baixarPacote(pacote);
 }
 
+// ════════════════════════════════════════
+// DOSSIÊ DE NOTIFICAÇÕES (levantamento do e-SCI por rota: F, AF, multa, protocolos)
+// Vem num arquivo .json "dossie-notificacoes" (importar pelo mesmo botão de importação) ou junto
+// do .vst do Quartel. Fica em edificacao.dossie e é só leitura aqui.
+// ════════════════════════════════════════
+function dossieDiasAte(br){
+  var m = /^(\d\d)\/(\d\d)\/(\d{4})/.exec(br||''); if(!m) return null;
+  var h = new Date(); h.setHours(0,0,0,0);
+  return Math.round((new Date(+m[3], +m[2]-1, +m[1]) - h) / 86400000);
+}
+function dossiePrazoHtml(br){
+  var n = dossieDiasAte(br); if(!br) return '—';
+  if(n==null) return ocupEsc(br);
+  if(n<0) return '<span style="color:#ff6b6b;font-weight:700">'+ocupEsc(br)+' · vencido há '+(-n)+' dia(s)</span>';
+  if(n===0) return '<span style="color:#ffb340;font-weight:700">'+ocupEsc(br)+' · vence hoje</span>';
+  return ocupEsc(br)+' · em '+n+' dia(s)';
+}
+function dossieCienciasMarcadas(e){ return ((e && e.dossie && e.dossie.cienciasPendentes) || []).filter(function(c){ return c.cobrar; }); }
+function dossieMarcarCiencia(id, i, on){
+  var db = loadDB(), e = db.edificacoes.find(function(x){return x.id===id;});
+  if(!e || !e.dossie || !e.dossie.cienciasPendentes || !e.dossie.cienciasPendentes[i]) return;
+  e.dossie.cienciasPendentes[i].cobrar = !!on;
+  e.atualizadoEm = new Date().toISOString();
+  saveDB(db);
+}
+function dossieBannerHtml(e){
+  var d = e && e.dossie; if(!d) return '';
+  var af = (d.afs||[]).length, mu = (d.multas||[]).length, ci = (d.cienciasPendentes||[]).length;
+  var venc = (d.afs||[]).concat(d.multas||[]).some(function(x){ var n = dossieDiasAte(x.prazo||x.cumprimento); return n!=null && n<0; });
+  var f = d.funcionamento && d.funcionamento.situacao ? 'F: '+ocupEsc(d.funcionamento.situacao) : 'F: sem dados';
+  return '<button class="btn" style="width:100%;margin-bottom:8px;text-align:left;'+(venc?'border:1px solid #ff6b6b':'')+'" onclick="abrirDossie(\''+e.id+'\')">📋 Dossiê · '+f+' · '+af+' AF · '+mu+' multa(s)'+(ci?' · '+ci+' sem ciência':'')+(venc?' · ⚠️ prazo vencido':'')+'</button>';
+}
+function abrirDossie(id){
+  var db = loadDB(), e = db.edificacoes.find(function(x){return x.id===id;});
+  if(!e || !e.dossie) return;
+  var d = e.dossie, H = '';
+  var sec = function(t){ return '<div class="sec-title" style="margin-top:14px">'+t+'</div>'; };
+  var lin = function(l, v){ return v ? '<div class="ecard-row"><span class="l">'+l+'</span><span style="text-align:right">'+v+'</span></div>' : ''; };
+  var gerado = d.geradoEm ? new Date(d.geradoEm) : null;
+  var idade = gerado ? Math.floor((Date.now()-gerado.getTime())/86400000) : null;
+  H += '<div class="sheet-handle"></div><div style="font-weight:800;font-size:16px">📋 Dossiê · '+ocupEsc(e.re||'Sem RE')+'</div>'+
+       '<div style="font-size:12px;color:var(--sub)">'+ocupEsc(e.nome||'')+'</div>'+
+       '<div style="font-size:11px;color:var(--sub);margin:4px 0 8px">'+(gerado ? 'Levantado no e-SCI em '+gerado.toLocaleDateString('pt-BR')+(idade>=14?' · ⚠️ há '+idade+' dias, pode estar desatualizado':'') : 'Data do levantamento não informada')+(d.rota?' · rota: '+ocupEsc(d.rota):'')+'</div>';
+  if(d.resumo) H += '<div style="font-size:13px;background:var(--card2);border-radius:8px;padding:8px 10px;margin-bottom:6px;line-height:1.5">'+ocupEsc(d.resumo)+'</div>';
+  var f = d.funcionamento || {};
+  H += sec('Funcionamento (F)');
+  H += lin('Situação', f.situacao ? ocupEsc(f.situacao) : '');
+  if(f.ultimo) H += lin('Último F', ocupEsc((f.ultimo.protocolo||'')+(f.ultimo.data?' · '+f.ultimo.data:'')+(f.ultimo.sit?' · '+f.ultimo.sit:'')));
+  H += lin('Vigência', f.vigencia ? ocupEsc(f.vigencia) : '');
+  if(f.obs) H += '<div style="font-size:12px;color:var(--sub);margin:4px 0">'+ocupEsc(f.obs)+'</div>';
+  if(!f.situacao && !f.ultimo && !f.obs) H += '<div style="font-size:12px;color:var(--sub)">Sem dados.</div>';
+  H += sec('AFs pendentes ('+(d.afs||[]).length+')');
+  if(!(d.afs||[]).length) H += '<div style="font-size:12px;color:var(--sub)">Nenhuma AF pendente.</div>';
+  (d.afs||[]).forEach(function(a){
+    H += '<div class="pav-card" style="margin-bottom:8px"><div class="pav-h">'+ocupEsc(a.numero||'AF')+(a.protocolo?' <span style="font-weight:400;color:var(--sub)">· '+ocupEsc(a.protocolo)+'</span>':'')+'</div>'+
+      '<div style="font-size:12px;margin-bottom:4px">Prazo: '+dossiePrazoHtml(a.prazo)+(a.prazoN?' ('+ocupEsc(a.prazoN)+')':'')+'</div>'+
+      (a.status?'<div style="font-size:12px;color:var(--sub);margin-bottom:4px">'+ocupEsc(a.status)+'</div>':'')+
+      '<ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.6">'+(a.exigencias||[]).map(function(x){ return '<li>'+ocupEsc(x)+'</li>'; }).join('')+'</ul></div>';
+  });
+  H += sec('Multas ('+(d.multas||[]).length+')');
+  if(!(d.multas||[]).length) H += '<div style="font-size:12px;color:var(--sub)">Nenhuma multa pendente.</div>';
+  (d.multas||[]).forEach(function(m){
+    H += '<div class="pav-card" style="margin-bottom:8px"><div class="pav-h">'+ocupEsc(m.numero||'Multa')+(m.valor?' <span style="font-weight:400;color:var(--sub)">· '+ocupEsc(m.valor)+'</span>':'')+'</div>'+
+      (m.infracao?'<div style="font-size:12px;line-height:1.5;margin-bottom:4px">'+ocupEsc(m.infracao)+'</div>':'')+
+      (m.origem?'<div style="font-size:12px;color:var(--sub)">Origem: '+ocupEsc(m.origem)+'</div>':'')+
+      (m.pagamento?'<div style="font-size:12px">Pagamento até: '+dossiePrazoHtml(m.pagamento)+'</div>':'')+
+      (m.cumprimento?'<div style="font-size:12px">Cumprimento até: '+dossiePrazoHtml(m.cumprimento)+'</div>':'')+
+      (m.status?'<div style="font-size:12px;color:var(--sub)">'+ocupEsc(m.status)+'</div>':'')+'</div>';
+  });
+  var cs = d.cienciasPendentes || [];
+  if(cs.length){
+    H += sec('Pendentes de ciência ('+cs.length+')');
+    cs.forEach(function(c, ci){ H += '<div class="pav-card" style="margin-bottom:8px"><div class="pav-h">'+ocupEsc(c.numero||'')+(c.tipo?' <span style="font-weight:400;color:var(--sub)">· '+ocupEsc(c.tipo)+'</span>':'')+'</div>'+(c.descricao?'<div style="font-size:12px;line-height:1.5">'+ocupEsc(c.descricao)+'</div>':'')+(c.data?'<div style="font-size:12px;color:var(--sub)">Lavrado em '+ocupEsc(c.data)+'</div>':'')+'<label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-top:8px"><input type="checkbox" style="width:auto;margin-top:3px" '+(c.cobrar?'checked':'')+' onchange="dossieMarcarCiencia(\''+e.id+'\','+ci+',this.checked)"> <span>Pedir a ciência na mensagem e no relatório da vistoria</span></label></div>'; });
+  }
+  var ps = d.protocolos || [];
+  if(ps.length){
+    var grupos = [['F','Funcionamento (F)'],['A','Projeto (A)'],['H','Habite-se (H)']];
+    H += sec('Protocolos aprovados');
+    grupos.forEach(function(g){
+      var l = ps.filter(function(p){ return String(p.t||p.p||'').charAt(0).toUpperCase()===g[0]; });
+      if(!l.length) return;
+      H += '<div style="font-size:12px;font-weight:700;margin:8px 0 2px;color:var(--red2)">'+g[1]+'</div>'+
+        l.map(function(p){ return '<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--border)">'+ocupEsc(p.p||'')+' · '+ocupEsc(p.data||'')+(p.area?' · '+ocupEsc(p.area)+' m²':'')+(p.sit?' · '+ocupEsc(p.sit):'')+'</div>'; }).join('');
+    });
+  }
+  H += '<button class="btn stop" style="width:100%;margin-top:16px" onclick="document.getElementById(\'modalEdifDetalhes\').style.display=\'none\'">Fechar</button>';
+  document.getElementById('edifDetalhesConteudo').innerHTML = H;
+  document.getElementById('modalEdifDetalhes').style.display = 'flex';
+}
+function dossieImportar(pacote, input){
+  var db = loadDB(), n = 0, sem = [];
+  (pacote.edificacoes||[]).forEach(function(d){
+    var re = String(d.re||'').trim().toUpperCase();
+    var e = (db.edificacoes||[]).find(function(x){ return String(x.re||'').trim().toUpperCase()===re; });
+    if(!e){ sem.push(d.re); return; }
+    var novo = Object.assign({}, d, {geradoEm:pacote.geradoEm, rota:pacote.rota||'', fonte:pacote.fonte||'e-SCI'}); delete novo.re;
+    e.dossie = novo; e.atualizadoEm = new Date().toISOString(); n++;
+  });
+  saveDB(db);
+  document.getElementById('importResumoCampo').innerHTML = '<div class="card"><div style="font-weight:700;margin-bottom:8px">Dossiê importado</div><div style="font-size:13px">📋 '+n+' edificação(ões) com dossiê atualizado.'+(sem.length?'<br>⚠️ Sem cadastro aqui: '+sem.map(ocupEsc).join(', '):'')+'</div></div>';
+  if(map){ renderMapEdificacoes(); }
+  input.value = '';
+}
+
 function mergeArray(local, importados, contador){
   local = local||[];
   importados.forEach(function(item){
@@ -5483,6 +5698,9 @@ function mergeArray(local, importados, contador){
         // versão local é mais recente que a do arquivo — não sobrescreve, sinaliza conflito
         contador.conflitos++;
       } else {
+        // o dossiê mais recente vence, mesmo que o outro lado seja mais novo no restante
+        if(loc.dossie && (!item.dossie || String(item.dossie.geradoEm||'') < String(loc.dossie.geradoEm||''))) item.dossie = loc.dossie;
+        if(loc.vias && !item.vias) item.vias = loc.vias; // trajeto salvo no celular não se perde numa importação do Quartel
         local[idx]=item; contador.atualizados++;
       }
     }
@@ -5499,6 +5717,7 @@ function importarArquivoCampo(input){
     var pacote;
     try{ pacote = JSON.parse(e.target.result); }
     catch(err){ alert('Arquivo inválido ou corrompido.'); return; }
+    if(pacote.tipo==='dossie-notificacoes'){ dossieImportar(pacote, input); return; }
 
     migrarFotosLista([].concat(pacote.edificacoes||[], pacote.pontos||[]), function(){
     var db = loadDB();
