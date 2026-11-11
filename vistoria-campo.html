@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v96</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v97</div>
   </header>
 
   <main>
@@ -5569,7 +5569,8 @@ function baixarPacote(pacote){
 }
 
 function exportarParaQuartel(){
-  fotoPronto.then(exportarParaQuartel2);
+  // não fica preso se o IndexedDB demorar ou travar: espera no máximo 4 s e exporta mesmo assim
+  Promise.race([fotoPronto, new Promise(function(r){ setTimeout(r, 4000); })]).then(exportarParaQuartel2, exportarParaQuartel2);
 }
 function exportarParaQuartel2(){
   var db = loadDB();
@@ -5582,6 +5583,8 @@ function exportarParaQuartel2(){
     rotas: []
   };
   baixarPacote(pacote);
+  var nc = (pacote.vistorias||[]).filter(function(v){ return v.concluida; }).length;
+  try{ avisoCampo('Arquivo gerado: '+(pacote.vistorias||[]).length+' vistoria(s), '+nc+' concluída(s).'); }catch(_){}
 }
 
 // ════════════════════════════════════════
@@ -5694,7 +5697,10 @@ function mergeArray(local, importados, contador){
     var idx = local.findIndex(function(x){return x.id===item.id;});
     if(idx>=0){
       var loc = local[idx];
-      if(loc.atualizadoEm && item.atualizadoEm && loc.atualizadoEm > item.atualizadoEm){
+      if(loc.concluida && !item.concluida){
+        // vistoria já concluída aqui no celular nunca volta a "aberta" por causa do arquivo do Quartel
+        contador.protegidas = (contador.protegidas||0) + 1;
+      } else if(loc.atualizadoEm && item.atualizadoEm && loc.atualizadoEm > item.atualizadoEm){
         // versão local é mais recente que a do arquivo — não sobrescreve, sinaliza conflito
         contador.conflitos++;
       } else {
@@ -5746,7 +5752,7 @@ function importarArquivoCampo(input){
     var html = '<div class="card"><div style="font-weight:700;margin-bottom:8px">Importação concluída</div>';
     Object.keys(resumo).forEach(function(tipo){
       var c = resumo[tipo];
-      html += '<div style="font-size:13px;padding:4px 0">+ '+c.novos+' '+labels[tipo]+' novas · ↻ '+c.atualizados+' atualizadas'+(c.removidas?' · 🗑 '+c.removidas+' removida(s) (excluídas no Quartel)':'')+(c.conflitos?' · ⚠ '+c.conflitos+' conflito(s) (versão local mais recente, mantida)':'')+'</div>';
+      html += '<div style="font-size:13px;padding:4px 0">+ '+c.novos+' '+labels[tipo]+' novas · ↻ '+c.atualizados+' atualizadas'+(c.removidas?' · 🗑 '+c.removidas+' removida(s) (excluídas no Quartel)':'')+(c.conflitos?' · ⚠ '+c.conflitos+' conflito(s) (versão local mais recente, mantida)':'')+(c.protegidas?' · 🛡 '+c.protegidas+' já concluída(s) aqui, mantida(s)':'')+'</div>';
     });
     if(!Object.keys(resumo).length) html += '<div class="sub">Arquivo não continha dados reconhecidos.</div>';
     html += '</div>';
