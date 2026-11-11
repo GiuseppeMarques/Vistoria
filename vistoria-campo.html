@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v94</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v95</div>
   </header>
 
   <main>
@@ -510,7 +510,8 @@
         <input type="text" id="detObs" placeholder="Detalhe rápido...">
 
         <label class="lbl">Foto (opcional)</label>
-        <input type="file" accept="image/*" capture="environment" id="detFoto" onchange="previewFoto(this)">
+        <button type="button" class="btn" style="width:100%;margin-bottom:6px" onclick="tirarFoto('det')">📷 Tirar foto</button>
+        <input type="file" accept="image/*" capture="environment" id="detFoto" onchange="previewFoto(this)" style="display:none">
         <img id="detFotoPrev" style="display:none;width:100%;border-radius:12px;margin:8px 0 12px;max-height:180px;object-fit:cover">
 
         <div class="btnrow">
@@ -2486,9 +2487,9 @@ function encLocInner(e){
 }
 function encFotoDe(db, e){
   if(!e) return '';
-  if(e.foto) return e.foto;
+  if(e.foto) return fotoSrc(e.foto);
   var p = (db.pontos||[]).find(function(x){ return x.edificacaoGeradaId===e.id && x.foto; });
-  return p ? p.foto : '';
+  return p ? fotoSrc(p.foto) : '';
 }
 function fotoGrande(id){
   var db = loadDB();
@@ -2555,7 +2556,7 @@ function encDigitarLoc(){
 function encFotoFimInner(e, db){
   return encFotoImg(db, e) +
     (ENC_PODE_FOTO ? '<input type="file" accept="image/*" capture="environment" id="encFotoInput" style="display:none" onchange="encFotoEscolhida(this)">'+
-      '<button type="button" class="btn" style="width:100%;margin-top:8px" onclick="document.getElementById(\'encFotoInput\').click()">📷 Atualizar foto</button>' : '');
+      '<button type="button" class="btn" style="width:100%;margin-top:8px" onclick="tirarFoto(\'enc\')">📷 Atualizar foto</button>' : '');
 }
 function encRedimensionar(file, cb){
   var r = new FileReader();
@@ -2576,15 +2577,17 @@ function comprimirDataUrl(dataUrl, max, q, cb, erroCb){
 }
 function encFotoEscolhida(input){
   var file = input.files && input.files[0]; if(!file) return;
-  encRedimensionar(file, function(dataUrl){
-    var c = encCtx(); if(!c.e) return;
-    c.e.foto = dataUrl;   // a foto nova SUBSTITUI a anterior
-    (c.db.pontos||[]).forEach(function(p){ if(p.edificacaoGeradaId===c.e.id && p.foto) p.foto = dataUrl; });
-    c.e.atualizadoEm = new Date().toISOString();
-    try{ saveDB(c.db); }catch(err){ alert('Não consegui gravar a foto (armazenamento cheio?).'); return; }
-    encRefazerBoxes();
-  });
+  encRedimensionar(file, aplicarFotoEnc);
   input.value = '';
+}
+function aplicarFotoEnc(dataUrl){
+  var c = encCtx(); if(!c.e) return;
+  var ref = fotoGuardar(dataUrl);
+  c.e.foto = ref;   // a foto nova SUBSTITUI a anterior
+  (c.db.pontos||[]).forEach(function(p){ if(p.edificacaoGeradaId===c.e.id && p.foto) p.foto = ref; });
+  c.e.atualizadoEm = new Date().toISOString();
+  try{ saveDB(c.db); }catch(err){ alert('Não consegui gravar a foto (armazenamento cheio?).'); return; }
+  encRefazerBoxes();
 }
 function encSetResp(campo, val){
   var c = encCtx(); if(!c.e) return;
@@ -2935,6 +2938,158 @@ var TRAJ_ATIVA_KEY = 'vistoria_campo_trajetoria_ativa';
 function loadDB(){
   try{ return JSON.parse(localStorage.getItem(DB_KEY)) || {edificacoes:[],vistorias:[],trajetorias:[],pontos:[],rotas:[]}; }
   catch(e){ return {edificacoes:[],vistorias:[],trajetorias:[],pontos:[],rotas:[]}; }
+}
+
+// ════════════════════════════════════════
+// FOTOS NO INDEXEDDB (o localStorage tem só ~5 MB e enchia com poucas dezenas de fotos)
+// No banco principal fica apenas a referência "idb:ID"; a imagem fica no IndexedDB.
+// ════════════════════════════════════════
+var FOTO_CACHE = {}, FOTO_IDB = null, FOTO_OK = true;
+function fotoAbrirIDB(){
+  return new Promise(function(res){
+    try{
+      var r = indexedDB.open('vistoria_fotos', 1);
+      r.onupgradeneeded = function(){ r.result.createObjectStore('f'); };
+      r.onsuccess = function(){ FOTO_IDB = r.result; res(FOTO_IDB); };
+      r.onerror = function(){ FOTO_OK = false; res(null); };
+    }catch(_){ FOTO_OK = false; res(null); }
+  });
+}
+function fotoPutIDB(id, dataUrl, cbErro){
+  try{
+    var tx = FOTO_IDB.transaction('f','readwrite');
+    tx.objectStore('f').put(dataUrl, id);
+    tx.onerror = tx.onabort = function(){ if(cbErro) cbErro(); };
+  }catch(_){ if(cbErro) cbErro(); }
+}
+// Guarda a imagem e devolve (na hora) o valor a gravar no banco: "idb:ID", ou a própria imagem se o IndexedDB não existir.
+function fotoGuardar(dataUrl){
+  if(!dataUrl || dataUrl.indexOf('data:')!==0) return dataUrl;
+  if(!FOTO_OK || !FOTO_IDB) return dataUrl;
+  var id = 'f' + Date.now() + Math.random().toString(36).slice(2,7), ref = 'idb:' + id;
+  FOTO_CACHE[ref] = dataUrl;
+  fotoPutIDB(id, dataUrl, function(){
+    // falhou de verdade: devolve a imagem para dentro do banco para não perder
+    try{
+      var db = loadDB();
+      (db.edificacoes||[]).concat(db.pontos||[]).forEach(function(x){ if(x.foto===ref) x.foto = dataUrl; });
+      localStorage.setItem(DB_KEY, JSON.stringify(db));
+    }catch(_){}
+  });
+  return ref;
+}
+// imagem pronta para usar em <img src> (ou '' se ainda não carregou)
+function fotoSrc(f){
+  if(!f) return '';
+  if(f.indexOf('idb:')===0) return FOTO_CACHE[f] || '';
+  return f;
+}
+// versão do objeto com as imagens por extenso (para exportar o .vst)
+function fotoResolver(lista){
+  return (lista||[]).map(function(x){
+    if(x && x.foto && x.foto.indexOf('idb:')===0){ var c = Object.assign({}, x); c.foto = FOTO_CACHE[x.foto] || null; return c; }
+    return x;
+  });
+}
+function fotoCarregarTudo(){
+  return fotoAbrirIDB().then(function(idb){
+    if(!idb) return;
+    return new Promise(function(res){
+      try{
+        var st = idb.transaction('f','readonly').objectStore('f'), rq = st.openCursor();
+        rq.onsuccess = function(){
+          var c = rq.result;
+          if(c){ FOTO_CACHE['idb:'+c.key] = c.value; c.continue(); } else res();
+        };
+        rq.onerror = function(){ res(); };
+      }catch(_){ res(); }
+    });
+  });
+}
+// Move para o IndexedDB todas as fotos por extenso de uma lista de objetos (edificações/pontos). Mesma imagem = mesma referência.
+function migrarFotosLista(itens, cb){
+  fotoPronto.then(function(){
+    if(!FOTO_IDB){ cb(0); return; }
+    var vistos = {}, n = 0;
+    itens.forEach(function(x){
+      if(x && x.foto && x.foto.indexOf('data:')===0){
+        var k = x.foto.length + ':' + x.foto.slice(-60);
+        if(!vistos[k]) vistos[k] = fotoGuardar(x.foto);
+        x.foto = vistos[k]; n++;
+      }
+    });
+    setTimeout(function(){ cb(n); }, n ? 150 : 0);
+  });
+}
+function migrarFotosAoAbrir(){
+  try{
+    var db = loadDB();
+    var temPesada = (db.edificacoes||[]).concat(db.pontos||[]).some(function(x){ return x.foto && x.foto.indexOf('data:')===0; });
+    if(!temPesada) return;
+    migrarFotosLista((db.edificacoes||[]).concat(db.pontos||[]), function(n){
+      if(!n) return;
+      var kb = Math.round((JSON.stringify(loadDB()).length - JSON.stringify(db).length) / 1024);
+      try{ localStorage.setItem(DB_KEY, JSON.stringify(db)); avisoCampo('Fotos movidas para um espaço maior: '+(-kb)+' KB liberados.'); }catch(_){}
+    });
+  }catch(_){}
+}
+var fotoPronto = fotoCarregarTudo().then(function(){
+  try{ migrarFotosAoAbrir(); }catch(_){}
+  try{ if(typeof renderHistorico==='function') renderHistorico(); }catch(_){}
+  try{ if(typeof encRefazerBoxes==='function') encRefazerBoxes(); }catch(_){}
+});
+
+
+// ════════════════════════════════════════
+// CÂMERA PRÓPRIA (sempre abre a traseira; o atributo capture do celular às vezes abre a frontal)
+// ════════════════════════════════════════
+var _camStream = null, _camFacing = 'environment', _camCb = null, _camFallback = null;
+function tirarFoto(destino){
+  var cb = destino==='enc' ? aplicarFotoEnc : aplicarFotoDet;
+  var fallbackId = destino==='enc' ? 'encFotoInput' : 'detFoto';
+  _camCb = cb; _camFallback = fallbackId; _camFacing = 'environment';
+  if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)){ var i = document.getElementById(fallbackId); if(i) i.click(); return; }
+  camAbrir();
+}
+function camOverlay(){
+  var ov = document.getElementById('camOv');
+  if(!ov){
+    ov = document.createElement('div'); ov.id = 'camOv';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:#000;display:none;flex-direction:column';
+    ov.innerHTML = '<video id="camVideo" autoplay playsinline muted style="flex:1;min-height:0;width:100%;object-fit:cover"></video>'+
+      '<div style="display:flex;gap:10px;padding:14px;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));background:#000">'+
+      '<button type="button" class="btn" style="flex:1" onclick="camFechar()">Cancelar</button>'+
+      '<button type="button" class="btn primary" style="flex:2;font-size:16px" onclick="camCapturar()">📷 Tirar foto</button>'+
+      '<button type="button" class="btn" style="flex:1" onclick="camTrocar()">🔄</button></div>';
+    document.body.appendChild(ov);
+  }
+  return ov;
+}
+function camAbrir(){
+  camParar();
+  var restr = {video:{facingMode:{ideal:_camFacing}, width:{ideal:1600}}, audio:false};
+  navigator.mediaDevices.getUserMedia(restr).then(function(st){
+    _camStream = st;
+    var ov = camOverlay(); ov.style.display = 'flex';
+    var v = document.getElementById('camVideo'); v.srcObject = st;
+    v.style.transform = _camFacing==='user' ? 'scaleX(-1)' : 'none';
+    var p = v.play(); if(p && p.catch) p.catch(function(){});
+  }).catch(function(){
+    var i = document.getElementById(_camFallback); if(i) i.click();
+  });
+}
+function camParar(){ if(_camStream){ _camStream.getTracks().forEach(function(t){ t.stop(); }); _camStream = null; } }
+function camFechar(){ camParar(); var ov = document.getElementById('camOv'); if(ov) ov.style.display = 'none'; }
+function camTrocar(){ _camFacing = _camFacing==='environment' ? 'user' : 'environment'; camAbrir(); }
+function camCapturar(){
+  var v = document.getElementById('camVideo');
+  if(!v || !v.videoWidth){ return; }
+  var k = Math.min(1, 900/Math.max(v.videoWidth, v.videoHeight));
+  var cv = document.createElement('canvas'); cv.width = Math.round(v.videoWidth*k); cv.height = Math.round(v.videoHeight*k);
+  cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height);
+  var dataUrl = cv.toDataURL('image/jpeg', 0.7);
+  var cb = _camCb; camFechar();
+  if(cb) cb(dataUrl);
 }
 var _compactando = false;
 function saveDB(db){
@@ -4124,12 +4279,13 @@ function previewFoto(input){
   var file = input.files && input.files[0];
   if(!file) return;
   // reduz a foto da câmera (vários MB) antes de guardar: foi isso que enchia o armazenamento
-  encRedimensionar(file, function(dataUrl){
-    fotoBase64Atual = dataUrl;
-    var img = document.getElementById('detFotoPrev');
-    img.src = fotoBase64Atual;
-    img.style.display='block';
-  });
+  encRedimensionar(file, aplicarFotoDet);
+}
+function aplicarFotoDet(dataUrl){
+  fotoBase64Atual = dataUrl;
+  var img = document.getElementById('detFotoPrev');
+  img.src = fotoBase64Atual;
+  img.style.display='block';
 }
 
 function marcarPontoForaCompetencia(){
@@ -4181,7 +4337,7 @@ function fecharModalDet(salvar){
       var ponto = db.pontos[idx];
       ponto.nome = document.getElementById('detNome').value.trim();
       ponto.descricao = document.getElementById('detObs').value.trim();
-      if(fotoBase64Atual) ponto.foto = fotoBase64Atual;
+      if(fotoBase64Atual) ponto.foto = fotoGuardar(fotoBase64Atual);
       var numEl = document.getElementById('detNumero');
       if(numEl) ponto.numeroProvisorio = numEl.value.trim();
       ponto.atualizadoEm = new Date().toISOString();
@@ -5302,13 +5458,16 @@ function baixarPacote(pacote){
 }
 
 function exportarParaQuartel(){
+  fotoPronto.then(exportarParaQuartel2);
+}
+function exportarParaQuartel2(){
   var db = loadDB();
   var pacote = {
     versao: 1, geradoEm: new Date().toISOString(), direcao: 'campo→quartel',
     trajetorias: db.trajetorias||[],
-    pontos: db.pontos||[],
+    pontos: fotoResolver(db.pontos),
     vistorias: db.vistorias||[],
-    edificacoes: db.edificacoes||[], // todas — o Quartel já sabe mesclar por id/atualizadoEm sem duplicar
+    edificacoes: fotoResolver(db.edificacoes), // todas — o Quartel já sabe mesclar por id/atualizadoEm sem duplicar
     rotas: []
   };
   baixarPacote(pacote);
@@ -5341,6 +5500,7 @@ function importarArquivoCampo(input){
     try{ pacote = JSON.parse(e.target.result); }
     catch(err){ alert('Arquivo inválido ou corrompido.'); return; }
 
+    migrarFotosLista([].concat(pacote.edificacoes||[], pacote.pontos||[]), function(){
     var db = loadDB();
     var resumo = {};
     ['edificacoes','vistorias','trajetorias','pontos','rotas'].forEach(function(tipo){
@@ -5375,6 +5535,7 @@ function importarArquivoCampo(input){
 
     if(map){ renderMapEdificacoes(); renderMapPontos(); }
     input.value = '';
+    });
   };
   reader.readAsText(file);
 }
