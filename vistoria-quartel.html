@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v134</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v135</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -1377,6 +1377,107 @@ function loadDB(){
   return db;
 }
 function saveDB(db){ localStorage.setItem(DB_KEY, JSON.stringify(db)); try{ atualizarBadgeESCI(db); }catch(err){} }
+// ════════════════════════════════════════
+// FOTOS NO INDEXEDDB (o localStorage tem só ~5 MB e enchia com poucas dezenas de fotos)
+// No banco principal fica apenas a referência "idb:ID"; a imagem fica no IndexedDB.
+// ════════════════════════════════════════
+var FOTO_CACHE = {}, FOTO_IDB = null, FOTO_OK = true;
+function fotoAbrirIDB(){
+  return new Promise(function(res){
+    try{
+      var r = indexedDB.open('vistoria_fotos', 1);
+      r.onupgradeneeded = function(){ r.result.createObjectStore('f'); };
+      r.onsuccess = function(){ FOTO_IDB = r.result; res(FOTO_IDB); };
+      r.onerror = function(){ FOTO_OK = false; res(null); };
+    }catch(_){ FOTO_OK = false; res(null); }
+  });
+}
+function fotoPutIDB(id, dataUrl, cbErro){
+  try{
+    var tx = FOTO_IDB.transaction('f','readwrite');
+    tx.objectStore('f').put(dataUrl, id);
+    tx.onerror = tx.onabort = function(){ if(cbErro) cbErro(); };
+  }catch(_){ if(cbErro) cbErro(); }
+}
+// Guarda a imagem e devolve (na hora) o valor a gravar no banco: "idb:ID", ou a própria imagem se o IndexedDB não existir.
+function fotoGuardar(dataUrl){
+  if(!dataUrl || dataUrl.indexOf('data:')!==0) return dataUrl;
+  if(!FOTO_OK || !FOTO_IDB) return dataUrl;
+  var id = 'f' + Date.now() + Math.random().toString(36).slice(2,7), ref = 'idb:' + id;
+  FOTO_CACHE[ref] = dataUrl;
+  fotoPutIDB(id, dataUrl, function(){
+    // falhou de verdade: devolve a imagem para dentro do banco para não perder
+    try{
+      var db = loadDB();
+      (db.edificacoes||[]).concat(db.pontos||[]).forEach(function(x){ if(x.foto===ref) x.foto = dataUrl; });
+      localStorage.setItem(DB_KEY, JSON.stringify(db));
+    }catch(_){}
+  });
+  return ref;
+}
+// imagem pronta para usar em <img src> (ou '' se ainda não carregou)
+function fotoSrc(f){
+  if(!f) return '';
+  if(f.indexOf('idb:')===0) return FOTO_CACHE[f] || '';
+  return f;
+}
+// versão do objeto com as imagens por extenso (para exportar o .vst)
+function fotoResolver(lista){
+  return (lista||[]).map(function(x){
+    if(x && x.foto && x.foto.indexOf('idb:')===0){ var c = Object.assign({}, x); c.foto = FOTO_CACHE[x.foto] || null; return c; }
+    return x;
+  });
+}
+function fotoCarregarTudo(){
+  return fotoAbrirIDB().then(function(idb){
+    if(!idb) return;
+    return new Promise(function(res){
+      try{
+        var st = idb.transaction('f','readonly').objectStore('f'), rq = st.openCursor();
+        rq.onsuccess = function(){
+          var c = rq.result;
+          if(c){ FOTO_CACHE['idb:'+c.key] = c.value; c.continue(); } else res();
+        };
+        rq.onerror = function(){ res(); };
+      }catch(_){ res(); }
+    });
+  });
+}
+// Move para o IndexedDB todas as fotos por extenso de uma lista de objetos (edificações/pontos). Mesma imagem = mesma referência.
+function migrarFotosLista(itens, cb){
+  fotoPronto.then(function(){
+    if(!FOTO_IDB){ cb(0); return; }
+    var vistos = {}, n = 0;
+    itens.forEach(function(x){
+      if(x && x.foto && x.foto.indexOf('data:')===0){
+        var k = x.foto.length + ':' + x.foto.slice(-60);
+        if(!vistos[k]) vistos[k] = fotoGuardar(x.foto);
+        x.foto = vistos[k]; n++;
+      }
+    });
+    setTimeout(function(){ cb(n); }, n ? 150 : 0);
+  });
+}
+function migrarFotosAoAbrir(){
+  try{
+    var db = loadDB();
+    var temPesada = (db.edificacoes||[]).concat(db.pontos||[]).some(function(x){ return x.foto && x.foto.indexOf('data:')===0; });
+    if(!temPesada) return;
+    migrarFotosLista((db.edificacoes||[]).concat(db.pontos||[]), function(n){
+      if(!n) return;
+      var kb = Math.round((JSON.stringify(loadDB()).length - JSON.stringify(db).length) / 1024);
+      try{ localStorage.setItem(DB_KEY, JSON.stringify(db)); console.log('Fotos movidas para um espaço maior: '+(-kb)+' KB liberados.'); }catch(_){}
+    });
+  }catch(_){}
+}
+var fotoPronto = fotoCarregarTudo().then(function(){
+  try{ migrarFotosAoAbrir(); }catch(_){}
+  try{ if(typeof renderCampo==='function') renderCampo(); }catch(_){}
+  try{ if(typeof encRefazerBoxes==='function') encRefazerBoxes(); }catch(_){}
+});
+
+
+
 function novoId(prefixo){ return prefixo+'_'+Date.now()+'_'+Math.random().toString(36).slice(2,8); }
 
 // ════════════════════════════════════════
@@ -2958,7 +3059,7 @@ function htmlCardPontoCampo(db, p, pendente){
       (situ ? situ : '')+
     '</div>'+
     (p.descricao ? '<div class="obs">"'+escHtmlCampo(p.descricao)+'"</div>' : '')+
-    (p.foto ? '<img src="'+p.foto+'">' : '<div class="sub">Sem foto registrada.</div>')+
+    (fotoSrc(p.foto) ? '<img src="'+fotoSrc(p.foto)+'">' : '<div class="sub">Sem foto registrada.</div>')+
     '<div class="actions">'+
       '<button class="btn" onclick="verPontoNoMapa(\''+p.id+'\')">🗺️ Ver no mapa</button>'+
       '<button class="btn" onclick="encaminharPontoCampo(\''+p.id+'\')">📤 Encaminhar mensagem</button>'+
@@ -3001,7 +3102,7 @@ function encaminharPontoCampo(pontoId){
     var dados = {text: texto, title: 'Edificação encontrada em campo'};
     try{
       if(p.foto){
-        var f = dataUrlParaFile(p.foto, 'edificacao-campo.jpg');
+        var f = dataUrlParaFile(fotoSrc(p.foto), 'edificacao-campo.jpg');
         if(navigator.canShare && navigator.canShare({files:[f]})) dados.files = [f];
       }
     }catch(e){}
@@ -4615,9 +4716,9 @@ function encLocInner(e){
 }
 function encFotoDe(db, e){
   if(!e) return '';
-  if(e.foto) return e.foto;
+  if(e.foto) return fotoSrc(e.foto);
   var p = (db.pontos||[]).find(function(x){ return x.edificacaoGeradaId===e.id && x.foto; });
-  return p ? p.foto : '';
+  return p ? fotoSrc(p.foto) : '';
 }
 function encFotoImg(db, e){
   var f = encFotoDe(db, e);
@@ -4685,8 +4786,9 @@ function encFotoEscolhida(input){
   var file = input.files && input.files[0]; if(!file) return;
   encRedimensionar(file, function(dataUrl){
     var c = encCtx(); if(!c.e) return;
-    c.e.foto = dataUrl;   // a foto nova SUBSTITUI a anterior
-    (c.db.pontos||[]).forEach(function(p){ if(p.edificacaoGeradaId===c.e.id && p.foto) p.foto = dataUrl; });
+    var refFoto = fotoGuardar(dataUrl);
+    c.e.foto = refFoto;   // a foto nova SUBSTITUI a anterior
+    (c.db.pontos||[]).forEach(function(p){ if(p.edificacaoGeradaId===c.e.id && p.foto) p.foto = refFoto; });
     c.e.atualizadoEm = new Date().toISOString();
     try{ saveDB(c.db); }catch(err){ alert('Não consegui gravar a foto (armazenamento cheio?).'); return; }
     encRefazerBoxes();
@@ -8551,13 +8653,16 @@ function copiarRelatorioMultas(){
 }
 
 function exportarBackupCompleto(){
+  Promise.race([fotoPronto, new Promise(function(r){ setTimeout(r, 4000); })]).then(exportarBackupCompleto2, exportarBackupCompleto2);
+}
+function exportarBackupCompleto2(){
   var db = loadDB();
   var configuracoes = {};
   CHAVES_CONFIG_AVISOS.forEach(function(chave){ configuracoes[chave] = localStorage.getItem(chave); });
 
   var pacote = {
     tipo: 'backup-completo', versao: 1, geradoEm: new Date().toISOString(),
-    dados: db, // banco inteiro, sem filtrar nada — edificações, TODAS as vistorias, rotas, rotasFixas, avisosEnviados, pontos, trajetórias
+    dados: Object.assign({}, db, {edificacoes: fotoResolver(db.edificacoes), pontos: fotoResolver(db.pontos)}), // banco inteiro, sem filtrar nada — edificações, TODAS as vistorias, rotas, rotasFixas, avisosEnviados, pontos, trajetórias
     configuracoes: configuracoes
   };
   var blob = new Blob([JSON.stringify(pacote, null, 2)], {type:'application/json'});
@@ -8581,15 +8686,20 @@ function restaurarBackupCompleto(input){
       }
       if(!confirm('Restaurar este backup? Os dados salvos agora neste navegador serão SUBSTITUÍDOS pelos do arquivo (edificações, vistorias, rotas, avisos enviados e configurações). Essa ação não pode ser desfeita.')) return;
 
-      saveDB(pacote.dados || {});
-      if(pacote.configuracoes){
-        CHAVES_CONFIG_AVISOS.forEach(function(chave){
-          var val = pacote.configuracoes[chave];
-          if(val!=null) localStorage.setItem(chave, val); else localStorage.removeItem(chave);
-        });
-      }
-      alert('Backup restaurado com sucesso! A página vai recarregar.');
-      location.reload();
+      var dadosR = pacote.dados || {};
+      migrarFotosLista([].concat(dadosR.edificacoes||[], dadosR.pontos||[]), function(){
+        try{
+          saveDB(dadosR);
+          if(pacote.configuracoes){
+            CHAVES_CONFIG_AVISOS.forEach(function(chave){
+              var val = pacote.configuracoes[chave];
+              if(val!=null) localStorage.setItem(chave, val); else localStorage.removeItem(chave);
+            });
+          }
+          alert('Backup restaurado com sucesso! A página vai recarregar.');
+          location.reload();
+        }catch(err2){ alert('Não consegui gravar o backup: armazenamento do navegador cheio. Nada foi alterado.'); }
+      });
     } catch(err){
       alert('Não foi possível ler esse arquivo de backup.');
     }
@@ -8599,10 +8709,13 @@ function restaurarBackupCompleto(input){
 }
 
 function exportarParaCampo(){
+  Promise.race([fotoPronto, new Promise(function(r){ setTimeout(r, 4000); })]).then(exportarParaCampo2, exportarParaCampo2);
+}
+function exportarParaCampo2(){
   var db = loadDB();
   var pacote = {
     versao: 1, geradoEm: new Date().toISOString(), direcao: 'quartel→campo',
-    edificacoes: db.edificacoes||[],
+    edificacoes: fotoResolver(db.edificacoes),
     vistorias: (db.vistorias||[]).filter(function(v){return !v.concluida;}), // só as pendentes, pro campo executar
     rotas: db.rotas||[],
     rotasExcluidas: db.rotasExcluidas||[], vistoriasExcluidas: db.vistoriasExcluidas||[], // o Campo remove o que foi excluído aqui
@@ -8719,6 +8832,8 @@ function importarArquivo(input){
     catch(err){ alert('Arquivo inválido ou corrompido.'); return; }
     if(pacote.tipo==='dossie-notificacoes'){ dossieImportar(pacote, input); return; }
 
+    migrarFotosLista([].concat(pacote.edificacoes||[], pacote.pontos||[]), function(){
+    try{
     var db = loadDB();
     var tumVist = db.vistoriasExcluidas || [], tumRota = db.rotasExcluidas || [];
     if(pacote.vistorias && tumVist.length) pacote.vistorias = pacote.vistorias.filter(function(vv){ return tumVist.indexOf(vv.id)<0; });
@@ -8757,6 +8872,11 @@ function importarArquivo(input){
 
     renderEdificacoes(); renderVistorias(); renderRotas(); renderCampo();
     input.value = '';
+    }catch(errImp){
+      alert('A importação FALHOU e nada foi alterado: '+(errImp && errImp.name==='QuotaExceededError' ? 'o armazenamento do navegador está cheio. Faça um backup completo, limpe dados antigos e tente de novo.' : (errImp && errImp.message || errImp)));
+      input.value = '';
+    }
+    });
   };
   reader.readAsText(file);
 }
