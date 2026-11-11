@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v97</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v98</div>
   </header>
 
   <main>
@@ -2947,8 +2947,13 @@ var DB_KEY = 'vistoria_unificado';
 var TRAJ_ATIVA_KEY = 'vistoria_campo_trajetoria_ativa';
 
 function loadDB(){
-  try{ return JSON.parse(localStorage.getItem(DB_KEY)) || {edificacoes:[],vistorias:[],trajetorias:[],pontos:[],rotas:[]}; }
-  catch(e){ return {edificacoes:[],vistorias:[],trajetorias:[],pontos:[],rotas:[]}; }
+  var db;
+  try{ db = JSON.parse(localStorage.getItem(DB_KEY)) || {edificacoes:[],vistorias:[],trajetorias:[],pontos:[],rotas:[]}; }
+  catch(e){ db = {edificacoes:[],vistorias:[],trajetorias:[],pontos:[],rotas:[]}; }
+  // vistorias criadas fora do app podem vir sem checklist: normaliza para não quebrar a execução
+  (db.vistorias||[]).forEach(function(v){ if(!v.checklist || typeof v.checklist!=='object') v.checklist = {}; if(v.situacaoHS==null) v.situacaoHS=''; if(v.obs==null) v.obs=''; });
+  if(db.edificacoes) db.edificacoes = db.edificacoes.filter(function(e){ return !!e.id; });
+  return db;
 }
 
 // ════════════════════════════════════════

@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v135</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v136</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -1364,6 +1364,18 @@ function loadDB(){
   var db;
   try{ db = JSON.parse(localStorage.getItem(DB_KEY)) || {edificacoes:[],vistorias:[],trajetorias:[],pontos:[],rotas:[]}; }
   catch(e){ db = {edificacoes:[],vistorias:[],trajetorias:[],pontos:[],rotas:[]}; }
+  // normalização: vistorias criadas fora do app (sem checklist) quebravam a abertura das rotas; e
+  // registros de edificação sem id (restos de importação de dossiê) são fundidos na edificação certa
+  (db.vistorias||[]).forEach(function(v){ if(!v.checklist || typeof v.checklist!=='object') v.checklist = {}; if(v.situacaoHS==null) v.situacaoHS=''; if(v.obs==null) v.obs=''; });
+  if(db.edificacoes && db.edificacoes.some(function(e){ return !e.id; })){
+    db.edificacoes.filter(function(e){ return !e.id; }).forEach(function(s){
+      var alvo = db.edificacoes.find(function(x){ return x.id && String(x.re||'').toUpperCase()===String(s.re||'').toUpperCase(); });
+      if(alvo && !alvo.dossie && (s.afs||s.multas||s.protocolos||s.cienciasPendentes)){
+        alvo.dossie = {afs:s.afs||[], multas:s.multas||[], protocolos:s.protocolos||[], cienciasPendentes:s.cienciasPendentes||[], funcionamento:s.funcionamento||{}, resumo:s.resumo||'', geradoEm:s.geradoEm||'', rota:s.rota||'', fonte:'e-SCI'};
+      }
+    });
+    db.edificacoes = db.edificacoes.filter(function(e){ return !!e.id; });
+  }
   // migração: Multas virou Cartório (AF + Multa, múltiplos registros por edificação) — toda
   // multa do formato antigo (e.multas) entra como um item tipo='multa' em e.cartorio, sem
   // perder nada. Idempotente: só migra o que ainda não tem e.cartorio.
