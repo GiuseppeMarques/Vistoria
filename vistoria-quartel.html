@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v136</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v137</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -183,6 +183,7 @@
     <button data-v="relatorios" onclick="navTo('relatorios')"><span class="ic">📊</span>Relatórios</button>
     <button data-v="avisos" onclick="navTo('avisos')"><span class="ic">📱</span>Avisos
       <span class="badge" id="badgeAvisos" style="display:none">0</span></button>
+    <button data-v="dossies" onclick="navTo('dossies')"><span class="ic">📋</span>Dossiês</button>
     <button data-v="multas" onclick="navTo('multas')"><span class="ic">⚖️</span>Cartório
       <span class="badge" id="badgeMultas" style="display:none">0</span></button>
     <button data-v="esci" onclick="navTo('esci')"><span class="ic">📤</span>Lançar no e-SCI
@@ -592,6 +593,12 @@
       <div id="avisosEnviadosLista"></div>
     </div>
 
+    <div class="view" id="v-dossies">
+      <h2>📋 Dossiês</h2>
+      <div class="sub" style="margin-bottom:10px;font-size:12px;line-height:1.5">Todas as edificações: funcionamento, AFs e multas pendentes (cumprimento e ciência) e protocolos. AFs e multas são os mesmos registros do Cartório: baixar aqui baixa lá.</div>
+      <input id="dosBusca" type="search" placeholder="Buscar por RE, nome, bairro ou município" oninput="dosRenderLista()" style="width:100%;box-sizing:border-box;margin-bottom:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--txt);font-size:14px">
+      <div id="dosLista"></div>
+    </div>
     <div class="view" id="v-multas">
       <h2>Cartório</h2>
       <div class="lead">Controle de AF (Auto de Infração) e Multas — uma edificação pode ter vários registros ao mesmo tempo, de qualquer tipo.</div>
@@ -1340,6 +1347,7 @@ function navTo(v){
   if(v==='relatorios') renderRelatorios();
   if(v==='avisos') renderAvisos();
   if(v==='multas') renderMultas();
+  if(v==='dossies') dosAbrirAba();
   if(v==='esci') renderESCI();
   if(v==='mapa'){
     initQMapa();
@@ -4236,7 +4244,7 @@ function gerarRelatorioTexto(e, v, pendGerais, duvidasGerais, porBloco, aprovado
     linhas.push('⚠️ Diante das pendências acima, será lavrado Auto de Infração (AF) com prazo pra regularização. '+
       'Pra darmos andamento, envie: nome completo, CPF, e a ciência deste AF.');
   }
-  var cobrarC = ((e && e.dossie && e.dossie.cienciasPendentes) || []).filter(function(c){ return c.cobrar; });
+  var cobrarC = dossieCienciasMarcadas(e);
   if(cobrarC.length){
     linhas.push('');
     linhas.push('=== 📌 PENDENTE DE CIÊNCIA NO e-SCI ===');
@@ -4878,6 +4886,7 @@ function renderExecucaoQuartel(){
   var html = '<h3>'+(e.nome||'Sem nome')+'</h3><div class="sub">'+(e.re||'Sem RE')+' · '+rotuloVistoria(v)+'</div>';
   if(v.origemCartorioId) html += '<div style="margin:8px 0"><button class="btn" onclick="quVoltarAoCartorio()">← Voltar à visita de Cartório</button></div>';
   if(v.corrigindoEm) html += '<div style="margin:10px 0;padding:8px 10px;border-radius:8px;background:rgba(255,159,10,.15);border:1px solid var(--amar);font-size:12px">✏️ <b>Modo correção.</b> Altere o que for preciso; ao fechar, a correção fica registrada e o resultado é recalculado. A versão original (de campo) fica guardada.<br><button class="btn primary" style="margin-top:8px;width:100%" onclick="fecharExecucaoQuartel()">💾 Registrar correção e fechar</button></div>';
+  html += dosBotaoHtml(e); // dossiê à mão durante a vistoria
   html += encTopHtml(e, db);
 
   if(v.tipo==='cartorio'){
@@ -8791,6 +8800,7 @@ function mergeArray(local, importados, contador){
     var idx = local.findIndex(function(x){return x.id===item.id;});
     if(idx>=0){
       var loc = local[idx];
+      if(loc.cartorio || item.cartorio){ loc.cartorio = dosMergeCartorio(loc.cartorio, item.cartorio); item.cartorio = loc.cartorio; } // baixas feitas no Campo valem aqui
       // Vistoria concluída no Campo SEMPRE vale sobre a cópia ainda aberta no Quartel, mesmo que o Quartel a tenha
       // mexido depois (distribuir rota, reordenar etc. atualizam a data e faziam o resultado do campo ser descartado).
       var campoConcluiu = !!(item.concluida && !loc.concluida && item.concluidaEm);
@@ -8818,20 +8828,344 @@ function mergeArray(local, importados, contador){
   return local;
 }
 
-// Dossiê de notificações (levantamento do e-SCI por rota). Fica em edificacao.dossie e segue
-// no .vst para o Campo, onde é lido (botão "📋 Dossiê" no cartão da edificação e na vistoria).
+// ════════════════════════════════════════
+// DOSSIÊ DA EDIFICAÇÃO (núcleo igual no Campo e no Quartel)
+// Conteúdo: protocolos de projeto (A), funcionamento (F, o que mais interessa) e habite-se (H) com a metragem;
+// AFs e multas com pendência de CUMPRIMENTO ou de CIÊNCIA. As AFs e multas são os próprios itens do CARTÓRIO
+// (edificacao.cartorio): baixar aqui baixa lá e baixar lá baixa aqui, porque é o mesmo registro.
+// O levantamento do e-SCI (arquivo .json "dossie-notificacoes") entra em edificacao.dossie e é espelhado no
+// Cartório com id fixo "cart_dos_<número>", então não duplica nem entre os dois aplicativos.
+// ════════════════════════════════════════
+function dosEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function dosNorm(n){ return String(n||'').toUpperCase().replace(/[^A-Z0-9\/]/g,''); }
+function dosDiasAte(br){
+  var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(br||'').trim()); if(!m) return null;
+  var h = new Date(); h.setHours(0,0,0,0);
+  return Math.round((new Date(+m[3], +m[2]-1, +m[1]) - h) / 86400000);
+}
+function dosPrazoHtml(br){
+  if(!br) return '—';
+  var n = dosDiasAte(br);
+  if(n==null) return dosEsc(br);
+  if(n<0) return '<span style="color:#ff6b6b;font-weight:700">'+dosEsc(br)+' · vencido há '+(-n)+' dia(s)</span>';
+  if(n===0) return '<span style="color:#ffb340;font-weight:700">'+dosEsc(br)+' · vence hoje</span>';
+  return dosEsc(br)+' · em '+n+' dia(s)';
+}
+// funcionamento: situação e vencimento (cadastro da edificação, senão o último F do levantamento)
+function dosFunc(e){
+  var v = (e && e.vigenciaFuncionamento) || {}, d = (e && e.dossie && e.dossie.funcionamento) || {};
+  var venc = v.vencimento || '';
+  var n = dosDiasAte(venc);
+  var vencido = (n!=null && n<0) || v.situacao==='vencido';
+  var sem = v.situacao==='nao_possui';
+  return {venc:venc, dias:n, vencido:vencido, semFunc:sem, situacao:v.situacao||'', ultimo:d.ultimo||null, obs:d.obs||'', vigenciaTxt:d.vigencia||'', sitTxt:d.situacao||''};
+}
+function dosItens(e){ return ((e && e.cartorio)||[]).filter(function(m){ return (m.tipo==='af'||m.tipo==='multa') && !m.suspensaEm; }); }
+function dosPend(e){
+  var it = dosItens(e).filter(function(m){ return !m.resolvidaEm; });
+  var venc = it.filter(function(m){ var n = dosDiasAte(m.prazo); return n!=null && n<0; });
+  return {
+    afs: it.filter(function(m){return m.tipo==='af';}),
+    multas: it.filter(function(m){return m.tipo==='multa';}),
+    semCiencia: it.filter(function(m){return !m.cienciaDadaEm;}),
+    vencidos: venc, total: it.length
+  };
+}
+function dosResumo(e){
+  var p = dosPend(e), f = dosFunc(e);
+  return {af:p.afs.length, multa:p.multas.length, ciencia:p.semCiencia.length, vencidos:p.vencidos.length, total:p.total, func:f};
+}
+// itens marcados para pedir a ciência (mensagem do WhatsApp e relatório da vistoria)
+function dossieCienciasMarcadas(e){
+  return dosPend(e).semCiencia.filter(function(m){ return m.cobrarCiencia; }).map(function(m){
+    return {numero:m.numero||'(sem número)', tipo:m.tipo==='af'?'AF':'multa', descricao:dosDescricao(m), data:m.criadaEm?new Date(m.criadaEm).toLocaleDateString('pt-BR'):''};
+  });
+}
+function dosExigencias(m){
+  var l = [];
+  if(m.exigencias && m.exigencias.length) l = m.exigencias.map(function(x){ return {texto:x, ok:false}; });
+  else if(m.itensPendencia && m.itensPendencia.length) l = m.itensPendencia.map(function(it){ return typeof it==='string' ? {texto:it, ok:false} : {texto:it.texto, ok:!!it.resolvidoEm}; });
+  return l;
+}
+function dosDescricao(m){
+  var ex = dosExigencias(m).filter(function(x){return !x.ok;}).map(function(x){return x.texto;});
+  var base = ex.length ? ex.join('; ') : (m.motivo||'');
+  return String(base).replace(/\s*\n\s*/g,'; ').slice(0,300);
+}
+function dosNumCart(a){ return dosNorm(a); }
+// Espelha o levantamento (AFs, multas e ciências pendentes) no Cartório. limpar=true: o que veio de levantamento
+// anterior e não está mais pendente é baixado (resolvido no e-SCI).
+function dosEspelhar(e, limpar){
+  if(!e || !e.dossie) return false;
+  var d = e.dossie, agora = new Date().toISOString(), mudou = false;
+  e.cartorio = e.cartorio || [];
+  var vistos = {};
+  function achar(tipo, numero){
+    var k = dosNorm(numero); if(!k) return null;
+    return e.cartorio.find(function(m){ return m.tipo===tipo && dosNorm(m.numero)===k; }) || null;
+  }
+  function garantir(tipo, numero, extra){
+    var m = achar(tipo, numero);
+    if(!m){
+      m = {id:'cart_dos_'+dosNorm(numero).replace(/\//g,'_'), tipo:tipo, numero:numero, motivo:'', prazo:'', criadaEm:d.geradoEm||agora,
+           resolvidaEm:null, cienciaDadaEm:null, avisoEnviadoEm:null, afOrigemId:null, origemDossie:true};
+      e.cartorio.push(m); mudou = true;
+    }
+    vistos[m.id] = true;
+    Object.keys(extra||{}).forEach(function(k){ if(extra[k]!=null && extra[k]!=='' && JSON.stringify(m[k])!==JSON.stringify(extra[k])){ m[k] = extra[k]; mudou = true; } });
+    return m;
+  }
+  (d.afs||[]).forEach(function(a){
+    if(!a.numero) return;
+    garantir('af', a.numero, {prazo:a.prazo, prazoN:a.prazoN, exigencias:a.exigencias, motivo:(a.exigencias||[]).join('\n'), protocoloAF:a.protocolo, statusEsci:a.status});
+  });
+  (d.multas||[]).forEach(function(x){
+    if(!x.numero) return;
+    garantir('multa', x.numero, {prazo:x.cumprimento||x.pagamento, valor:x.valor, motivo:x.infracao, origemAF:x.origem, pagamentoAte:x.pagamento, cumprimentoAte:x.cumprimento, statusEsci:x.status});
+  });
+  (d.cienciasPendentes||[]).forEach(function(c){
+    if(!c.numero) return;
+    var tipo = /^(MUL|MULTA)/i.test(c.numero) || /multa/i.test(c.tipo||'') ? 'multa' : 'af';
+    var m = garantir(tipo, c.numero, {motivo:c.descricao});
+    if(m.origemDossie && !m.cienciaDadaEm) m.aguardaCienciaEsci = true;
+    if(c.cobrar && !m.cobrarCiencia){ m.cobrarCiencia = true; mudou = true; }
+  });
+  if(limpar){
+    e.cartorio.forEach(function(m){
+      if(m.origemDossie && !vistos[m.id] && !m.resolvidaEm && !m.suspensaEm){ m.resolvidaEm = agora; m.baixaPor = 'levantamento e-SCI (não consta mais pendente)'; mudou = true; }
+    });
+  }
+  d.espelhado = true;
+  return mudou;
+}
+function dosEspelharTodos(db){
+  var mudou = false;
+  (db.edificacoes||[]).forEach(function(e){ if(e.dossie && !e.dossie.espelhado){ if(dosEspelhar(e, false)) mudou = true; else e.dossie.espelhado = true; } });
+  return mudou;
+}
+// baixa (a mesma nos dois lugares)
+function dosBaixar(edifId, itemId, o){
+  var db = loadDB(), e = (db.edificacoes||[]).find(function(x){return x.id===edifId;}); if(!e) return;
+  var m = (e.cartorio||[]).find(function(x){return x.id===itemId;}); if(!m) return;
+  var rot = m.tipo==='af' ? 'AF' : 'multa';
+  if(o==='cumprida'){
+    if(!confirm('Baixar a '+rot+' nº '+(m.numero||'(sem número)')+' como CUMPRIDA/resolvida? A baixa vale também no Cartório.')) return;
+    m.resolvidaEm = new Date().toISOString(); m.baixaPor = 'dossiê';
+    if(m.itensPendencia) m.itensPendencia.forEach(function(it){ if(typeof it==='object' && !it.resolvidoEm) it.resolvidoEm = m.resolvidaEm; });
+  } else if(o==='ciencia'){
+    m.cienciaDadaEm = new Date().toISOString(); m.aguardaCienciaEsci = false;
+  } else if(o==='reabrir'){
+    if(!confirm('Reabrir a '+rot+' nº '+(m.numero||'(sem número)')+'?')) return;
+    m.resolvidaEm = null; m.baixaPor = ''; m.reabertaEm = new Date().toISOString();
+  }
+  e.atualizadoEm = new Date().toISOString();
+  saveDB(db);
+  dosAposMudar(edifId);
+}
+function dosCobrar(edifId, itemId, on){
+  var db = loadDB(), e = (db.edificacoes||[]).find(function(x){return x.id===edifId;}); if(!e) return;
+  var m = (e.cartorio||[]).find(function(x){return x.id===itemId;}); if(!m) return;
+  m.cobrarCiencia = !!on; e.atualizadoEm = new Date().toISOString(); saveDB(db);
+}
+function dosAposMudar(edifId){
+  try{ if(typeof renderMultas==='function') renderMultas(); }catch(_){}
+  try{ if(typeof qmap!=='undefined' && qmap && typeof renderQMapaConteudo==='function') renderQMapaConteudo(); }catch(_){}
+  try{ if(typeof map!=='undefined' && map && typeof renderMapEdificacoes==='function') renderMapEdificacoes(); }catch(_){}
+  try{ if(document.getElementById('dosLista')) dosRenderLista(); }catch(_){}
+  try{ if(typeof renderEdificacoes==='function' && document.getElementById('v-edif') && document.getElementById('v-edif').classList.contains('on')) renderEdificacoes(); }catch(_){}
+  if(document.getElementById('dosModal') && document.getElementById('dosModal').style.display!=='none') abrirDossie(edifId);
+}
+// protocolos: levantamento do e-SCI + os cadastrados na edificação
+function dosProtocolos(e){
+  var ps = ((e.dossie && e.dossie.protocolos)||[]).map(function(p){ return {p:p.p, t:String(p.t||p.p||'').charAt(0).toUpperCase(), data:p.data||'', area:p.area||'', sit:p.sit||''}; });
+  var tem = {}; ps.forEach(function(p){ tem[dosNorm(p.p)] = true; });
+  var mapa = {projeto:'A', funcionamento:'F', 'habite-se':'H'};
+  (e.projetos||[]).forEach(function(p){
+    if(!p.num || tem[dosNorm(p.num)]) return;
+    ps.push({p:p.num, t:mapa[p.tipo]||'?', data:p.dataEmissao||'', area:p.area||p.metragem||'', sit:'cadastro'});
+  });
+  return ps;
+}
+function dosBotaoTexto(e){
+  var r = dosResumo(e), partes = [];
+  partes.push(r.func.vencido ? 'F vencido' : (r.func.semFunc ? 'sem F' : (r.func.venc ? 'F até '+r.func.venc : 'F: sem dados')));
+  if(r.af) partes.push(r.af+' AF');
+  if(r.multa) partes.push(r.multa+' multa(s)');
+  if(r.ciencia) partes.push(r.ciencia+' sem ciência');
+  if(r.vencidos) partes.push('⚠️ prazo vencido');
+  return '📋 Dossiê · '+partes.join(' · ');
+}
+function dosBotaoHtml(e, extraStyle){
+  var r = dosResumo(e), alerta = r.vencidos || r.func.vencido;
+  return '<button class="btn" style="width:100%;margin-bottom:8px;text-align:left;font-weight:700;'+(alerta?'border:1px solid #ff6b6b;':'border:1px solid #0A84FF;')+(extraStyle||'')+'" onclick="event.stopPropagation();abrirDossie(\''+e.id+'\')">'+dosEsc(dosBotaoTexto(e))+'</button>';
+}
+function dossieBannerHtml(e){ return e ? dosBotaoHtml(e) : ''; }
+
+
+function dosAbrirAba(){
+  var db = loadDB();
+  if(dosEspelharTodos(db)) saveDB(db);
+  dosRenderLista();
+}
+function dosModalEl(){
+  var ov = document.getElementById('dosModal');
+  if(!ov){
+    ov = document.createElement('div'); ov.id = 'dosModal';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.65);display:none;align-items:flex-end;justify-content:center';
+    ov.onclick = function(ev){ if(ev.target===ov) ov.style.display='none'; };
+    ov.innerHTML = '<div id="dosModalConteudo" style="background:var(--card);color:var(--txt);width:100%;max-width:720px;max-height:92vh;overflow-y:auto;border-radius:18px 18px 0 0;padding:16px 16px 28px;box-sizing:border-box"></div>';
+    document.body.appendChild(ov);
+  }
+  return ov;
+}
+function dosItemHtml(e, m){
+  var rot = m.tipo==='af' ? 'AF' : 'Multa';
+  var ex = dosExigencias(m);
+  var h = '<div style="background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:8px'+(m.resolvidaEm?';opacity:.6':'')+'">'+
+    '<div style="font-weight:800;font-size:14px">'+rot+' nº '+dosEsc(m.numero||'(sem número)')+
+      (m.valor?' <span style="font-weight:400;color:var(--sub)">· '+dosEsc(m.valor)+'</span>':'')+
+      (m.protocoloAF?' <span style="font-weight:400;color:var(--sub)">· '+dosEsc(m.protocoloAF)+'</span>':'')+'</div>';
+  if(m.tipo==='af') h += '<div style="font-size:12px;margin:4px 0">Cumprimento até: '+dosPrazoHtml(m.prazo)+(m.prazoN?' ('+dosEsc(m.prazoN)+')':'')+'</div>';
+  else {
+    if(m.motivo) h += '<div style="font-size:12px;line-height:1.5;margin:4px 0">'+dosEsc(m.motivo)+'</div>';
+    if(m.origemAF) h += '<div style="font-size:12px;color:var(--sub)">Origem: '+dosEsc(m.origemAF)+'</div>';
+    if(m.pagamentoAte) h += '<div style="font-size:12px">Pagamento até: '+dosPrazoHtml(m.pagamentoAte)+'</div>';
+    h += '<div style="font-size:12px;margin-bottom:4px">Cumprimento até: '+dosPrazoHtml(m.cumprimentoAte||m.prazo)+'</div>';
+  }
+  if(ex.length) h += '<ul style="margin:4px 0;padding-left:18px;font-size:12px;line-height:1.6">'+ex.map(function(x){ return '<li style="'+(x.ok?'text-decoration:line-through;opacity:.6':'')+'">'+dosEsc(x.texto)+'</li>'; }).join('')+'</ul>';
+  else if(m.tipo==='af' && m.motivo) h += '<div style="font-size:12px;line-height:1.5;margin:4px 0">'+dosEsc(m.motivo)+'</div>';
+  h += '<div style="font-size:12px;margin-top:4px;color:'+(m.cienciaDadaEm?'var(--verde)':'#ffb340')+'">'+(m.cienciaDadaEm ? '✍️ Ciência dada em '+new Date(m.cienciaDadaEm).toLocaleDateString('pt-BR') : '⏳ Aguardando ciência')+'</div>';
+  if(m.resolvidaEm) h += '<div style="font-size:12px;color:var(--verde)">✅ Baixada em '+new Date(m.resolvidaEm).toLocaleDateString('pt-BR')+(m.baixaPor?' ('+dosEsc(m.baixaPor)+')':'')+'</div>'+
+    '<button class="btn" style="width:auto;padding:6px 10px;margin-top:6px" onclick="dosBaixar(\''+e.id+'\',\''+m.id+'\',\'reabrir\')">↩️ Reabrir</button>';
+  else {
+    h += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'+
+      (m.cienciaDadaEm ? '' : '<button class="btn" style="width:auto;padding:7px 10px" onclick="dosBaixar(\''+e.id+'\',\''+m.id+'\',\'ciencia\')">✍️ Ciência dada</button>')+
+      '<button class="btn primary" style="width:auto;padding:7px 10px" onclick="dosBaixar(\''+e.id+'\',\''+m.id+'\',\'cumprida\')">✅ Baixar (cumprida)</button></div>';
+    if(!m.cienciaDadaEm) h += '<label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin-top:8px"><input type="checkbox" style="width:auto;margin-top:2px" '+(m.cobrarCiencia?'checked':'')+' onchange="dosCobrar(\''+e.id+'\',\''+m.id+'\',this.checked)"> <span>Pedir a ciência na mensagem e no relatório da vistoria</span></label>';
+  }
+  return h + '</div>';
+}
+function abrirDossie(id){
+  var db = loadDB(), e = (db.edificacoes||[]).find(function(x){return x.id===id;}); if(!e) return;
+  if(e.dossie && !e.dossie.espelhado){ dosEspelhar(e,false); e.dossie.espelhado = true; saveDB(db); }
+  var d = e.dossie || {}, f = dosFunc(e), p = dosPend(e);
+  var sec = function(t){ return '<div style="font-weight:800;font-size:13px;margin:16px 0 6px;color:var(--red2);text-transform:uppercase;letter-spacing:.03em">'+t+'</div>'; };
+  var lin = function(l, v){ return v ? '<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--sub)">'+l+'</span><span style="text-align:right">'+v+'</span></div>' : ''; };
+  var gerado = d.geradoEm ? new Date(d.geradoEm) : null, idade = gerado ? Math.floor((Date.now()-gerado.getTime())/86400000) : null;
+  var H = '<div style="font-weight:800;font-size:17px">📋 Dossiê · '+dosEsc(e.re||'Sem RE')+'</div>'+
+    '<div style="font-size:13px;color:var(--sub)">'+dosEsc(e.nome||'')+(e.area?' · '+dosEsc(e.area)+' m²':'')+'</div>'+
+    '<div style="font-size:11px;color:var(--sub);margin:4px 0 6px">'+(gerado ? 'Levantamento do e-SCI em '+gerado.toLocaleDateString('pt-BR')+(idade>=14?' · ⚠️ há '+idade+' dias, pode estar desatualizado':'') : 'Ainda sem levantamento do e-SCI: mostra o cadastro e o Cartório.')+(d.rota?' · '+dosEsc(d.rota):'')+'</div>';
+  if(d.resumo) H += '<div style="font-size:13px;background:var(--card2);border-radius:8px;padding:8px 10px;margin-bottom:6px;line-height:1.5">'+dosEsc(d.resumo)+'</div>';
+
+  H += sec('Funcionamento (F)');
+  H += '<div style="border-radius:10px;padding:8px 10px;margin-bottom:6px;font-size:13px;font-weight:700;background:'+(f.vencido?'rgba(255,59,48,.15)':(f.semFunc?'rgba(255,159,10,.15)':'rgba(52,199,89,.12)'))+'">'+
+    (f.vencido ? '⚠️ Vencido em '+dosEsc(f.venc||'—')+(f.dias!=null?' (há '+(-f.dias)+' dia(s))':'') : (f.semFunc ? '❌ Não possui funcionamento' : (f.venc ? '✅ Válido até '+dosEsc(f.venc)+(f.dias!=null?' (em '+f.dias+' dia(s))':'') : '❔ Vigência não informada')))+'</div>';
+  if(f.ultimo && f.ultimo.protocolo) H += lin('Último F', dosEsc(f.ultimo.protocolo+(f.ultimo.data?' · '+f.ultimo.data:'')+(f.ultimo.sit?' · '+f.ultimo.sit:'')));
+  if(f.sitTxt) H += lin('Situação (e-SCI)', dosEsc(f.sitTxt));
+  if(f.vigenciaTxt) H += lin('Vigência (e-SCI)', dosEsc(f.vigenciaTxt));
+  if(f.obs) H += '<div style="font-size:12px;color:var(--sub);margin:4px 0">'+dosEsc(f.obs)+'</div>';
+
+  H += sec('AFs pendentes ('+p.afs.length+')');
+  H += p.afs.length ? p.afs.map(function(m){ return dosItemHtml(e, m); }).join('') : '<div style="font-size:12px;color:var(--sub)">Nenhuma AF pendente.</div>';
+  H += sec('Multas pendentes ('+p.multas.length+')');
+  H += p.multas.length ? p.multas.map(function(m){ return dosItemHtml(e, m); }).join('') : '<div style="font-size:12px;color:var(--sub)">Nenhuma multa pendente.</div>';
+  var baixadas = dosItens(e).filter(function(m){ return m.resolvidaEm; });
+  if(baixadas.length) H += sec('Baixadas ('+baixadas.length+')')+baixadas.map(function(m){ return dosItemHtml(e, m); }).join('');
+
+  var ps = dosProtocolos(e);
+  H += sec('Protocolos aprovados');
+  if(!ps.length) H += '<div style="font-size:12px;color:var(--sub)">Nenhum protocolo cadastrado ou levantado.</div>';
+  [['F','Funcionamento (F)'],['A','Projeto (A)'],['H','Habite-se (H)']].forEach(function(g){
+    var l = ps.filter(function(x){ return x.t===g[0]; });
+    if(!l.length) return;
+    H += '<div style="font-size:12px;font-weight:700;margin:8px 0 2px;color:'+(g[0]==='F'?'var(--red2)':'var(--txt)')+'">'+g[1]+(g[0]==='F'?' · foco da vistoria':'')+'</div>'+
+      l.map(function(x){ return '<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--border)'+(g[0]==='F'?';font-weight:600':'')+'">'+dosEsc(x.p||'')+' · '+dosEsc(x.data||'')+(x.area?' · '+dosEsc(x.area)+' m²':'')+(x.sit&&x.sit!=='deferido'?' · '+dosEsc(x.sit):'')+'</div>'; }).join('');
+  });
+  H += '<div style="font-size:11px;color:var(--sub);margin-top:14px;line-height:1.5">AFs e multas daqui são os mesmos registros do Cartório: baixar em um lugar baixa no outro.</div>';
+  H += '<button class="btn stop" style="width:100%;margin-top:14px" onclick="document.getElementById(\'dosModal\').style.display=\'none\'">Fechar</button>';
+  var ov = dosModalEl();
+  document.getElementById('dosModalConteudo').innerHTML = H;
+  ov.style.display = 'flex';
+}
+// lista de todas as edificações com o resumo do dossiê (aba "Dossiês")
+var dosFiltro = 'pend';
+function dosSetFiltro(v){ dosFiltro = v; dosRenderLista(); }
+function dosRenderLista(){
+  var el = document.getElementById('dosLista'); if(!el) return;
+  var db = loadDB(), busca = ((document.getElementById('dosBusca')||{}).value||'').toLowerCase().trim();
+  var todas = (db.edificacoes||[]).filter(function(e){ return e.competencia!=='fora'; });
+  var linhas = todas.map(function(e){ return {e:e, r:dosResumo(e)}; });
+  var cont = {pend:0, venc:0, func:0, todas:linhas.length};
+  linhas.forEach(function(x){ if(x.r.total) cont.pend++; if(x.r.vencidos) cont.venc++; if(x.r.func.vencido) cont.func++; });
+  var lista = linhas.filter(function(x){
+    if(dosFiltro==='pend' && !x.r.total) return false;
+    if(dosFiltro==='venc' && !x.r.vencidos) return false;
+    if(dosFiltro==='func' && !x.r.func.vencido) return false;
+    if(!busca) return true;
+    var e = x.e; return (e.re||'').toLowerCase().indexOf(busca)>=0 || (e.nome||'').toLowerCase().indexOf(busca)>=0 || (e.bairro||'').toLowerCase().indexOf(busca)>=0 || (e.municipio||'').toLowerCase().indexOf(busca)>=0;
+  }).sort(function(a,b){ return (b.r.vencidos-a.r.vencidos) || (b.r.total-a.r.total) || (a.e.re||'').localeCompare(b.e.re||'', undefined, {numeric:true}); });
+  var chip = function(k, t){ return '<button class="chip'+(dosFiltro===k?' on':'')+'" onclick="dosSetFiltro(\''+k+'\')">'+t+'</button>'; };
+  var topo = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'+chip('pend','Com pendência ('+cont.pend+')')+chip('venc','Prazo vencido ('+cont.venc+')')+chip('func','F vencido ('+cont.func+')')+chip('todas','Todas ('+cont.todas+')')+'</div>';
+  if(!lista.length){ el.innerHTML = topo+'<div class="empty"><div class="ico">📋</div>Nada nesta lista.</div>'; return; }
+  el.innerHTML = topo + lista.slice(0,300).map(function(x){
+    var e = x.e, r = x.r, alerta = r.vencidos || r.func.vencido;
+    return '<div class="item-card" style="cursor:pointer;margin-bottom:8px;'+(alerta?'border-color:#ff6b6b;':'')+'" onclick="abrirDossie(\''+e.id+'\')">'+
+      '<div style="font-weight:700;font-size:14px">'+dosEsc(e.nome||'Sem nome')+'</div>'+
+      '<div style="font-size:12px;color:var(--sub)">'+dosEsc(e.re||'Sem RE')+(e.bairro?' · '+dosEsc(e.bairro):'')+(e.municipio?' · '+dosEsc(e.municipio):'')+'</div>'+
+      '<div style="font-size:12px;margin-top:4px">'+dosEsc(dosBotaoTexto(e).replace('📋 Dossiê · ',''))+'</div></div>';
+  }).join('') + (lista.length>300 ? '<div class="sub" style="text-align:center">Mostrando 300 de '+lista.length+'. Use a busca.</div>' : '');
+}
+// importação do levantamento (.json "dossie-notificacoes")
 function dossieImportar(pacote, input){
-  var db = loadDB(), n = 0, sem = [];
+  var db = loadDB(), n = 0, sem = [], itens = 0;
   (pacote.edificacoes||[]).forEach(function(d){
     var re = String(d.re||'').trim().toUpperCase();
     var e = (db.edificacoes||[]).find(function(x){ return String(x.re||'').trim().toUpperCase()===re; });
     if(!e){ sem.push(d.re); return; }
+    var antes = (e.cartorio||[]).length;
     var novo = Object.assign({}, d, {geradoEm:pacote.geradoEm, rota:pacote.rota||'', fonte:pacote.fonte||'e-SCI'}); delete novo.re;
-    e.dossie = novo; e.atualizadoEm = new Date().toISOString(); n++;
+    // preserva a marcação "pedir ciência" já feita
+    var antigos = {}; ((e.cartorio)||[]).forEach(function(m){ if(m.cobrarCiencia) antigos[m.id] = true; });
+    e.dossie = novo; dosEspelhar(e, true);
+    e.atualizadoEm = new Date().toISOString(); n++; itens += (e.cartorio||[]).length-antes;
   });
   saveDB(db);
-  document.getElementById('importResumo').innerHTML = '<div class="card2-box"><div class="sec-title" style="margin-top:0">Dossiê importado</div><div class="resumo-item">📋 '+n+' edificação(ões) com dossiê atualizado. Vai para o Campo no próximo arquivo .vst.'+(sem.length?'<br>⚠️ Sem cadastro aqui: '+sem.join(', '):'')+'</div></div>';
+  var alvo = document.getElementById('importResumoCampo') || document.getElementById('importResumo');
+  if(alvo) alvo.innerHTML = '<div class="card"><div style="font-weight:700;margin-bottom:8px">Dossiê importado</div><div style="font-size:13px">📋 '+n+' edificação(ões) com dossiê atualizado; '+itens+' registro(s) novo(s) no Cartório.'+(sem.length?'<br>⚠️ Sem cadastro aqui: '+sem.map(dosEsc).join(', '):'')+'</div></div>';
+  try{ dosAposMudar(null); }catch(_){}
   input.value = '';
+}
+
+// ── estilo próprio (funciona igual nos dois apps) ──
+(function(){
+  var s = document.createElement('style');
+  s.textContent = '#dosLista .chip,#dosModal .chip{border:1px solid var(--border);background:var(--card2);color:var(--txt);border-radius:16px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer}'+
+    '#dosLista .chip.on{background:var(--red);border-color:var(--red);color:#fff}'+
+    '#dosModal .btn{border:1px solid var(--border);background:var(--card2);color:var(--txt);border-radius:10px;padding:10px 12px;font-size:13px;cursor:pointer}'+
+    '#dosModal .btn.primary{background:var(--red);border-color:var(--red);color:#fff}'+
+    '#dosModal .btn.stop{background:var(--card2)}';
+  document.head.appendChild(s);
+})();
+
+// ── junção do Cartório entre Campo e Quartel (id a id): baixa/ciência feita em qualquer lado vale nos dois ──
+function dosMergeCartorio(a, b){
+  a = a||[]; b = b||[];
+  var porId = {}, out = [];
+  a.forEach(function(m){ porId[m.id] = m; out.push(m); });
+  b.forEach(function(m){
+    var o = porId[m.id];
+    if(!o){ porId[m.id] = m; out.push(m); return; }
+    ['resolvidaEm','cienciaDadaEm','suspensaEm','avisoEnviadoEm'].forEach(function(k){ if(!o[k] && m[k]) o[k] = m[k]; });
+    if(!o.baixaPor && m.baixaPor) o.baixaPor = m.baixaPor;
+    if(m.cobrarCiencia && !o.cobrarCiencia) o.cobrarCiencia = true;
+    if((m.reabertaEm||'') > (o.reabertaEm||'')) o.reabertaEm = m.reabertaEm;
+    if(!o.numero && m.numero) o.numero = m.numero;
+    if(m.itensPendencia && o.itensPendencia){
+      m.itensPendencia.forEach(function(it, i){ if(typeof it==='object' && it.resolvidoEm && typeof o.itensPendencia[i]==='object' && !o.itensPendencia[i].resolvidoEm) o.itensPendencia[i].resolvidoEm = it.resolvidoEm; });
+    }
+  });
+  out.forEach(function(o){ if(o.reabertaEm && o.resolvidaEm && o.reabertaEm > o.resolvidaEm){ o.resolvidaEm = null; } });
+  return out;
 }
 
 function importarArquivo(input){
@@ -8862,9 +9196,7 @@ function importarArquivo(input){
     (db.edificacoes||[]).forEach(function(ed){
       var antes = cartorioAntes[ed.id];
       if(!antes) return;
-      var idsAntes = {}; antes.forEach(function(i){ idsAntes[i.id] = true; });
-      var extras = (ed.cartorio||[]).filter(function(i){ return !idsAntes[i.id]; });
-      ed.cartorio = antes.concat(extras);
+      ed.cartorio = dosMergeCartorio(antes, ed.cartorio);
     });
     (db.vistorias||[]).forEach(function(vv){ aplicarCartorioDaVistoria(db, vv); }); // visitas de Cartório feitas no Campo
     gerarPreAFsPendentes(db); // vistorias concluídas no Campo com pendência viram pré-AF

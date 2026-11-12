@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v98</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v99</div>
   </header>
 
   <main>
@@ -349,6 +349,12 @@
     </div>
 
     <!-- MAIS (placeholder) -->
+    <div class="view" id="v-dossies">
+      <h2 style="margin:0 0 6px">📋 Dossiês</h2>
+      <div class="sub" style="margin-bottom:10px;font-size:12px;line-height:1.5">Todas as edificações: funcionamento, AFs e multas pendentes (cumprimento e ciência) e protocolos. AFs e multas são os mesmos registros do Cartório: baixar aqui baixa lá.</div>
+      <input id="dosBusca" type="search" placeholder="Buscar por RE, nome, bairro ou município" oninput="dosRenderLista()" style="width:100%;box-sizing:border-box;margin-bottom:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--txt);font-size:14px">
+      <div id="dosLista"></div>
+    </div>
     <div class="view" id="v-mais">
       <div class="card">
         <div style="font-weight:700;margin-bottom:6px;font-size:14px">⬆️ Enviar pro Quartel</div>
@@ -370,6 +376,7 @@
     <button data-v="edifs" onclick="navTo('edifs')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="traj" class="on" onclick="navTo('traj')"><span class="ic">📍</span>Trajetória</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">✅</span>Vistorias</button>
+    <button data-v="dossies" onclick="navTo('dossies')"><span class="ic">📋</span>Dossiês</button>
     <button data-v="mais" onclick="navTo('mais')"><span class="ic">⚙️</span>Mais</button>
   </nav>
 
@@ -1000,6 +1007,8 @@ function vistCardHtmlCampo(v, db){
       ocupLinhaCard(ocupListaVist(v,e))+
       '<div class="vsub">'+(v.concluida ? 'Concluída em '+new Date(v.concluidaEm).toLocaleString('pt-BR') : 'Toque pra continuar')+'</div>'+
       (temLocal ? '<button class="btn" style="width:100%;margin-top:8px" onclick="event.stopPropagation();navegarComVias(\''+e.id+'\')">🧭 Navegar até aqui</button>' : '')+
+      (v.pulada && !v.concluida ? '<div class="vsub" style="color:#ffb340">⏭️ Pulada: '+ocupEsc(v.pulada.motivo)+'</div>' : '')+
+      (!v.concluida && v.edificacaoId ? '<button class="btn" style="width:100%;margin-top:8px" onclick="event.stopPropagation();abrirModalPular(\''+v.edificacaoId+'\',\''+v.id+'\')">⏭️ Pular (informar motivo)</button>' : '')+
       '<button class="btn stop" style="width:100%;margin-top:8px" onclick="event.stopPropagation();excluirVistoriaCampo(\''+v.id+'\')">Excluir</button>'+
     '</div>';
 }
@@ -1208,8 +1217,9 @@ function vistoriarDaRotaCampo(edifId){
     '<button class="btn" style="width:100%" onclick="document.getElementById(\'modalEdif\').style.display=\'none\'">Cancelar</button>';
   if(m) m.style.display = 'flex';
 }
-function abrirExecucao(edificacaoId, vistoriaId){
+function abrirExecucao(edificacaoId, vistoriaId, modoAtu){
   execEdificacaoId = edificacaoId;
+  execModoAtu = !!modoAtu; execAtuFlags = {foto:false, loc:false};
   blocosExpandidosCampo = {};
   pavimentosExpandidosCampo = {};
   var db = loadDB();
@@ -1218,7 +1228,7 @@ function abrirExecucao(edificacaoId, vistoriaId){
 
   document.getElementById('execHdrNome').textContent = e.nome;
   document.getElementById('execHdrRe').textContent = e.re || 'Sem RE';
-  document.getElementById('execDossieBtn').style.display = e.dossie ? '' : 'none';
+  document.getElementById('execDossieBtn').style.display = '';
 
   // reaproveita vistoria não concluída mais recente pra essa edificação, se existir
   var pendente = (db.vistorias||[]).filter(function(v){return v.edificacaoId===edificacaoId && !v.concluida;})
@@ -1281,9 +1291,104 @@ function excluirVistoriaCampo(vistId){
 }
 
 var execConcluiuRotaId = null;
+// ════════════════════════════════════════
+// PULAR PARADA COM MOTIVO  →  rota "Pendentes de <mês>" (acumula todas do mês)
+// ATUALIZAÇÃO SÓ DE FOTO/LOCAL  →  registra a ida (e.visitas), sem vistoria para lançar
+// ════════════════════════════════════════
+var execModoAtu = false, execAtuFlags = {foto:false, loc:false};
+var MOTIVOS_PULO = ['Fechado / ninguém atendeu','Responsável ausente','Sem tempo na rota','Acesso difícil (chuva, estrada)','Pediu para voltar outro dia','Reagendar com o responsável'];
+function rotaPendentesMes(db, ano, mes){
+  var id = 'rota_pend_'+ano+'_'+(mes+1 < 10 ? '0' : '')+(mes+1);
+  var r = (db.rotas||[]).find(function(x){return x.id===id;});
+  if(!r){
+    r = {id:id, nome:'⏭️ Pendentes de '+MESES_CAMPO[mes]+'/'+ano, data:'', vistorias:[], distanciaEstimadaKm:0, ordemOtimizada:false, modelo:'avulsa', origem:'pendentes', mesRef:{ano:ano, mes:mes}, atualizadoEm:new Date().toISOString()};
+    db.rotas = db.rotas||[]; db.rotas.push(r);
+  }
+  return r;
+}
+function abrirModalPular(edifId, vistId){
+  var ov = document.getElementById('puloModal');
+  if(!ov){
+    ov = document.createElement('div'); ov.id = 'puloModal';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.65);display:none;align-items:flex-end;justify-content:center';
+    ov.onclick = function(ev){ if(ev.target===ov) ov.style.display='none'; };
+    document.body.appendChild(ov);
+  }
+  var db = loadDB(), e = db.edificacoes.find(function(x){return x.id===edifId;}); if(!e) return;
+  ov.innerHTML = '<div style="background:var(--card);color:var(--txt);width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:16px 16px 26px;box-sizing:border-box">'+
+    '<div style="font-weight:800;font-size:16px">⏭️ Pular esta parada</div>'+
+    '<div style="font-size:12px;color:var(--sub);margin:2px 0 10px">'+ocupEsc(e.re||'')+' · '+ocupEsc(e.nome||'')+'<br>Vai para a rota “Pendentes” do mês, que acumula tudo o que ficou para trás.</div>'+
+    '<div id="puloChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">'+MOTIVOS_PULO.map(function(m,i){ return '<button type="button" class="btn" style="width:auto;padding:7px 11px;font-size:12px" onclick="puloEscolher('+i+')">'+ocupEsc(m)+'</button>'; }).join('')+'</div>'+
+    '<textarea id="puloMotivo" rows="2" placeholder="Motivo (obrigatório)" style="width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--txt);font-size:14px"></textarea>'+
+    '<div style="display:flex;gap:8px;margin-top:12px"><button class="btn" style="flex:1" onclick="document.getElementById(\'puloModal\').style.display=\'none\'">Cancelar</button>'+
+    '<button class="btn primary" style="flex:1" onclick="confirmarPulo(\''+edifId+'\','+(vistId?'\''+vistId+'\'':'null')+')">Pular</button></div></div>';
+  ov.style.display = 'flex';
+}
+function puloEscolher(i){ var t = document.getElementById('puloMotivo'); if(t){ t.value = MOTIVOS_PULO[i]; } }
+function confirmarPulo(edifId, vistId){
+  var motivo = (document.getElementById('puloMotivo').value||'').trim();
+  if(!motivo){ alert('Informe o motivo para pular.'); return; }
+  var db = loadDB(), agora = new Date().toISOString();
+  var v = vistId ? db.vistorias.find(function(x){return x.id===vistId;}) : null;
+  if(!v) v = (db.vistorias||[]).filter(function(x){ return x.edificacaoId===edifId && !x.concluida; })
+    .sort(function(a,b){ return (b.rotaId?1:0)-(a.rotaId?1:0); })[0] || null;
+  var origem = v && v.rotaId ? db.rotas.find(function(r){return r.id===v.rotaId;}) : null;
+  var mref;
+  if(origem && origem.origem==='pendentes') mref = origem.mesRef;
+  else if(origem){ var q = mesDemandaRotaCampo(db, origem); mref = q && q.ano ? q : null; }
+  if(!mref){ var h = new Date(); mref = {ano:h.getFullYear(), mes:h.getMonth()}; }
+  var pend = rotaPendentesMes(db, mref.ano, mref.mes);
+  if(!v){
+    v = {id:novoId('vis'), edificacaoId:edifId, tipo:'funcionamento', motivo:'', checklist:{}, situacaoHS:'', obs:'', concluida:false, concluidaEm:null, trajetoriaId:null, rotaId:null, criadoEm:agora};
+    db.vistorias.push(v);
+  }
+  if(origem && origem.id!==pend.id) origem.vistorias = (origem.vistorias||[]).filter(function(id){return id!==v.id;});
+  v.pulos = (v.pulos||[]).concat([{em:agora, motivo:motivo, rotaOrigemId:origem?origem.id:null, rotaOrigemNome:origem?origem.nome:''}]);
+  v.pulada = {em:agora, motivo:motivo};
+  v.rotaId = pend.id; v.atualizadoEm = agora;
+  if((pend.vistorias||[]).indexOf(v.id)<0) pend.vistorias = (pend.vistorias||[]).concat([v.id]);
+  pend.atualizadoEm = agora;
+  saveDB(db);
+  document.getElementById('puloModal').style.display = 'none';
+  var estavaExec = !!document.getElementById('execOverlay') && document.getElementById('execOverlay').style.display!=='none';
+  if(estavaExec){ execConcluiuRotaId = (origem && origem.id!==pend.id && (origem.vistorias||[]).length) ? origem.id : null; fecharExecucao(); }
+  else { try{ renderVistoriasCampo(); if(map) renderMapEdificacoes(); }catch(_){} }
+  avisoMapaCampo('⏭️ Pulada. Foi para “'+pend.nome+'” ('+(pend.vistorias||[]).length+').');
+}
+function abrirAtualizacaoCampo(edifId){
+  var m = document.getElementById('modalEdif'); if(m) m.style.display='none';
+  abrirExecucao(edifId, undefined, true);
+}
+function execHtmlAcoesExtras(e, v){
+  if(v && v.concluida) return '';
+  return '<div style="display:flex;gap:8px;margin:0 0 12px;flex-wrap:wrap">'+
+    '<button type="button" class="btn" style="flex:1;min-width:140px;font-size:12px" onclick="abrirModalPular(\''+e.id+'\','+(v?'\''+v.id+'\'':'null')+')">⏭️ Pular (informar motivo)</button>'+
+    '<button type="button" class="btn" style="flex:1;min-width:140px;font-size:12px" onclick="execModoAtu=true;execAtuFlags={foto:false,loc:false};renderExecucao()">📷 Só atualizar foto/local</button></div>';
+}
+function execHtmlModoAtu(e, db){
+  var vis = (e.visitas||[]).slice(-3).reverse().map(function(x){ return new Date(x.em).toLocaleDateString('pt-BR')+(x.tipo==='atualizacao'?' (atualização)':''); }).join(' · ');
+  return '<div style="background:rgba(10,132,255,.12);border:1px solid rgba(10,132,255,.4);border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:13px;line-height:1.5"><b>Modo atualização</b><br>Atualize a foto e/ou a localização abaixo. Isso fica registrado como visita de atualização e <b>não gera vistoria para lançar</b>.'+(vis?'<div style="font-size:11px;color:var(--sub);margin-top:4px">Registros anteriores: '+vis+'</div>':'')+'</div>'+
+    '<div id="encFotoFim" style="margin-bottom:12px">'+encFotoFimInner(e, db)+'</div>'+
+    '<textarea id="atuObs" rows="2" placeholder="Observação (opcional): ex. aproveitei a viagem" style="width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--txt);font-size:14px;margin-bottom:12px"></textarea>'+
+    '<div class="btnrow"><button class="btn" onclick="execModoAtu=false;renderExecucao()">← Voltar à vistoria</button><button class="btn primary" onclick="registrarAtualizacaoCampo()">✅ Registrar atualização</button></div>';
+}
+function registrarAtualizacaoCampo(){
+  var c = encCtx(); if(!c.e) return;
+  if(!execAtuFlags.foto && !execAtuFlags.loc && !confirm('Nem a foto nem a localização foram atualizadas. Registrar mesmo assim que você esteve no local?')) return;
+  var obs = ((document.getElementById('atuObs')||{}).value||'').trim();
+  var agora = new Date().toISOString();
+  c.e.visitas = c.e.visitas||[];
+  c.e.visitas.push({id:novoId('vst'), em:agora, tipo:'atualizacao', foto:!!execAtuFlags.foto, local:!!execAtuFlags.loc, obs:obs});
+  c.e.ultimaVisitaEm = agora; c.e.atualizadoEm = agora;
+  saveDB(c.db);
+  execModoAtu = false;
+  fecharExecucao();
+  avisoMapaCampo('📷 Atualização registrada ('+(c.e.re||'')+'). Nada a lançar no e-SCI.');
+}
+
 function fecharExecucao(){
   document.getElementById('execOverlay').style.display='none';
-  execEdificacaoId = null; execVistoriaId = null; execTipo = null;
+  execEdificacaoId = null; execVistoriaId = null; execTipo = null; execModoAtu = false;
   renderVistoriasCampo();
   if(map){ renderMapEdificacoes(); }
   if(execConcluiuRotaId){ var rid = execConcluiuRotaId; execConcluiuRotaId = null; irParaProximaDaRota(rid); }
@@ -2126,8 +2231,11 @@ function renderExecucao(){
     (e.habiteSe && e.habiteSe.obs ? '<div style="font-weight:400;font-size:12px;margin-top:4px">'+e.habiteSe.obs+'</div>' : '')+
   '</div>';
   html += htmlAFDaParada(db, vAtualBanner);
+  html += dosBotaoHtml(e); // dossiê à mão durante a vistoria, com o resumo (F, AFs, multas, ciências)
 
+  if(execModoAtu){ html += encTopHtml(e, db) + execHtmlModoAtu(e, db); body.innerHTML = html; return; }
   html += encTopHtml(e, db);
+  html += execHtmlAcoesExtras(e, vAtualBanner);
 
   // Seletor de tipo
   html += '<div class="tipo-row">'+
@@ -2536,7 +2644,7 @@ function encRefazerBoxes(){
 }
 function encGravarLoc(lat, lng, origem){
   var c = encCtx(); if(!c.e) return;
-  c.e.lat = lat; c.e.lng = lng; c.e.locOrigem = origem;
+  c.e.lat = lat; c.e.lng = lng; c.e.locOrigem = origem; execAtuFlags.loc = true;
   c.e.locConfirmadaEm = origem==='local' ? new Date().toISOString() : null;
   if(c.e.origemDados){ delete c.e.origemDados.lat; delete c.e.origemDados.lng; }
   c.e.atualizadoEm = new Date().toISOString();
@@ -2592,7 +2700,7 @@ function encFotoEscolhida(input){
 function aplicarFotoEnc(dataUrl){
   var c = encCtx(); if(!c.e) return;
   var ref = fotoGuardar(dataUrl);
-  c.e.foto = ref;   // a foto nova SUBSTITUI a anterior
+  c.e.foto = ref; execAtuFlags.foto = true;   // a foto nova SUBSTITUI a anterior
   (c.db.pontos||[]).forEach(function(p){ if(p.edificacaoGeradaId===c.e.id && p.foto) p.foto = ref; });
   c.e.atualizadoEm = new Date().toISOString();
   try{ saveDB(c.db); }catch(err){ alert('Não consegui gravar a foto (armazenamento cheio?).'); return; }
@@ -2914,7 +3022,7 @@ function concluirExecucao(){
 // ════════════════════════════════════════
 // NAVEGAÇÃO
 // ════════════════════════════════════════
-var TITULOS = {mapa:'Mapa', edifs:'Edificações', traj:'Trajetória', vist:'Vistorias', mais:'Mais'};
+var TITULOS = {mapa:'Mapa', edifs:'Edificações', traj:'Trajetória', vist:'Vistorias', dossies:'Dossiês', mais:'Mais'};
 function navTo(v){
   if(v!=='mapa' && typeof pararNavegacaoMapa==='function') pararNavegacaoMapa();
   document.querySelectorAll('.view').forEach(function(el){el.classList.remove('on');});
@@ -2930,6 +3038,8 @@ function navTo(v){
     renderVistoriasCampo();
   } else if(v==='edifs'){
     renderEdifsCampo();
+  } else if(v==='dossies'){
+    dosAbrirAba();
   } else if(mapWatchId!==null){
     // saiu do mapa — para o acompanhamento contínuo de GPS pra economizar bateria
     navigator.geolocation.clearWatch(mapWatchId);
@@ -5359,17 +5469,19 @@ function renderMapEdificacoes(){
     var cor = {1:'#34C759',2:'#A8D93A',3:'#FF9F0A',4:'#FF5E3A',5:'#C0272D'}[riscoM] || '#8E8E93';
     var num = riscoM || '?';
     var badgeDesocupada = e.desocupada ? '<div style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;background:#6b6b70;border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px">🏚️</div>' : '';
+    var fVenc = dosFunc(e).vencido;
     var feita = !!feitasMapa[e.id], ehProxima = !!(alvoMapaId && alvoMapaId===e.id);
     var fundo = feita ? '#1f9d4d' : cor, miolo = feita ? '✓' : num, borda = ehProxima ? '3px solid #0A84FF' : '2px solid #fff';
     var tam = ehProxima ? 30 : 24, brilho = '';
     if(edifIdsDaRota && !foraDaRota && !ehProxima){ tam = 28; if(!feita){ borda = '3px solid #FFD60A'; brilho = '0 0 0 3px rgba(255,214,10,.4),'; } }
-    if(foraDaRota) tam = 18;
+    if(foraDaRota) tam = fVenc ? 22 : 18;
+    var seloF = fVenc ? '<div style="position:absolute;top:-7px;left:-7px;min-width:16px;height:16px;padding:0 2px;box-sizing:border-box;border-radius:8px;background:#ff3b30;border:2px solid #fff;color:#fff;font-size:9px;font-weight:900;line-height:12px;text-align:center;opacity:1;z-index:2">F</div>' : '';
     var icon = L.divIcon({
-      html:'<div style="position:relative;width:'+tam+'px;height:'+tam+'px;border-radius:50%;background:'+fundo+';border:'+(foraDaRota?'1px solid #fff':borda)+';box-shadow:'+(ehProxima?'0 0 0 4px rgba(10,132,255,.35),':brilho)+'0 1px 3px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:'+(foraDaRota?10:(feita?15:12))+'px;font-weight:800;color:#fff;'+(foraDaRota?'opacity:.5;':(feita?'opacity:.85;':''))+'">'+miolo+(foraDaRota?'':badgeDesocupada)+'</div>',
+      html:'<div style="position:relative;width:'+tam+'px;height:'+tam+'px;border-radius:50%;background:'+fundo+';border:'+(foraDaRota?'1px solid #fff':borda)+';box-shadow:'+(ehProxima?'0 0 0 4px rgba(10,132,255,.35),':brilho)+'0 1px 3px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:'+(foraDaRota?10:(feita?15:12))+'px;font-weight:800;color:#fff;'+(foraDaRota?(fVenc?'opacity:.8;':'opacity:.5;'):(feita?'opacity:.85;':''))+'">'+miolo+(foraDaRota?'':badgeDesocupada)+seloF+'</div>',
       className:'', iconSize:[tam,tam], iconAnchor:[tam/2,tam/2]
     });
     var mk = L.marker([e.lat, e.lng], {icon:icon, zIndexOffset: ehProxima ? 1000 : (foraDaRota ? -500 : (edifIdsDaRota ? 300 : 0))}).addTo(lyrEdif);
-    if(e.desocupada || foraDaRota) mk.bindTooltip((e.re||'Sem RE')+' — '+(e.nome||'')+(e.desocupada?' (desocupada)':'')+(foraDaRota?' (fora da rota)':''), {direction:'top'});
+    if(e.desocupada || foraDaRota || fVenc) mk.bindTooltip((e.re||'Sem RE')+' — '+(e.nome||'')+(e.desocupada?' (desocupada)':'')+(foraDaRota?' (fora da rota)':'')+(fVenc?' · ⚠️ funcionamento vencido':''), {direction:'top'});
     mk.on('click', function(){ abrirCartaoEdificacao(e); });
     // trajeto salvo (pontos de passagem) das paradas da rota, discreto, para ver o caminho combinado
     if(edifIdsDaRota && !foraDaRota && !feita && e.vias && e.vias.length){
@@ -5443,7 +5555,8 @@ function abrirCartaoEdificacao(e){
     '<div class="hs-banner '+hs.classe+'" style="margin:12px 0">'+hs.icone+' Habite-se: '+hs.texto+(hs.protocolo?' · '+hs.protocolo:'')+'</div>'+
     '<div style="margin:14px 0">'+
       (ocupLista(e).length ? '<div class="ecard-row"><span class="l">Ocupação</span><span style="text-align:right">'+ocupLista(e).map(ocupEsc).join('<br>')+'</span></div>' : '')+
-      '<div class="ecard-row"><span class="l">Funcionamento</span><span>'+venc+'</span></div>'+
+      '<div class="ecard-row"><span class="l">Funcionamento</span><span>'+venc+(dosFunc(e).vencido?' ⚠️ vencido':'')+'</span></div>'+
+      (e.ultimaVisitaEm ? '<div class="ecard-row"><span class="l">Última ida (atualização)</span><span>'+new Date(e.ultimaVisitaEm).toLocaleDateString('pt-BR')+'</span></div>' : '')+
       '<div class="ecard-row"><span class="l">Última vistoria</span><span style="text-align:right">'+textoUltimaVistoria(db, e.id, true)+'</span></div>'+
       '<div class="ecard-row" style="border-bottom:none"><span class="l">Endereço</span><span style="text-align:right">'+(e.endereco||'—')+(e.bairro?' — '+e.bairro:'')+'</span></div>'+
     '</div>'+
@@ -5453,6 +5566,7 @@ function abrirCartaoEdificacao(e){
       '<button class="btn" onclick="abrirDetalhesCompletos(\''+e.id+'\')">Detalhes</button>'+
       '<button class="btn primary" onclick="vistoriarDaRotaCampo(\''+e.id+'\')">Vistoriar</button>'+
     '</div>'+
+    '<div class="btnrow" style="margin-top:8px"><button class="btn" onclick="abrirAtualizacaoCampo(\''+e.id+'\')">📷 Só atualizar foto/local</button>'+(vistoriasProgramadasDaEdif(db, e.id).length ? '<button class="btn" onclick="document.getElementById(\'modalEdif\').style.display=\'none\';abrirModalPular(\''+e.id+'\',null)">⏭️ Pular</button>' : '')+'</div>'+
     '<button class="btn stop" style="width:100%;margin-top:8px" onclick="navegarComVias(\''+e.id+'\')">🧭 Navegar'+(viasDe(e.id).length?' ('+viasDe(e.id).length+' pontos de passagem)':'')+'</button>';
 
   document.getElementById('modalEdif').style.display='flex';
@@ -5597,103 +5711,344 @@ function exportarParaQuartel2(){
 // Vem num arquivo .json "dossie-notificacoes" (importar pelo mesmo botão de importação) ou junto
 // do .vst do Quartel. Fica em edificacao.dossie e é só leitura aqui.
 // ════════════════════════════════════════
-function dossieDiasAte(br){
-  var m = /^(\d\d)\/(\d\d)\/(\d{4})/.exec(br||''); if(!m) return null;
+// ════════════════════════════════════════
+// DOSSIÊ DA EDIFICAÇÃO (núcleo igual no Campo e no Quartel)
+// Conteúdo: protocolos de projeto (A), funcionamento (F, o que mais interessa) e habite-se (H) com a metragem;
+// AFs e multas com pendência de CUMPRIMENTO ou de CIÊNCIA. As AFs e multas são os próprios itens do CARTÓRIO
+// (edificacao.cartorio): baixar aqui baixa lá e baixar lá baixa aqui, porque é o mesmo registro.
+// O levantamento do e-SCI (arquivo .json "dossie-notificacoes") entra em edificacao.dossie e é espelhado no
+// Cartório com id fixo "cart_dos_<número>", então não duplica nem entre os dois aplicativos.
+// ════════════════════════════════════════
+function dosEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function dosNorm(n){ return String(n||'').toUpperCase().replace(/[^A-Z0-9\/]/g,''); }
+function dosDiasAte(br){
+  var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(br||'').trim()); if(!m) return null;
   var h = new Date(); h.setHours(0,0,0,0);
   return Math.round((new Date(+m[3], +m[2]-1, +m[1]) - h) / 86400000);
 }
-function dossiePrazoHtml(br){
-  var n = dossieDiasAte(br); if(!br) return '—';
-  if(n==null) return ocupEsc(br);
-  if(n<0) return '<span style="color:#ff6b6b;font-weight:700">'+ocupEsc(br)+' · vencido há '+(-n)+' dia(s)</span>';
-  if(n===0) return '<span style="color:#ffb340;font-weight:700">'+ocupEsc(br)+' · vence hoje</span>';
-  return ocupEsc(br)+' · em '+n+' dia(s)';
+function dosPrazoHtml(br){
+  if(!br) return '—';
+  var n = dosDiasAte(br);
+  if(n==null) return dosEsc(br);
+  if(n<0) return '<span style="color:#ff6b6b;font-weight:700">'+dosEsc(br)+' · vencido há '+(-n)+' dia(s)</span>';
+  if(n===0) return '<span style="color:#ffb340;font-weight:700">'+dosEsc(br)+' · vence hoje</span>';
+  return dosEsc(br)+' · em '+n+' dia(s)';
 }
-function dossieCienciasMarcadas(e){ return ((e && e.dossie && e.dossie.cienciasPendentes) || []).filter(function(c){ return c.cobrar; }); }
-function dossieMarcarCiencia(id, i, on){
-  var db = loadDB(), e = db.edificacoes.find(function(x){return x.id===id;});
-  if(!e || !e.dossie || !e.dossie.cienciasPendentes || !e.dossie.cienciasPendentes[i]) return;
-  e.dossie.cienciasPendentes[i].cobrar = !!on;
-  e.atualizadoEm = new Date().toISOString();
-  saveDB(db);
+// funcionamento: situação e vencimento (cadastro da edificação, senão o último F do levantamento)
+function dosFunc(e){
+  var v = (e && e.vigenciaFuncionamento) || {}, d = (e && e.dossie && e.dossie.funcionamento) || {};
+  var venc = v.vencimento || '';
+  var n = dosDiasAte(venc);
+  var vencido = (n!=null && n<0) || v.situacao==='vencido';
+  var sem = v.situacao==='nao_possui';
+  return {venc:venc, dias:n, vencido:vencido, semFunc:sem, situacao:v.situacao||'', ultimo:d.ultimo||null, obs:d.obs||'', vigenciaTxt:d.vigencia||'', sitTxt:d.situacao||''};
 }
-function dossieBannerHtml(e){
-  var d = e && e.dossie; if(!d) return '';
-  var af = (d.afs||[]).length, mu = (d.multas||[]).length, ci = (d.cienciasPendentes||[]).length;
-  var venc = (d.afs||[]).concat(d.multas||[]).some(function(x){ var n = dossieDiasAte(x.prazo||x.cumprimento); return n!=null && n<0; });
-  var f = d.funcionamento && d.funcionamento.situacao ? 'F: '+ocupEsc(d.funcionamento.situacao) : 'F: sem dados';
-  return '<button class="btn" style="width:100%;margin-bottom:8px;text-align:left;'+(venc?'border:1px solid #ff6b6b':'')+'" onclick="abrirDossie(\''+e.id+'\')">📋 Dossiê · '+f+' · '+af+' AF · '+mu+' multa(s)'+(ci?' · '+ci+' sem ciência':'')+(venc?' · ⚠️ prazo vencido':'')+'</button>';
+function dosItens(e){ return ((e && e.cartorio)||[]).filter(function(m){ return (m.tipo==='af'||m.tipo==='multa') && !m.suspensaEm; }); }
+function dosPend(e){
+  var it = dosItens(e).filter(function(m){ return !m.resolvidaEm; });
+  var venc = it.filter(function(m){ var n = dosDiasAte(m.prazo); return n!=null && n<0; });
+  return {
+    afs: it.filter(function(m){return m.tipo==='af';}),
+    multas: it.filter(function(m){return m.tipo==='multa';}),
+    semCiencia: it.filter(function(m){return !m.cienciaDadaEm;}),
+    vencidos: venc, total: it.length
+  };
 }
-function abrirDossie(id){
-  var db = loadDB(), e = db.edificacoes.find(function(x){return x.id===id;});
-  if(!e || !e.dossie) return;
-  var d = e.dossie, H = '';
-  var sec = function(t){ return '<div class="sec-title" style="margin-top:14px">'+t+'</div>'; };
-  var lin = function(l, v){ return v ? '<div class="ecard-row"><span class="l">'+l+'</span><span style="text-align:right">'+v+'</span></div>' : ''; };
-  var gerado = d.geradoEm ? new Date(d.geradoEm) : null;
-  var idade = gerado ? Math.floor((Date.now()-gerado.getTime())/86400000) : null;
-  H += '<div class="sheet-handle"></div><div style="font-weight:800;font-size:16px">📋 Dossiê · '+ocupEsc(e.re||'Sem RE')+'</div>'+
-       '<div style="font-size:12px;color:var(--sub)">'+ocupEsc(e.nome||'')+'</div>'+
-       '<div style="font-size:11px;color:var(--sub);margin:4px 0 8px">'+(gerado ? 'Levantado no e-SCI em '+gerado.toLocaleDateString('pt-BR')+(idade>=14?' · ⚠️ há '+idade+' dias, pode estar desatualizado':'') : 'Data do levantamento não informada')+(d.rota?' · rota: '+ocupEsc(d.rota):'')+'</div>';
-  if(d.resumo) H += '<div style="font-size:13px;background:var(--card2);border-radius:8px;padding:8px 10px;margin-bottom:6px;line-height:1.5">'+ocupEsc(d.resumo)+'</div>';
-  var f = d.funcionamento || {};
-  H += sec('Funcionamento (F)');
-  H += lin('Situação', f.situacao ? ocupEsc(f.situacao) : '');
-  if(f.ultimo) H += lin('Último F', ocupEsc((f.ultimo.protocolo||'')+(f.ultimo.data?' · '+f.ultimo.data:'')+(f.ultimo.sit?' · '+f.ultimo.sit:'')));
-  H += lin('Vigência', f.vigencia ? ocupEsc(f.vigencia) : '');
-  if(f.obs) H += '<div style="font-size:12px;color:var(--sub);margin:4px 0">'+ocupEsc(f.obs)+'</div>';
-  if(!f.situacao && !f.ultimo && !f.obs) H += '<div style="font-size:12px;color:var(--sub)">Sem dados.</div>';
-  H += sec('AFs pendentes ('+(d.afs||[]).length+')');
-  if(!(d.afs||[]).length) H += '<div style="font-size:12px;color:var(--sub)">Nenhuma AF pendente.</div>';
-  (d.afs||[]).forEach(function(a){
-    H += '<div class="pav-card" style="margin-bottom:8px"><div class="pav-h">'+ocupEsc(a.numero||'AF')+(a.protocolo?' <span style="font-weight:400;color:var(--sub)">· '+ocupEsc(a.protocolo)+'</span>':'')+'</div>'+
-      '<div style="font-size:12px;margin-bottom:4px">Prazo: '+dossiePrazoHtml(a.prazo)+(a.prazoN?' ('+ocupEsc(a.prazoN)+')':'')+'</div>'+
-      (a.status?'<div style="font-size:12px;color:var(--sub);margin-bottom:4px">'+ocupEsc(a.status)+'</div>':'')+
-      '<ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.6">'+(a.exigencias||[]).map(function(x){ return '<li>'+ocupEsc(x)+'</li>'; }).join('')+'</ul></div>';
+function dosResumo(e){
+  var p = dosPend(e), f = dosFunc(e);
+  return {af:p.afs.length, multa:p.multas.length, ciencia:p.semCiencia.length, vencidos:p.vencidos.length, total:p.total, func:f};
+}
+// itens marcados para pedir a ciência (mensagem do WhatsApp e relatório da vistoria)
+function dossieCienciasMarcadas(e){
+  return dosPend(e).semCiencia.filter(function(m){ return m.cobrarCiencia; }).map(function(m){
+    return {numero:m.numero||'(sem número)', tipo:m.tipo==='af'?'AF':'multa', descricao:dosDescricao(m), data:m.criadaEm?new Date(m.criadaEm).toLocaleDateString('pt-BR'):''};
   });
-  H += sec('Multas ('+(d.multas||[]).length+')');
-  if(!(d.multas||[]).length) H += '<div style="font-size:12px;color:var(--sub)">Nenhuma multa pendente.</div>';
-  (d.multas||[]).forEach(function(m){
-    H += '<div class="pav-card" style="margin-bottom:8px"><div class="pav-h">'+ocupEsc(m.numero||'Multa')+(m.valor?' <span style="font-weight:400;color:var(--sub)">· '+ocupEsc(m.valor)+'</span>':'')+'</div>'+
-      (m.infracao?'<div style="font-size:12px;line-height:1.5;margin-bottom:4px">'+ocupEsc(m.infracao)+'</div>':'')+
-      (m.origem?'<div style="font-size:12px;color:var(--sub)">Origem: '+ocupEsc(m.origem)+'</div>':'')+
-      (m.pagamento?'<div style="font-size:12px">Pagamento até: '+dossiePrazoHtml(m.pagamento)+'</div>':'')+
-      (m.cumprimento?'<div style="font-size:12px">Cumprimento até: '+dossiePrazoHtml(m.cumprimento)+'</div>':'')+
-      (m.status?'<div style="font-size:12px;color:var(--sub)">'+ocupEsc(m.status)+'</div>':'')+'</div>';
-  });
-  var cs = d.cienciasPendentes || [];
-  if(cs.length){
-    H += sec('Pendentes de ciência ('+cs.length+')');
-    cs.forEach(function(c, ci){ H += '<div class="pav-card" style="margin-bottom:8px"><div class="pav-h">'+ocupEsc(c.numero||'')+(c.tipo?' <span style="font-weight:400;color:var(--sub)">· '+ocupEsc(c.tipo)+'</span>':'')+'</div>'+(c.descricao?'<div style="font-size:12px;line-height:1.5">'+ocupEsc(c.descricao)+'</div>':'')+(c.data?'<div style="font-size:12px;color:var(--sub)">Lavrado em '+ocupEsc(c.data)+'</div>':'')+'<label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-top:8px"><input type="checkbox" style="width:auto;margin-top:3px" '+(c.cobrar?'checked':'')+' onchange="dossieMarcarCiencia(\''+e.id+'\','+ci+',this.checked)"> <span>Pedir a ciência na mensagem e no relatório da vistoria</span></label></div>'; });
+}
+function dosExigencias(m){
+  var l = [];
+  if(m.exigencias && m.exigencias.length) l = m.exigencias.map(function(x){ return {texto:x, ok:false}; });
+  else if(m.itensPendencia && m.itensPendencia.length) l = m.itensPendencia.map(function(it){ return typeof it==='string' ? {texto:it, ok:false} : {texto:it.texto, ok:!!it.resolvidoEm}; });
+  return l;
+}
+function dosDescricao(m){
+  var ex = dosExigencias(m).filter(function(x){return !x.ok;}).map(function(x){return x.texto;});
+  var base = ex.length ? ex.join('; ') : (m.motivo||'');
+  return String(base).replace(/\s*\n\s*/g,'; ').slice(0,300);
+}
+function dosNumCart(a){ return dosNorm(a); }
+// Espelha o levantamento (AFs, multas e ciências pendentes) no Cartório. limpar=true: o que veio de levantamento
+// anterior e não está mais pendente é baixado (resolvido no e-SCI).
+function dosEspelhar(e, limpar){
+  if(!e || !e.dossie) return false;
+  var d = e.dossie, agora = new Date().toISOString(), mudou = false;
+  e.cartorio = e.cartorio || [];
+  var vistos = {};
+  function achar(tipo, numero){
+    var k = dosNorm(numero); if(!k) return null;
+    return e.cartorio.find(function(m){ return m.tipo===tipo && dosNorm(m.numero)===k; }) || null;
   }
-  var ps = d.protocolos || [];
-  if(ps.length){
-    var grupos = [['F','Funcionamento (F)'],['A','Projeto (A)'],['H','Habite-se (H)']];
-    H += sec('Protocolos aprovados');
-    grupos.forEach(function(g){
-      var l = ps.filter(function(p){ return String(p.t||p.p||'').charAt(0).toUpperCase()===g[0]; });
-      if(!l.length) return;
-      H += '<div style="font-size:12px;font-weight:700;margin:8px 0 2px;color:var(--red2)">'+g[1]+'</div>'+
-        l.map(function(p){ return '<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--border)">'+ocupEsc(p.p||'')+' · '+ocupEsc(p.data||'')+(p.area?' · '+ocupEsc(p.area)+' m²':'')+(p.sit?' · '+ocupEsc(p.sit):'')+'</div>'; }).join('');
+  function garantir(tipo, numero, extra){
+    var m = achar(tipo, numero);
+    if(!m){
+      m = {id:'cart_dos_'+dosNorm(numero).replace(/\//g,'_'), tipo:tipo, numero:numero, motivo:'', prazo:'', criadaEm:d.geradoEm||agora,
+           resolvidaEm:null, cienciaDadaEm:null, avisoEnviadoEm:null, afOrigemId:null, origemDossie:true};
+      e.cartorio.push(m); mudou = true;
+    }
+    vistos[m.id] = true;
+    Object.keys(extra||{}).forEach(function(k){ if(extra[k]!=null && extra[k]!=='' && JSON.stringify(m[k])!==JSON.stringify(extra[k])){ m[k] = extra[k]; mudou = true; } });
+    return m;
+  }
+  (d.afs||[]).forEach(function(a){
+    if(!a.numero) return;
+    garantir('af', a.numero, {prazo:a.prazo, prazoN:a.prazoN, exigencias:a.exigencias, motivo:(a.exigencias||[]).join('\n'), protocoloAF:a.protocolo, statusEsci:a.status});
+  });
+  (d.multas||[]).forEach(function(x){
+    if(!x.numero) return;
+    garantir('multa', x.numero, {prazo:x.cumprimento||x.pagamento, valor:x.valor, motivo:x.infracao, origemAF:x.origem, pagamentoAte:x.pagamento, cumprimentoAte:x.cumprimento, statusEsci:x.status});
+  });
+  (d.cienciasPendentes||[]).forEach(function(c){
+    if(!c.numero) return;
+    var tipo = /^(MUL|MULTA)/i.test(c.numero) || /multa/i.test(c.tipo||'') ? 'multa' : 'af';
+    var m = garantir(tipo, c.numero, {motivo:c.descricao});
+    if(m.origemDossie && !m.cienciaDadaEm) m.aguardaCienciaEsci = true;
+    if(c.cobrar && !m.cobrarCiencia){ m.cobrarCiencia = true; mudou = true; }
+  });
+  if(limpar){
+    e.cartorio.forEach(function(m){
+      if(m.origemDossie && !vistos[m.id] && !m.resolvidaEm && !m.suspensaEm){ m.resolvidaEm = agora; m.baixaPor = 'levantamento e-SCI (não consta mais pendente)'; mudou = true; }
     });
   }
-  H += '<button class="btn stop" style="width:100%;margin-top:16px" onclick="document.getElementById(\'modalEdifDetalhes\').style.display=\'none\'">Fechar</button>';
-  document.getElementById('edifDetalhesConteudo').innerHTML = H;
-  document.getElementById('modalEdifDetalhes').style.display = 'flex';
+  d.espelhado = true;
+  return mudou;
 }
+function dosEspelharTodos(db){
+  var mudou = false;
+  (db.edificacoes||[]).forEach(function(e){ if(e.dossie && !e.dossie.espelhado){ if(dosEspelhar(e, false)) mudou = true; else e.dossie.espelhado = true; } });
+  return mudou;
+}
+// baixa (a mesma nos dois lugares)
+function dosBaixar(edifId, itemId, o){
+  var db = loadDB(), e = (db.edificacoes||[]).find(function(x){return x.id===edifId;}); if(!e) return;
+  var m = (e.cartorio||[]).find(function(x){return x.id===itemId;}); if(!m) return;
+  var rot = m.tipo==='af' ? 'AF' : 'multa';
+  if(o==='cumprida'){
+    if(!confirm('Baixar a '+rot+' nº '+(m.numero||'(sem número)')+' como CUMPRIDA/resolvida? A baixa vale também no Cartório.')) return;
+    m.resolvidaEm = new Date().toISOString(); m.baixaPor = 'dossiê';
+    if(m.itensPendencia) m.itensPendencia.forEach(function(it){ if(typeof it==='object' && !it.resolvidoEm) it.resolvidoEm = m.resolvidaEm; });
+  } else if(o==='ciencia'){
+    m.cienciaDadaEm = new Date().toISOString(); m.aguardaCienciaEsci = false;
+  } else if(o==='reabrir'){
+    if(!confirm('Reabrir a '+rot+' nº '+(m.numero||'(sem número)')+'?')) return;
+    m.resolvidaEm = null; m.baixaPor = ''; m.reabertaEm = new Date().toISOString();
+  }
+  e.atualizadoEm = new Date().toISOString();
+  saveDB(db);
+  dosAposMudar(edifId);
+}
+function dosCobrar(edifId, itemId, on){
+  var db = loadDB(), e = (db.edificacoes||[]).find(function(x){return x.id===edifId;}); if(!e) return;
+  var m = (e.cartorio||[]).find(function(x){return x.id===itemId;}); if(!m) return;
+  m.cobrarCiencia = !!on; e.atualizadoEm = new Date().toISOString(); saveDB(db);
+}
+function dosAposMudar(edifId){
+  try{ if(typeof renderMultas==='function') renderMultas(); }catch(_){}
+  try{ if(typeof qmap!=='undefined' && qmap && typeof renderQMapaConteudo==='function') renderQMapaConteudo(); }catch(_){}
+  try{ if(typeof map!=='undefined' && map && typeof renderMapEdificacoes==='function') renderMapEdificacoes(); }catch(_){}
+  try{ if(document.getElementById('dosLista')) dosRenderLista(); }catch(_){}
+  try{ if(typeof renderEdificacoes==='function' && document.getElementById('v-edif') && document.getElementById('v-edif').classList.contains('on')) renderEdificacoes(); }catch(_){}
+  if(document.getElementById('dosModal') && document.getElementById('dosModal').style.display!=='none') abrirDossie(edifId);
+}
+// protocolos: levantamento do e-SCI + os cadastrados na edificação
+function dosProtocolos(e){
+  var ps = ((e.dossie && e.dossie.protocolos)||[]).map(function(p){ return {p:p.p, t:String(p.t||p.p||'').charAt(0).toUpperCase(), data:p.data||'', area:p.area||'', sit:p.sit||''}; });
+  var tem = {}; ps.forEach(function(p){ tem[dosNorm(p.p)] = true; });
+  var mapa = {projeto:'A', funcionamento:'F', 'habite-se':'H'};
+  (e.projetos||[]).forEach(function(p){
+    if(!p.num || tem[dosNorm(p.num)]) return;
+    ps.push({p:p.num, t:mapa[p.tipo]||'?', data:p.dataEmissao||'', area:p.area||p.metragem||'', sit:'cadastro'});
+  });
+  return ps;
+}
+function dosBotaoTexto(e){
+  var r = dosResumo(e), partes = [];
+  partes.push(r.func.vencido ? 'F vencido' : (r.func.semFunc ? 'sem F' : (r.func.venc ? 'F até '+r.func.venc : 'F: sem dados')));
+  if(r.af) partes.push(r.af+' AF');
+  if(r.multa) partes.push(r.multa+' multa(s)');
+  if(r.ciencia) partes.push(r.ciencia+' sem ciência');
+  if(r.vencidos) partes.push('⚠️ prazo vencido');
+  return '📋 Dossiê · '+partes.join(' · ');
+}
+function dosBotaoHtml(e, extraStyle){
+  var r = dosResumo(e), alerta = r.vencidos || r.func.vencido;
+  return '<button class="btn" style="width:100%;margin-bottom:8px;text-align:left;font-weight:700;'+(alerta?'border:1px solid #ff6b6b;':'border:1px solid #0A84FF;')+(extraStyle||'')+'" onclick="event.stopPropagation();abrirDossie(\''+e.id+'\')">'+dosEsc(dosBotaoTexto(e))+'</button>';
+}
+function dossieBannerHtml(e){ return e ? dosBotaoHtml(e) : ''; }
+
+
+function dosAbrirAba(){
+  var db = loadDB();
+  if(dosEspelharTodos(db)) saveDB(db);
+  dosRenderLista();
+}
+function dosModalEl(){
+  var ov = document.getElementById('dosModal');
+  if(!ov){
+    ov = document.createElement('div'); ov.id = 'dosModal';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.65);display:none;align-items:flex-end;justify-content:center';
+    ov.onclick = function(ev){ if(ev.target===ov) ov.style.display='none'; };
+    ov.innerHTML = '<div id="dosModalConteudo" style="background:var(--card);color:var(--txt);width:100%;max-width:720px;max-height:92vh;overflow-y:auto;border-radius:18px 18px 0 0;padding:16px 16px 28px;box-sizing:border-box"></div>';
+    document.body.appendChild(ov);
+  }
+  return ov;
+}
+function dosItemHtml(e, m){
+  var rot = m.tipo==='af' ? 'AF' : 'Multa';
+  var ex = dosExigencias(m);
+  var h = '<div style="background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:8px'+(m.resolvidaEm?';opacity:.6':'')+'">'+
+    '<div style="font-weight:800;font-size:14px">'+rot+' nº '+dosEsc(m.numero||'(sem número)')+
+      (m.valor?' <span style="font-weight:400;color:var(--sub)">· '+dosEsc(m.valor)+'</span>':'')+
+      (m.protocoloAF?' <span style="font-weight:400;color:var(--sub)">· '+dosEsc(m.protocoloAF)+'</span>':'')+'</div>';
+  if(m.tipo==='af') h += '<div style="font-size:12px;margin:4px 0">Cumprimento até: '+dosPrazoHtml(m.prazo)+(m.prazoN?' ('+dosEsc(m.prazoN)+')':'')+'</div>';
+  else {
+    if(m.motivo) h += '<div style="font-size:12px;line-height:1.5;margin:4px 0">'+dosEsc(m.motivo)+'</div>';
+    if(m.origemAF) h += '<div style="font-size:12px;color:var(--sub)">Origem: '+dosEsc(m.origemAF)+'</div>';
+    if(m.pagamentoAte) h += '<div style="font-size:12px">Pagamento até: '+dosPrazoHtml(m.pagamentoAte)+'</div>';
+    h += '<div style="font-size:12px;margin-bottom:4px">Cumprimento até: '+dosPrazoHtml(m.cumprimentoAte||m.prazo)+'</div>';
+  }
+  if(ex.length) h += '<ul style="margin:4px 0;padding-left:18px;font-size:12px;line-height:1.6">'+ex.map(function(x){ return '<li style="'+(x.ok?'text-decoration:line-through;opacity:.6':'')+'">'+dosEsc(x.texto)+'</li>'; }).join('')+'</ul>';
+  else if(m.tipo==='af' && m.motivo) h += '<div style="font-size:12px;line-height:1.5;margin:4px 0">'+dosEsc(m.motivo)+'</div>';
+  h += '<div style="font-size:12px;margin-top:4px;color:'+(m.cienciaDadaEm?'var(--verde)':'#ffb340')+'">'+(m.cienciaDadaEm ? '✍️ Ciência dada em '+new Date(m.cienciaDadaEm).toLocaleDateString('pt-BR') : '⏳ Aguardando ciência')+'</div>';
+  if(m.resolvidaEm) h += '<div style="font-size:12px;color:var(--verde)">✅ Baixada em '+new Date(m.resolvidaEm).toLocaleDateString('pt-BR')+(m.baixaPor?' ('+dosEsc(m.baixaPor)+')':'')+'</div>'+
+    '<button class="btn" style="width:auto;padding:6px 10px;margin-top:6px" onclick="dosBaixar(\''+e.id+'\',\''+m.id+'\',\'reabrir\')">↩️ Reabrir</button>';
+  else {
+    h += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'+
+      (m.cienciaDadaEm ? '' : '<button class="btn" style="width:auto;padding:7px 10px" onclick="dosBaixar(\''+e.id+'\',\''+m.id+'\',\'ciencia\')">✍️ Ciência dada</button>')+
+      '<button class="btn primary" style="width:auto;padding:7px 10px" onclick="dosBaixar(\''+e.id+'\',\''+m.id+'\',\'cumprida\')">✅ Baixar (cumprida)</button></div>';
+    if(!m.cienciaDadaEm) h += '<label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin-top:8px"><input type="checkbox" style="width:auto;margin-top:2px" '+(m.cobrarCiencia?'checked':'')+' onchange="dosCobrar(\''+e.id+'\',\''+m.id+'\',this.checked)"> <span>Pedir a ciência na mensagem e no relatório da vistoria</span></label>';
+  }
+  return h + '</div>';
+}
+function abrirDossie(id){
+  var db = loadDB(), e = (db.edificacoes||[]).find(function(x){return x.id===id;}); if(!e) return;
+  if(e.dossie && !e.dossie.espelhado){ dosEspelhar(e,false); e.dossie.espelhado = true; saveDB(db); }
+  var d = e.dossie || {}, f = dosFunc(e), p = dosPend(e);
+  var sec = function(t){ return '<div style="font-weight:800;font-size:13px;margin:16px 0 6px;color:var(--red2);text-transform:uppercase;letter-spacing:.03em">'+t+'</div>'; };
+  var lin = function(l, v){ return v ? '<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--sub)">'+l+'</span><span style="text-align:right">'+v+'</span></div>' : ''; };
+  var gerado = d.geradoEm ? new Date(d.geradoEm) : null, idade = gerado ? Math.floor((Date.now()-gerado.getTime())/86400000) : null;
+  var H = '<div style="font-weight:800;font-size:17px">📋 Dossiê · '+dosEsc(e.re||'Sem RE')+'</div>'+
+    '<div style="font-size:13px;color:var(--sub)">'+dosEsc(e.nome||'')+(e.area?' · '+dosEsc(e.area)+' m²':'')+'</div>'+
+    '<div style="font-size:11px;color:var(--sub);margin:4px 0 6px">'+(gerado ? 'Levantamento do e-SCI em '+gerado.toLocaleDateString('pt-BR')+(idade>=14?' · ⚠️ há '+idade+' dias, pode estar desatualizado':'') : 'Ainda sem levantamento do e-SCI: mostra o cadastro e o Cartório.')+(d.rota?' · '+dosEsc(d.rota):'')+'</div>';
+  if(d.resumo) H += '<div style="font-size:13px;background:var(--card2);border-radius:8px;padding:8px 10px;margin-bottom:6px;line-height:1.5">'+dosEsc(d.resumo)+'</div>';
+
+  H += sec('Funcionamento (F)');
+  H += '<div style="border-radius:10px;padding:8px 10px;margin-bottom:6px;font-size:13px;font-weight:700;background:'+(f.vencido?'rgba(255,59,48,.15)':(f.semFunc?'rgba(255,159,10,.15)':'rgba(52,199,89,.12)'))+'">'+
+    (f.vencido ? '⚠️ Vencido em '+dosEsc(f.venc||'—')+(f.dias!=null?' (há '+(-f.dias)+' dia(s))':'') : (f.semFunc ? '❌ Não possui funcionamento' : (f.venc ? '✅ Válido até '+dosEsc(f.venc)+(f.dias!=null?' (em '+f.dias+' dia(s))':'') : '❔ Vigência não informada')))+'</div>';
+  if(f.ultimo && f.ultimo.protocolo) H += lin('Último F', dosEsc(f.ultimo.protocolo+(f.ultimo.data?' · '+f.ultimo.data:'')+(f.ultimo.sit?' · '+f.ultimo.sit:'')));
+  if(f.sitTxt) H += lin('Situação (e-SCI)', dosEsc(f.sitTxt));
+  if(f.vigenciaTxt) H += lin('Vigência (e-SCI)', dosEsc(f.vigenciaTxt));
+  if(f.obs) H += '<div style="font-size:12px;color:var(--sub);margin:4px 0">'+dosEsc(f.obs)+'</div>';
+
+  H += sec('AFs pendentes ('+p.afs.length+')');
+  H += p.afs.length ? p.afs.map(function(m){ return dosItemHtml(e, m); }).join('') : '<div style="font-size:12px;color:var(--sub)">Nenhuma AF pendente.</div>';
+  H += sec('Multas pendentes ('+p.multas.length+')');
+  H += p.multas.length ? p.multas.map(function(m){ return dosItemHtml(e, m); }).join('') : '<div style="font-size:12px;color:var(--sub)">Nenhuma multa pendente.</div>';
+  var baixadas = dosItens(e).filter(function(m){ return m.resolvidaEm; });
+  if(baixadas.length) H += sec('Baixadas ('+baixadas.length+')')+baixadas.map(function(m){ return dosItemHtml(e, m); }).join('');
+
+  var ps = dosProtocolos(e);
+  H += sec('Protocolos aprovados');
+  if(!ps.length) H += '<div style="font-size:12px;color:var(--sub)">Nenhum protocolo cadastrado ou levantado.</div>';
+  [['F','Funcionamento (F)'],['A','Projeto (A)'],['H','Habite-se (H)']].forEach(function(g){
+    var l = ps.filter(function(x){ return x.t===g[0]; });
+    if(!l.length) return;
+    H += '<div style="font-size:12px;font-weight:700;margin:8px 0 2px;color:'+(g[0]==='F'?'var(--red2)':'var(--txt)')+'">'+g[1]+(g[0]==='F'?' · foco da vistoria':'')+'</div>'+
+      l.map(function(x){ return '<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--border)'+(g[0]==='F'?';font-weight:600':'')+'">'+dosEsc(x.p||'')+' · '+dosEsc(x.data||'')+(x.area?' · '+dosEsc(x.area)+' m²':'')+(x.sit&&x.sit!=='deferido'?' · '+dosEsc(x.sit):'')+'</div>'; }).join('');
+  });
+  H += '<div style="font-size:11px;color:var(--sub);margin-top:14px;line-height:1.5">AFs e multas daqui são os mesmos registros do Cartório: baixar em um lugar baixa no outro.</div>';
+  H += '<button class="btn stop" style="width:100%;margin-top:14px" onclick="document.getElementById(\'dosModal\').style.display=\'none\'">Fechar</button>';
+  var ov = dosModalEl();
+  document.getElementById('dosModalConteudo').innerHTML = H;
+  ov.style.display = 'flex';
+}
+// lista de todas as edificações com o resumo do dossiê (aba "Dossiês")
+var dosFiltro = 'pend';
+function dosSetFiltro(v){ dosFiltro = v; dosRenderLista(); }
+function dosRenderLista(){
+  var el = document.getElementById('dosLista'); if(!el) return;
+  var db = loadDB(), busca = ((document.getElementById('dosBusca')||{}).value||'').toLowerCase().trim();
+  var todas = (db.edificacoes||[]).filter(function(e){ return e.competencia!=='fora'; });
+  var linhas = todas.map(function(e){ return {e:e, r:dosResumo(e)}; });
+  var cont = {pend:0, venc:0, func:0, todas:linhas.length};
+  linhas.forEach(function(x){ if(x.r.total) cont.pend++; if(x.r.vencidos) cont.venc++; if(x.r.func.vencido) cont.func++; });
+  var lista = linhas.filter(function(x){
+    if(dosFiltro==='pend' && !x.r.total) return false;
+    if(dosFiltro==='venc' && !x.r.vencidos) return false;
+    if(dosFiltro==='func' && !x.r.func.vencido) return false;
+    if(!busca) return true;
+    var e = x.e; return (e.re||'').toLowerCase().indexOf(busca)>=0 || (e.nome||'').toLowerCase().indexOf(busca)>=0 || (e.bairro||'').toLowerCase().indexOf(busca)>=0 || (e.municipio||'').toLowerCase().indexOf(busca)>=0;
+  }).sort(function(a,b){ return (b.r.vencidos-a.r.vencidos) || (b.r.total-a.r.total) || (a.e.re||'').localeCompare(b.e.re||'', undefined, {numeric:true}); });
+  var chip = function(k, t){ return '<button class="chip'+(dosFiltro===k?' on':'')+'" onclick="dosSetFiltro(\''+k+'\')">'+t+'</button>'; };
+  var topo = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'+chip('pend','Com pendência ('+cont.pend+')')+chip('venc','Prazo vencido ('+cont.venc+')')+chip('func','F vencido ('+cont.func+')')+chip('todas','Todas ('+cont.todas+')')+'</div>';
+  if(!lista.length){ el.innerHTML = topo+'<div class="empty"><div class="ico">📋</div>Nada nesta lista.</div>'; return; }
+  el.innerHTML = topo + lista.slice(0,300).map(function(x){
+    var e = x.e, r = x.r, alerta = r.vencidos || r.func.vencido;
+    return '<div class="item-card" style="cursor:pointer;margin-bottom:8px;'+(alerta?'border-color:#ff6b6b;':'')+'" onclick="abrirDossie(\''+e.id+'\')">'+
+      '<div style="font-weight:700;font-size:14px">'+dosEsc(e.nome||'Sem nome')+'</div>'+
+      '<div style="font-size:12px;color:var(--sub)">'+dosEsc(e.re||'Sem RE')+(e.bairro?' · '+dosEsc(e.bairro):'')+(e.municipio?' · '+dosEsc(e.municipio):'')+'</div>'+
+      '<div style="font-size:12px;margin-top:4px">'+dosEsc(dosBotaoTexto(e).replace('📋 Dossiê · ',''))+'</div></div>';
+  }).join('') + (lista.length>300 ? '<div class="sub" style="text-align:center">Mostrando 300 de '+lista.length+'. Use a busca.</div>' : '');
+}
+// importação do levantamento (.json "dossie-notificacoes")
 function dossieImportar(pacote, input){
-  var db = loadDB(), n = 0, sem = [];
+  var db = loadDB(), n = 0, sem = [], itens = 0;
   (pacote.edificacoes||[]).forEach(function(d){
     var re = String(d.re||'').trim().toUpperCase();
     var e = (db.edificacoes||[]).find(function(x){ return String(x.re||'').trim().toUpperCase()===re; });
     if(!e){ sem.push(d.re); return; }
+    var antes = (e.cartorio||[]).length;
     var novo = Object.assign({}, d, {geradoEm:pacote.geradoEm, rota:pacote.rota||'', fonte:pacote.fonte||'e-SCI'}); delete novo.re;
-    e.dossie = novo; e.atualizadoEm = new Date().toISOString(); n++;
+    // preserva a marcação "pedir ciência" já feita
+    var antigos = {}; ((e.cartorio)||[]).forEach(function(m){ if(m.cobrarCiencia) antigos[m.id] = true; });
+    e.dossie = novo; dosEspelhar(e, true);
+    e.atualizadoEm = new Date().toISOString(); n++; itens += (e.cartorio||[]).length-antes;
   });
   saveDB(db);
-  document.getElementById('importResumoCampo').innerHTML = '<div class="card"><div style="font-weight:700;margin-bottom:8px">Dossiê importado</div><div style="font-size:13px">📋 '+n+' edificação(ões) com dossiê atualizado.'+(sem.length?'<br>⚠️ Sem cadastro aqui: '+sem.map(ocupEsc).join(', '):'')+'</div></div>';
-  if(map){ renderMapEdificacoes(); }
+  var alvo = document.getElementById('importResumoCampo') || document.getElementById('importResumo');
+  if(alvo) alvo.innerHTML = '<div class="card"><div style="font-weight:700;margin-bottom:8px">Dossiê importado</div><div style="font-size:13px">📋 '+n+' edificação(ões) com dossiê atualizado; '+itens+' registro(s) novo(s) no Cartório.'+(sem.length?'<br>⚠️ Sem cadastro aqui: '+sem.map(dosEsc).join(', '):'')+'</div></div>';
+  try{ dosAposMudar(null); }catch(_){}
   input.value = '';
+}
+
+// ── estilo próprio (funciona igual nos dois apps) ──
+(function(){
+  var s = document.createElement('style');
+  s.textContent = '#dosLista .chip,#dosModal .chip{border:1px solid var(--border);background:var(--card2);color:var(--txt);border-radius:16px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer}'+
+    '#dosLista .chip.on{background:var(--red);border-color:var(--red);color:#fff}'+
+    '#dosModal .btn{border:1px solid var(--border);background:var(--card2);color:var(--txt);border-radius:10px;padding:10px 12px;font-size:13px;cursor:pointer}'+
+    '#dosModal .btn.primary{background:var(--red);border-color:var(--red);color:#fff}'+
+    '#dosModal .btn.stop{background:var(--card2)}';
+  document.head.appendChild(s);
+})();
+
+// ── junção do Cartório entre Campo e Quartel (id a id): baixa/ciência feita em qualquer lado vale nos dois ──
+function dosMergeCartorio(a, b){
+  a = a||[]; b = b||[];
+  var porId = {}, out = [];
+  a.forEach(function(m){ porId[m.id] = m; out.push(m); });
+  b.forEach(function(m){
+    var o = porId[m.id];
+    if(!o){ porId[m.id] = m; out.push(m); return; }
+    ['resolvidaEm','cienciaDadaEm','suspensaEm','avisoEnviadoEm'].forEach(function(k){ if(!o[k] && m[k]) o[k] = m[k]; });
+    if(!o.baixaPor && m.baixaPor) o.baixaPor = m.baixaPor;
+    if(m.cobrarCiencia && !o.cobrarCiencia) o.cobrarCiencia = true;
+    if((m.reabertaEm||'') > (o.reabertaEm||'')) o.reabertaEm = m.reabertaEm;
+    if(!o.numero && m.numero) o.numero = m.numero;
+    if(m.itensPendencia && o.itensPendencia){
+      m.itensPendencia.forEach(function(it, i){ if(typeof it==='object' && it.resolvidoEm && typeof o.itensPendencia[i]==='object' && !o.itensPendencia[i].resolvidoEm) o.itensPendencia[i].resolvidoEm = it.resolvidoEm; });
+    }
+  });
+  out.forEach(function(o){ if(o.reabertaEm && o.resolvidaEm && o.reabertaEm > o.resolvidaEm){ o.resolvidaEm = null; } });
+  return out;
 }
 
 function mergeArray(local, importados, contador){
@@ -5702,6 +6057,7 @@ function mergeArray(local, importados, contador){
     var idx = local.findIndex(function(x){return x.id===item.id;});
     if(idx>=0){
       var loc = local[idx];
+      if(loc.cartorio || item.cartorio){ loc.cartorio = dosMergeCartorio(loc.cartorio, item.cartorio); item.cartorio = loc.cartorio; } // baixas do Cartório valem nos dois lados
       if(loc.concluida && !item.concluida){
         // vistoria já concluída aqui no celular nunca volta a "aberta" por causa do arquivo do Quartel
         contador.protegidas = (contador.protegidas||0) + 1;
