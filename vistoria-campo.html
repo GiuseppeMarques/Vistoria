@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v99</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v101</div>
   </header>
 
   <main>
@@ -413,6 +413,7 @@
         <div id="ee-origem"></div>
         <button class="btn primary" style="width:100%;margin-bottom:12px" onclick="capturarGPSEdif()" id="btnCapturarGPS">📍 Usar minha localização atual</button>
         <div id="gpsEdifStatus" class="sub" style="margin:-6px 0 12px"></div>
+        <button class="btn" style="width:100%;margin-bottom:12px" onclick="abrirMesclaCampo()" title="Use quando esta edificação já existia com outro cadastro">🔗 Já existe cadastrada? Mesclar com a antiga</button>
 
         <div class="frow">
           <div class="fcol"><label class="lbl">RE</label><input type="text" id="ee-re"></div>
@@ -5469,19 +5470,19 @@ function renderMapEdificacoes(){
     var cor = {1:'#34C759',2:'#A8D93A',3:'#FF9F0A',4:'#FF5E3A',5:'#C0272D'}[riscoM] || '#8E8E93';
     var num = riscoM || '?';
     var badgeDesocupada = e.desocupada ? '<div style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;background:#6b6b70;border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px">🏚️</div>' : '';
-    var fVenc = dosFunc(e).vencido;
+    var fF = dosFunc(e), fVenc = fF.vencido, fAnd = fF.emAndamento;
     var feita = !!feitasMapa[e.id], ehProxima = !!(alvoMapaId && alvoMapaId===e.id);
     var fundo = feita ? '#1f9d4d' : cor, miolo = feita ? '✓' : num, borda = ehProxima ? '3px solid #0A84FF' : '2px solid #fff';
     var tam = ehProxima ? 30 : 24, brilho = '';
     if(edifIdsDaRota && !foraDaRota && !ehProxima){ tam = 28; if(!feita){ borda = '3px solid #FFD60A'; brilho = '0 0 0 3px rgba(255,214,10,.4),'; } }
     if(foraDaRota) tam = fVenc ? 22 : 18;
-    var seloF = fVenc ? '<div style="position:absolute;top:-7px;left:-7px;min-width:16px;height:16px;padding:0 2px;box-sizing:border-box;border-radius:8px;background:#ff3b30;border:2px solid #fff;color:#fff;font-size:9px;font-weight:900;line-height:12px;text-align:center;opacity:1;z-index:2">F</div>' : '';
+    var seloF = fVenc ? '<div style="position:absolute;top:-7px;left:-7px;min-width:16px;height:16px;padding:0 2px;box-sizing:border-box;border-radius:8px;background:'+(fAnd?'#0A84FF':'#ff3b30')+';border:2px solid #fff;color:#fff;font-size:9px;font-weight:900;line-height:12px;text-align:center;opacity:1;z-index:2">'+(fAnd?'F✓':'F')+'</div>' : '';
     var icon = L.divIcon({
       html:'<div style="position:relative;width:'+tam+'px;height:'+tam+'px;border-radius:50%;background:'+fundo+';border:'+(foraDaRota?'1px solid #fff':borda)+';box-shadow:'+(ehProxima?'0 0 0 4px rgba(10,132,255,.35),':brilho)+'0 1px 3px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:'+(foraDaRota?10:(feita?15:12))+'px;font-weight:800;color:#fff;'+(foraDaRota?(fVenc?'opacity:.8;':'opacity:.5;'):(feita?'opacity:.85;':''))+'">'+miolo+(foraDaRota?'':badgeDesocupada)+seloF+'</div>',
       className:'', iconSize:[tam,tam], iconAnchor:[tam/2,tam/2]
     });
     var mk = L.marker([e.lat, e.lng], {icon:icon, zIndexOffset: ehProxima ? 1000 : (foraDaRota ? -500 : (edifIdsDaRota ? 300 : 0))}).addTo(lyrEdif);
-    if(e.desocupada || foraDaRota || fVenc) mk.bindTooltip((e.re||'Sem RE')+' — '+(e.nome||'')+(e.desocupada?' (desocupada)':'')+(foraDaRota?' (fora da rota)':'')+(fVenc?' · ⚠️ funcionamento vencido':''), {direction:'top'});
+    if(e.desocupada || foraDaRota || fVenc) mk.bindTooltip((e.re||'Sem RE')+' — '+(e.nome||'')+(e.desocupada?' (desocupada)':'')+(foraDaRota?' (fora da rota)':'')+(fVenc?(fAnd?' · 🔵 F vencido, já notificado (nada a fazer)':' · ⚠️ funcionamento vencido'):''), {direction:'top'});
     mk.on('click', function(){ abrirCartaoEdificacao(e); });
     // trajeto salvo (pontos de passagem) das paradas da rota, discreto, para ver o caminho combinado
     if(edifIdsDaRota && !foraDaRota && !feita && e.vias && e.vias.length){
@@ -5555,7 +5556,7 @@ function abrirCartaoEdificacao(e){
     '<div class="hs-banner '+hs.classe+'" style="margin:12px 0">'+hs.icone+' Habite-se: '+hs.texto+(hs.protocolo?' · '+hs.protocolo:'')+'</div>'+
     '<div style="margin:14px 0">'+
       (ocupLista(e).length ? '<div class="ecard-row"><span class="l">Ocupação</span><span style="text-align:right">'+ocupLista(e).map(ocupEsc).join('<br>')+'</span></div>' : '')+
-      '<div class="ecard-row"><span class="l">Funcionamento</span><span>'+venc+(dosFunc(e).vencido?' ⚠️ vencido':'')+'</span></div>'+
+      '<div class="ecard-row"><span class="l">Funcionamento</span><span>'+venc+(dosFunc(e).vencido?(dosFunc(e).emAndamento?' 🔵 vencido, F já protocolado':' ⚠️ vencido'):'')+'</span></div>'+
       (e.ultimaVisitaEm ? '<div class="ecard-row"><span class="l">Última ida (atualização)</span><span>'+new Date(e.ultimaVisitaEm).toLocaleDateString('pt-BR')+'</span></div>' : '')+
       '<div class="ecard-row"><span class="l">Última vistoria</span><span style="text-align:right">'+textoUltimaVistoria(db, e.id, true)+'</span></div>'+
       '<div class="ecard-row" style="border-bottom:none"><span class="l">Endereço</span><span style="text-align:right">'+(e.endereco||'—')+(e.bairro?' — '+e.bairro:'')+'</span></div>'+
@@ -5567,9 +5568,80 @@ function abrirCartaoEdificacao(e){
       '<button class="btn primary" onclick="vistoriarDaRotaCampo(\''+e.id+'\')">Vistoriar</button>'+
     '</div>'+
     '<div class="btnrow" style="margin-top:8px"><button class="btn" onclick="abrirAtualizacaoCampo(\''+e.id+'\')">📷 Só atualizar foto/local</button>'+(vistoriasProgramadasDaEdif(db, e.id).length ? '<button class="btn" onclick="document.getElementById(\'modalEdif\').style.display=\'none\';abrirModalPular(\''+e.id+'\',null)">⏭️ Pular</button>' : '')+'</div>'+
+    '<button class="btn" style="width:100%;margin-top:8px" onclick="editarEdifDoMapa(\''+e.id+'\')">✏️ Editar edificação'+(e.origem==='campo'?' (registrada em campo)':'')+'</button>'+
     '<button class="btn stop" style="width:100%;margin-top:8px" onclick="navegarComVias(\''+e.id+'\')">🧭 Navegar'+(viasDe(e.id).length?' ('+viasDe(e.id).length+' pontos de passagem)':'')+'</button>';
 
   document.getElementById('modalEdif').style.display='flex';
+}
+
+
+// ── tela de mesclagem (Campo) ──
+var mescOrigemId = null, mescDestinoId = null;
+function abrirMesclaCampo(){
+  var id = edifEmEdicaoCampoId; if(!id) return;
+  salvarEdifEditCampo();          // grava o que já foi digitado antes de mesclar
+  mescOrigemId = id; mescDestinoId = null;
+  var ov = document.getElementById('mescModal');
+  if(!ov){
+    ov = document.createElement('div'); ov.id = 'mescModal';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:100002;background:rgba(0,0,0,.65);display:none;align-items:flex-end;justify-content:center';
+    ov.innerHTML = '<div id="mescConteudo" style="background:var(--card);color:var(--txt);width:100%;max-width:560px;max-height:92vh;overflow-y:auto;border-radius:18px 18px 0 0;padding:16px 16px 26px;box-sizing:border-box"></div>';
+    document.body.appendChild(ov);
+  }
+  ov.style.display = 'flex';
+  mescRenderLista();
+}
+function mescFechar(){ var ov = document.getElementById('mescModal'); if(ov) ov.style.display = 'none'; }
+function mescRenderLista(){
+  var db = loadDB(), a = db.edificacoes.find(function(x){return x.id===mescOrigemId;}); if(!a) return mescFechar();
+  var q = ((document.getElementById('mescBusca')||{}).value||'').toLowerCase().trim();
+  var lista = db.edificacoes.filter(function(e){ return e.id!==a.id && e.competencia!=='fora'; }).map(function(e){
+    var dist = (a.lat && a.lng && e.lat && e.lng) ? haversineKm(a.lat, a.lng, e.lat, e.lng)*1000 : null;
+    return {e:e, d:dist};
+  }).filter(function(x){
+    if(!q) return true; var e = x.e;
+    return (e.re||'').toLowerCase().indexOf(q)>=0 || (e.nome||'').toLowerCase().indexOf(q)>=0 || (e.endereco||'').toLowerCase().indexOf(q)>=0 || (e.bairro||'').toLowerCase().indexOf(q)>=0;
+  }).sort(function(x,y){ return (x.d==null?1e12:x.d) - (y.d==null?1e12:y.d); }).slice(0,40);
+  var h = '<div style="font-weight:800;font-size:16px">🔗 Mesclar com a edificação antiga</div>'+
+    '<div style="font-size:12px;color:var(--sub);margin:2px 0 10px">Esta, registrada em campo: <b>'+ocupEsc(a.nome||'Sem nome')+'</b>. Escolha abaixo a que já existia (as mais próximas vêm primeiro). A que você escolher fica; esta some depois de passar os dados.</div>'+
+    '<input id="mescBusca" type="search" placeholder="Buscar por RE, nome, endereço ou bairro" value="'+ocupEsc(q)+'" oninput="mescRenderLista()" style="width:100%;box-sizing:border-box;margin-bottom:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--txt);font-size:14px">'+
+    (lista.length ? lista.map(function(x){ var e = x.e;
+      return '<div class="item-card" style="margin-bottom:8px;cursor:pointer" onclick="mescEscolher(\''+e.id+'\')"><div style="font-weight:700;font-size:14px">'+ocupEsc(e.nome||'Sem nome')+'</div>'+
+        '<div style="font-size:12px;color:var(--sub)">'+ocupEsc(e.re||'Sem RE')+(e.bairro?' · '+ocupEsc(e.bairro):'')+(x.d!=null?' · a '+(x.d<1000?Math.round(x.d)+' m':(x.d/1000).toFixed(1)+' km'):' · sem localização')+'</div>'+
+        (e.endereco?'<div style="font-size:12px">'+ocupEsc(e.endereco)+'</div>':'')+'</div>'; }).join('') : '<div class="sub">Nenhuma edificação encontrada.</div>')+
+    '<button class="btn" style="width:100%;margin-top:8px" onclick="mescFechar()">Cancelar</button>';
+  var c = document.getElementById('mescConteudo'); var bk = document.getElementById('mescBusca'); var foco = bk && document.activeElement===bk;
+  c.innerHTML = h; if(foco){ var n = document.getElementById('mescBusca'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
+}
+function mescEscolher(destId){
+  mescDestinoId = destId;
+  var db = loadDB(), a = db.edificacoes.find(function(x){return x.id===mescOrigemId;}), d = db.edificacoes.find(function(x){return x.id===destId;}); if(!a||!d) return mescFechar();
+  var li = function(id, rot, tem, extra){ return '<label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;padding:6px 0;border-bottom:1px solid var(--border)"><input type="checkbox" id="'+id+'" style="width:auto;margin-top:3px" '+(tem?'checked':'disabled')+'><span>'+rot+(extra?'<br><span style="color:var(--sub);font-size:12px">'+extra+'</span>':'')+(tem?'':'<br><span style="color:var(--sub);font-size:12px">nada preenchido na de campo</span>')+'</span></label>'; };
+  var r = a.responsavel||{};
+  var nv = db.vistorias.filter(function(v){return v.edificacaoId===a.id;}).length;
+  var h = '<div style="font-weight:800;font-size:16px">Confirmar a mesclagem</div>'+
+    '<div style="font-size:13px;margin:6px 0 10px">De: <b>'+ocupEsc(a.nome||'Sem nome')+'</b> (campo)<br>Para: <b>'+ocupEsc(d.nome||'Sem nome')+'</b> · '+ocupEsc(d.re||'Sem RE')+'</div>'+
+    li('mc-nome','Trazer o nome “'+ocupEsc(a.nome||'')+'” (substitui o nome da antiga)', !!a.nome)+
+    li('mc-loc','Trazer a localização do GPS', !!(a.lat&&a.lng), (d.lat&&d.lng)?'substitui a localização antiga':'')+
+    li('mc-foto','Trazer a foto', !!a.foto)+
+    li('mc-resp','Trazer o responsável e o telefone', !!(r.nome||r.tel), (r.nome||'')+(r.tel?' · '+r.tel:''))+
+    li('mc-extras','Completar o que está vazio na antiga (endereço, ocupação, área, protocolos, blocos...)', true, 'só preenche o que a antiga não tem')+
+    '<div style="font-size:12px;color:var(--sub);margin:10px 0">'+(nv?nv+' vistoria(s) da edificação de campo passam para a antiga. ':'')+'A edificação de campo é removida. Não dá para desfazer.</div>'+
+    '<div style="display:flex;gap:8px"><button class="btn" style="flex:1" onclick="mescRenderLista()">← Voltar</button><button class="btn primary" style="flex:1" onclick="mescConfirmar()">Mesclar</button></div>';
+  document.getElementById('mescConteudo').innerHTML = h;
+}
+function mescConfirmar(){
+  var g = function(id){ var el = document.getElementById(id); return !!(el && el.checked && !el.disabled); };
+  var ok = mesclarEdificacoes(mescOrigemId, mescDestinoId, {nome:g('mc-nome'), loc:g('mc-loc'), foto:g('mc-foto'), resp:g('mc-resp'), extras:g('mc-extras')});
+  mescFechar();
+  if(ok){ edifNovaCampoId = null; try{ renderEdifsCampo(); if(map) renderMapEdificacoes(); }catch(_){}
+    avisoMapaCampo('🔗 Mesclada. Os dados passaram para a edificação antiga.'); }
+  else alert('Não consegui mesclar.');
+}
+
+function editarEdifDoMapa(id){
+  ['modalEdif','modalEdifDetalhes'].forEach(function(m){ var el=document.getElementById(m); if(el) el.style.display='none'; });
+  abrirEdifEditCampo(id);
 }
 
 function abrirDetalhesCompletos(id){
@@ -5665,7 +5737,8 @@ function abrirDetalhesCompletos(id){
     });
   }
 
-  html += '<button class="btn stop" style="width:100%;margin-top:16px" onclick="document.getElementById(\'modalEdifDetalhes\').style.display=\'none\'">Fechar</button>';
+  html += '<button class="btn primary" style="width:100%;margin-top:16px" onclick="editarEdifDoMapa(\''+e.id+'\')">✏️ Editar edificação</button>';
+  html += '<button class="btn stop" style="width:100%;margin-top:8px" onclick="document.getElementById(\'modalEdifDetalhes\').style.display=\'none\'">Fechar</button>';
 
   document.getElementById('edifDetalhesConteudo').innerHTML = html;
   document.getElementById('modalEdifDetalhes').style.display='flex';
@@ -5741,7 +5814,11 @@ function dosFunc(e){
   var n = dosDiasAte(venc);
   var vencido = (n!=null && n<0) || v.situacao==='vencido';
   var sem = v.situacao==='nao_possui';
-  return {venc:venc, dias:n, vencido:vencido, semFunc:sem, situacao:v.situacao||'', ultimo:d.ultimo||null, obs:d.obs||'', vigenciaTxt:d.vigencia||'', sitTxt:d.situacao||''};
+  // F já protocolado (pendente/em análise) ou marcado por você: nada a fazer, só aguardar o resultado
+  var pF = ((e && e.dossie && e.dossie.protocolos)||[]).filter(function(p){ return String(p.t||p.p||'').charAt(0).toUpperCase()==='F' && /pendente|an[aá]lise|andamento|aguard/i.test(p.sit||''); });
+  var manual = (e && e.fNotificado) || null;
+  var emAnd = !!(pF.length || manual);
+  return {venc:venc, dias:n, vencido:vencido, emAndamento:emAnd, vencidoSemF:(vencido && !emAnd), protAndamento:(pF[0] ? (pF[0].p||'') : (manual ? (manual.protocolo||'marcado por você') : '')), semFunc:sem, situacao:v.situacao||'', ultimo:d.ultimo||null, obs:d.obs||'', vigenciaTxt:d.vigencia||'', sitTxt:d.situacao||''};
 }
 function dosItens(e){ return ((e && e.cartorio)||[]).filter(function(m){ return (m.tipo==='af'||m.tipo==='multa') && !m.suspensaEm; }); }
 function dosPend(e){
@@ -5845,6 +5922,11 @@ function dosBaixar(edifId, itemId, o){
   saveDB(db);
   dosAposMudar(edifId);
 }
+function dosMarcarF(edifId, on){
+  var db = loadDB(), e = (db.edificacoes||[]).find(function(x){return x.id===edifId;}); if(!e) return;
+  if(on) e.fNotificado = {em:new Date().toISOString(), protocolo:''}; else delete e.fNotificado;
+  e.atualizadoEm = new Date().toISOString(); saveDB(db); dosAposMudar(edifId);
+}
 function dosCobrar(edifId, itemId, on){
   var db = loadDB(), e = (db.edificacoes||[]).find(function(x){return x.id===edifId;}); if(!e) return;
   var m = (e.cartorio||[]).find(function(x){return x.id===itemId;}); if(!m) return;
@@ -5871,7 +5953,7 @@ function dosProtocolos(e){
 }
 function dosBotaoTexto(e){
   var r = dosResumo(e), partes = [];
-  partes.push(r.func.vencido ? 'F vencido' : (r.func.semFunc ? 'sem F' : (r.func.venc ? 'F até '+r.func.venc : 'F: sem dados')));
+  partes.push(r.func.vencido ? (r.func.emAndamento ? 'F vencido, F já protocolado' : 'F vencido') : (r.func.semFunc ? 'sem F' : (r.func.venc ? 'F até '+r.func.venc : 'F: sem dados')));
   if(r.af) partes.push(r.af+' AF');
   if(r.multa) partes.push(r.multa+' multa(s)');
   if(r.ciencia) partes.push(r.ciencia+' sem ciência');
@@ -5879,7 +5961,7 @@ function dosBotaoTexto(e){
   return '📋 Dossiê · '+partes.join(' · ');
 }
 function dosBotaoHtml(e, extraStyle){
-  var r = dosResumo(e), alerta = r.vencidos || r.func.vencido;
+  var r = dosResumo(e), alerta = r.vencidos || r.func.vencidoSemF;
   return '<button class="btn" style="width:100%;margin-bottom:8px;text-align:left;font-weight:700;'+(alerta?'border:1px solid #ff6b6b;':'border:1px solid #0A84FF;')+(extraStyle||'')+'" onclick="event.stopPropagation();abrirDossie(\''+e.id+'\')">'+dosEsc(dosBotaoTexto(e))+'</button>';
 }
 function dossieBannerHtml(e){ return e ? dosBotaoHtml(e) : ''; }
@@ -5941,8 +6023,12 @@ function abrirDossie(id){
   if(d.resumo) H += '<div style="font-size:13px;background:var(--card2);border-radius:8px;padding:8px 10px;margin-bottom:6px;line-height:1.5">'+dosEsc(d.resumo)+'</div>';
 
   H += sec('Funcionamento (F)');
-  H += '<div style="border-radius:10px;padding:8px 10px;margin-bottom:6px;font-size:13px;font-weight:700;background:'+(f.vencido?'rgba(255,59,48,.15)':(f.semFunc?'rgba(255,159,10,.15)':'rgba(52,199,89,.12)'))+'">'+
-    (f.vencido ? '⚠️ Vencido em '+dosEsc(f.venc||'—')+(f.dias!=null?' (há '+(-f.dias)+' dia(s))':'') : (f.semFunc ? '❌ Não possui funcionamento' : (f.venc ? '✅ Válido até '+dosEsc(f.venc)+(f.dias!=null?' (em '+f.dias+' dia(s))':'') : '❔ Vigência não informada')))+'</div>';
+  H += '<div style="border-radius:10px;padding:8px 10px;margin-bottom:6px;font-size:13px;font-weight:700;background:'+(f.vencido?(f.emAndamento?'rgba(10,132,255,.15)':'rgba(255,59,48,.15)'):(f.semFunc?'rgba(255,159,10,.15)':'rgba(52,199,89,.12)'))+'">'+
+    (f.vencido ? (f.emAndamento ? '🔵 Vencido em ' : '⚠️ Vencido em ')+dosEsc(f.venc||'—')+(f.dias!=null?' (há '+(-f.dias)+' dia(s))':'')+(f.emAndamento ? ' · F já protocolado ('+dosEsc(f.protAndamento)+'): nada a fazer, só aguardar' : '') : (f.semFunc ? '❌ Não possui funcionamento' : (f.venc ? '✅ Válido até '+dosEsc(f.venc)+(f.dias!=null?' (em '+f.dias+' dia(s))':'') : '❔ Vigência não informada')))+'</div>';
+  if(f.vencido){
+    var manualF = !!e.fNotificado;
+    H += '<label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin:6px 0"><input type="checkbox" style="width:auto;margin-top:2px" '+(manualF?'checked':'')+' onchange="dosMarcarF(\''+e.id+'\',this.checked)"> <span>Já notificado com F para o funcionamento (nada a fazer, só aguardar)</span></label>';
+  }
   if(f.ultimo && f.ultimo.protocolo) H += lin('Último F', dosEsc(f.ultimo.protocolo+(f.ultimo.data?' · '+f.ultimo.data:'')+(f.ultimo.sit?' · '+f.ultimo.sit:'')));
   if(f.sitTxt) H += lin('Situação (e-SCI)', dosEsc(f.sitTxt));
   if(f.vigenciaTxt) H += lin('Vigência (e-SCI)', dosEsc(f.vigenciaTxt));
@@ -5979,19 +6065,19 @@ function dosRenderLista(){
   var todas = (db.edificacoes||[]).filter(function(e){ return e.competencia!=='fora'; });
   var linhas = todas.map(function(e){ return {e:e, r:dosResumo(e)}; });
   var cont = {pend:0, venc:0, func:0, todas:linhas.length};
-  linhas.forEach(function(x){ if(x.r.total) cont.pend++; if(x.r.vencidos) cont.venc++; if(x.r.func.vencido) cont.func++; });
+  linhas.forEach(function(x){ if(x.r.total) cont.pend++; if(x.r.vencidos) cont.venc++; if(x.r.func.vencidoSemF) cont.func++; });
   var lista = linhas.filter(function(x){
     if(dosFiltro==='pend' && !x.r.total) return false;
     if(dosFiltro==='venc' && !x.r.vencidos) return false;
-    if(dosFiltro==='func' && !x.r.func.vencido) return false;
+    if(dosFiltro==='func' && !x.r.func.vencidoSemF) return false;
     if(!busca) return true;
     var e = x.e; return (e.re||'').toLowerCase().indexOf(busca)>=0 || (e.nome||'').toLowerCase().indexOf(busca)>=0 || (e.bairro||'').toLowerCase().indexOf(busca)>=0 || (e.municipio||'').toLowerCase().indexOf(busca)>=0;
   }).sort(function(a,b){ return (b.r.vencidos-a.r.vencidos) || (b.r.total-a.r.total) || (a.e.re||'').localeCompare(b.e.re||'', undefined, {numeric:true}); });
   var chip = function(k, t){ return '<button class="chip'+(dosFiltro===k?' on':'')+'" onclick="dosSetFiltro(\''+k+'\')">'+t+'</button>'; };
-  var topo = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'+chip('pend','Com pendência ('+cont.pend+')')+chip('venc','Prazo vencido ('+cont.venc+')')+chip('func','F vencido ('+cont.func+')')+chip('todas','Todas ('+cont.todas+')')+'</div>';
+  var topo = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'+chip('pend','Com pendência ('+cont.pend+')')+chip('venc','Prazo vencido ('+cont.venc+')')+chip('func','F vencido sem F ('+cont.func+')')+chip('todas','Todas ('+cont.todas+')')+'</div>';
   if(!lista.length){ el.innerHTML = topo+'<div class="empty"><div class="ico">📋</div>Nada nesta lista.</div>'; return; }
   el.innerHTML = topo + lista.slice(0,300).map(function(x){
-    var e = x.e, r = x.r, alerta = r.vencidos || r.func.vencido;
+    var e = x.e, r = x.r, alerta = r.vencidos || r.func.vencidoSemF;
     return '<div class="item-card" style="cursor:pointer;margin-bottom:8px;'+(alerta?'border-color:#ff6b6b;':'')+'" onclick="abrirDossie(\''+e.id+'\')">'+
       '<div style="font-weight:700;font-size:14px">'+dosEsc(e.nome||'Sem nome')+'</div>'+
       '<div style="font-size:12px;color:var(--sub)">'+dosEsc(e.re||'Sem RE')+(e.bairro?' · '+dosEsc(e.bairro):'')+(e.municipio?' · '+dosEsc(e.municipio):'')+'</div>'+
@@ -6051,12 +6137,65 @@ function dosMergeCartorio(a, b){
   return out;
 }
 
+// ════════════════════════════════════════
+// MESCLAGEM DE EDIFICAÇÕES DUPLICADAS
+// A edificação "de origem" (a que você registrou em campo) é fundida na "de destino" (a que já existia, com RE),
+// e a de origem some. O destino guarda em `mescladas` o id da que sumiu, então o outro aplicativo
+// (Campo <-> Quartel) também faz a fusão ao importar e nenhuma vistoria fica solta.
+// ════════════════════════════════════════
+function aplicarMesclagens(db){
+  var mapa = {}, tem = false;
+  (db.edificacoes||[]).forEach(function(d){ (d.mescladas||[]).forEach(function(m){ if(m && m.id && m.id!==d.id){ mapa[m.id] = d.id; tem = true; } }); });
+  if(!tem) return false;
+  var mudou = false;
+  var porId = {}; (db.edificacoes||[]).forEach(function(e){ porId[e.id] = e; });
+  db.edificacoes = (db.edificacoes||[]).filter(function(e){
+    var dest = mapa[e.id] ? porId[mapa[e.id]] : null;
+    if(!dest) return true;
+    if(e.cartorio && e.cartorio.length) dest.cartorio = dosMergeCartorio(dest.cartorio, e.cartorio);
+    mudou = true; return false;
+  });
+  (db.vistorias||[]).forEach(function(v){ if(mapa[v.edificacaoId]){ v.edificacaoId = mapa[v.edificacaoId]; mudou = true; } });
+  (db.pontos||[]).forEach(function(p){ if(mapa[p.edificacaoGeradaId]){ p.edificacaoGeradaId = mapa[p.edificacaoGeradaId]; mudou = true; } if(mapa[p.edificacaoId]){ p.edificacaoId = mapa[p.edificacaoId]; mudou = true; } });
+  return mudou;
+}
+function mesclarEdificacoes(origemId, destinoId, o){
+  o = o || {};
+  var db = loadDB();
+  var a = db.edificacoes.find(function(x){return x.id===origemId;}), d = db.edificacoes.find(function(x){return x.id===destinoId;});
+  if(!a || !d || a.id===d.id) return false;
+  var agora = new Date().toISOString();
+  var vazio = function(v){ return v==null || v==='' || (Array.isArray(v) && !v.length) || (typeof v==='object' && !Array.isArray(v) && !Object.keys(v).length); };
+  if(o.nome && a.nome) d.nome = a.nome;
+  if(o.loc && a.lat && a.lng){ d.lat = a.lat; d.lng = a.lng; d.locOrigem = a.locOrigem || 'local'; d.locConfirmadaEm = a.locConfirmadaEm || agora; }
+  if(o.foto && a.foto) d.foto = a.foto;
+  if(o.resp && a.responsavel){
+    d.responsavel = Object.assign({}, d.responsavel||{});
+    ['nome','tel','vinculo'].forEach(function(k){ if(a.responsavel[k]) d.responsavel[k] = a.responsavel[k]; });
+  }
+  if(o.extras){
+    ['endereco','bairro','municipio','area','altura','grauRisco','ocupacao','ocupacoes','blocos','projetos','preventivos','inquilinos'].forEach(function(k){
+      if(vazio(d[k]) && !vazio(a[k])) d[k] = a[k];
+    });
+  }
+  if(!d.vias || !d.vias.length) { if(a.vias && a.vias.length) d.vias = a.vias; }
+  d.visitas = (d.visitas||[]).concat(a.visitas||[]);
+  if(a.cartorio && a.cartorio.length) d.cartorio = dosMergeCartorio(d.cartorio, a.cartorio);
+  d.mescladas = (d.mescladas||[]).concat([{id:a.id, nome:a.nome||'', em:agora}]);
+  d.aConferir = {em:agora, motivo:'alterada'};
+  d.atualizadoEm = agora;
+  aplicarMesclagens(db);
+  saveDB(db);
+  return true;
+}
+
 function mergeArray(local, importados, contador){
   local = local||[];
   importados.forEach(function(item){
     var idx = local.findIndex(function(x){return x.id===item.id;});
     if(idx>=0){
       var loc = local[idx];
+      if(loc.mescladas || item.mescladas){ var vis={}; loc.mescladas = (loc.mescladas||[]).concat(item.mescladas||[]).filter(function(m){ return m && !vis[m.id] && (vis[m.id]=1); }); item.mescladas = loc.mescladas; }
       if(loc.cartorio || item.cartorio){ loc.cartorio = dosMergeCartorio(loc.cartorio, item.cartorio); item.cartorio = loc.cartorio; } // baixas do Cartório valem nos dois lados
       if(loc.concluida && !item.concluida){
         // vistoria já concluída aqui no celular nunca volta a "aberta" por causa do arquivo do Quartel
@@ -6105,6 +6244,7 @@ function importarArquivoCampo(input){
       removidas = antes - db.vistorias.length;
     }
     (db.vistorias||[]).forEach(function(v){ if(v.rotaId && rotasEx.indexOf(v.rotaId)>=0) v.rotaId = null; });
+    aplicarMesclagens(db);
     encerrarRotasConcluidasCampo(db);
     if(removidas) resumo.vistorias = Object.assign({novos:0, atualizados:0, conflitos:0}, resumo.vistorias, {removidas:removidas});
     saveDB(db);

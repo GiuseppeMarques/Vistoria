@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v137</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v138</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -8794,12 +8794,65 @@ function exportarPontosReferencia(){
   if(semLocal>0) alert(comLocal.length+' pontos exportados. '+semLocal+' edificação(ões) sem localização não entraram no arquivo.');
 }
 
+// ════════════════════════════════════════
+// MESCLAGEM DE EDIFICAÇÕES DUPLICADAS
+// A edificação "de origem" (a que você registrou em campo) é fundida na "de destino" (a que já existia, com RE),
+// e a de origem some. O destino guarda em `mescladas` o id da que sumiu, então o outro aplicativo
+// (Campo <-> Quartel) também faz a fusão ao importar e nenhuma vistoria fica solta.
+// ════════════════════════════════════════
+function aplicarMesclagens(db){
+  var mapa = {}, tem = false;
+  (db.edificacoes||[]).forEach(function(d){ (d.mescladas||[]).forEach(function(m){ if(m && m.id && m.id!==d.id){ mapa[m.id] = d.id; tem = true; } }); });
+  if(!tem) return false;
+  var mudou = false;
+  var porId = {}; (db.edificacoes||[]).forEach(function(e){ porId[e.id] = e; });
+  db.edificacoes = (db.edificacoes||[]).filter(function(e){
+    var dest = mapa[e.id] ? porId[mapa[e.id]] : null;
+    if(!dest) return true;
+    if(e.cartorio && e.cartorio.length) dest.cartorio = dosMergeCartorio(dest.cartorio, e.cartorio);
+    mudou = true; return false;
+  });
+  (db.vistorias||[]).forEach(function(v){ if(mapa[v.edificacaoId]){ v.edificacaoId = mapa[v.edificacaoId]; mudou = true; } });
+  (db.pontos||[]).forEach(function(p){ if(mapa[p.edificacaoGeradaId]){ p.edificacaoGeradaId = mapa[p.edificacaoGeradaId]; mudou = true; } if(mapa[p.edificacaoId]){ p.edificacaoId = mapa[p.edificacaoId]; mudou = true; } });
+  return mudou;
+}
+function mesclarEdificacoes(origemId, destinoId, o){
+  o = o || {};
+  var db = loadDB();
+  var a = db.edificacoes.find(function(x){return x.id===origemId;}), d = db.edificacoes.find(function(x){return x.id===destinoId;});
+  if(!a || !d || a.id===d.id) return false;
+  var agora = new Date().toISOString();
+  var vazio = function(v){ return v==null || v==='' || (Array.isArray(v) && !v.length) || (typeof v==='object' && !Array.isArray(v) && !Object.keys(v).length); };
+  if(o.nome && a.nome) d.nome = a.nome;
+  if(o.loc && a.lat && a.lng){ d.lat = a.lat; d.lng = a.lng; d.locOrigem = a.locOrigem || 'local'; d.locConfirmadaEm = a.locConfirmadaEm || agora; }
+  if(o.foto && a.foto) d.foto = a.foto;
+  if(o.resp && a.responsavel){
+    d.responsavel = Object.assign({}, d.responsavel||{});
+    ['nome','tel','vinculo'].forEach(function(k){ if(a.responsavel[k]) d.responsavel[k] = a.responsavel[k]; });
+  }
+  if(o.extras){
+    ['endereco','bairro','municipio','area','altura','grauRisco','ocupacao','ocupacoes','blocos','projetos','preventivos','inquilinos'].forEach(function(k){
+      if(vazio(d[k]) && !vazio(a[k])) d[k] = a[k];
+    });
+  }
+  if(!d.vias || !d.vias.length) { if(a.vias && a.vias.length) d.vias = a.vias; }
+  d.visitas = (d.visitas||[]).concat(a.visitas||[]);
+  if(a.cartorio && a.cartorio.length) d.cartorio = dosMergeCartorio(d.cartorio, a.cartorio);
+  d.mescladas = (d.mescladas||[]).concat([{id:a.id, nome:a.nome||'', em:agora}]);
+  d.aConferir = {em:agora, motivo:'alterada'};
+  d.atualizadoEm = agora;
+  aplicarMesclagens(db);
+  saveDB(db);
+  return true;
+}
+
 function mergeArray(local, importados, contador){
   local = local||[];
   importados.forEach(function(item){
     var idx = local.findIndex(function(x){return x.id===item.id;});
     if(idx>=0){
       var loc = local[idx];
+      if(loc.mescladas || item.mescladas){ var vis={}; loc.mescladas = (loc.mescladas||[]).concat(item.mescladas||[]).filter(function(m){ return m && !vis[m.id] && (vis[m.id]=1); }); item.mescladas = loc.mescladas; }
       if(loc.cartorio || item.cartorio){ loc.cartorio = dosMergeCartorio(loc.cartorio, item.cartorio); item.cartorio = loc.cartorio; } // baixas feitas no Campo valem aqui
       // Vistoria concluída no Campo SEMPRE vale sobre a cópia ainda aberta no Quartel, mesmo que o Quartel a tenha
       // mexido depois (distribuir rota, reordenar etc. atualizam a data e faziam o resultado do campo ser descartado).
@@ -8858,7 +8911,11 @@ function dosFunc(e){
   var n = dosDiasAte(venc);
   var vencido = (n!=null && n<0) || v.situacao==='vencido';
   var sem = v.situacao==='nao_possui';
-  return {venc:venc, dias:n, vencido:vencido, semFunc:sem, situacao:v.situacao||'', ultimo:d.ultimo||null, obs:d.obs||'', vigenciaTxt:d.vigencia||'', sitTxt:d.situacao||''};
+  // F já protocolado (pendente/em análise) ou marcado por você: nada a fazer, só aguardar o resultado
+  var pF = ((e && e.dossie && e.dossie.protocolos)||[]).filter(function(p){ return String(p.t||p.p||'').charAt(0).toUpperCase()==='F' && /pendente|an[aá]lise|andamento|aguard/i.test(p.sit||''); });
+  var manual = (e && e.fNotificado) || null;
+  var emAnd = !!(pF.length || manual);
+  return {venc:venc, dias:n, vencido:vencido, emAndamento:emAnd, vencidoSemF:(vencido && !emAnd), protAndamento:(pF[0] ? (pF[0].p||'') : (manual ? (manual.protocolo||'marcado por você') : '')), semFunc:sem, situacao:v.situacao||'', ultimo:d.ultimo||null, obs:d.obs||'', vigenciaTxt:d.vigencia||'', sitTxt:d.situacao||''};
 }
 function dosItens(e){ return ((e && e.cartorio)||[]).filter(function(m){ return (m.tipo==='af'||m.tipo==='multa') && !m.suspensaEm; }); }
 function dosPend(e){
@@ -8962,6 +9019,11 @@ function dosBaixar(edifId, itemId, o){
   saveDB(db);
   dosAposMudar(edifId);
 }
+function dosMarcarF(edifId, on){
+  var db = loadDB(), e = (db.edificacoes||[]).find(function(x){return x.id===edifId;}); if(!e) return;
+  if(on) e.fNotificado = {em:new Date().toISOString(), protocolo:''}; else delete e.fNotificado;
+  e.atualizadoEm = new Date().toISOString(); saveDB(db); dosAposMudar(edifId);
+}
 function dosCobrar(edifId, itemId, on){
   var db = loadDB(), e = (db.edificacoes||[]).find(function(x){return x.id===edifId;}); if(!e) return;
   var m = (e.cartorio||[]).find(function(x){return x.id===itemId;}); if(!m) return;
@@ -8988,7 +9050,7 @@ function dosProtocolos(e){
 }
 function dosBotaoTexto(e){
   var r = dosResumo(e), partes = [];
-  partes.push(r.func.vencido ? 'F vencido' : (r.func.semFunc ? 'sem F' : (r.func.venc ? 'F até '+r.func.venc : 'F: sem dados')));
+  partes.push(r.func.vencido ? (r.func.emAndamento ? 'F vencido, F já protocolado' : 'F vencido') : (r.func.semFunc ? 'sem F' : (r.func.venc ? 'F até '+r.func.venc : 'F: sem dados')));
   if(r.af) partes.push(r.af+' AF');
   if(r.multa) partes.push(r.multa+' multa(s)');
   if(r.ciencia) partes.push(r.ciencia+' sem ciência');
@@ -8996,7 +9058,7 @@ function dosBotaoTexto(e){
   return '📋 Dossiê · '+partes.join(' · ');
 }
 function dosBotaoHtml(e, extraStyle){
-  var r = dosResumo(e), alerta = r.vencidos || r.func.vencido;
+  var r = dosResumo(e), alerta = r.vencidos || r.func.vencidoSemF;
   return '<button class="btn" style="width:100%;margin-bottom:8px;text-align:left;font-weight:700;'+(alerta?'border:1px solid #ff6b6b;':'border:1px solid #0A84FF;')+(extraStyle||'')+'" onclick="event.stopPropagation();abrirDossie(\''+e.id+'\')">'+dosEsc(dosBotaoTexto(e))+'</button>';
 }
 function dossieBannerHtml(e){ return e ? dosBotaoHtml(e) : ''; }
@@ -9058,8 +9120,12 @@ function abrirDossie(id){
   if(d.resumo) H += '<div style="font-size:13px;background:var(--card2);border-radius:8px;padding:8px 10px;margin-bottom:6px;line-height:1.5">'+dosEsc(d.resumo)+'</div>';
 
   H += sec('Funcionamento (F)');
-  H += '<div style="border-radius:10px;padding:8px 10px;margin-bottom:6px;font-size:13px;font-weight:700;background:'+(f.vencido?'rgba(255,59,48,.15)':(f.semFunc?'rgba(255,159,10,.15)':'rgba(52,199,89,.12)'))+'">'+
-    (f.vencido ? '⚠️ Vencido em '+dosEsc(f.venc||'—')+(f.dias!=null?' (há '+(-f.dias)+' dia(s))':'') : (f.semFunc ? '❌ Não possui funcionamento' : (f.venc ? '✅ Válido até '+dosEsc(f.venc)+(f.dias!=null?' (em '+f.dias+' dia(s))':'') : '❔ Vigência não informada')))+'</div>';
+  H += '<div style="border-radius:10px;padding:8px 10px;margin-bottom:6px;font-size:13px;font-weight:700;background:'+(f.vencido?(f.emAndamento?'rgba(10,132,255,.15)':'rgba(255,59,48,.15)'):(f.semFunc?'rgba(255,159,10,.15)':'rgba(52,199,89,.12)'))+'">'+
+    (f.vencido ? (f.emAndamento ? '🔵 Vencido em ' : '⚠️ Vencido em ')+dosEsc(f.venc||'—')+(f.dias!=null?' (há '+(-f.dias)+' dia(s))':'')+(f.emAndamento ? ' · F já protocolado ('+dosEsc(f.protAndamento)+'): nada a fazer, só aguardar' : '') : (f.semFunc ? '❌ Não possui funcionamento' : (f.venc ? '✅ Válido até '+dosEsc(f.venc)+(f.dias!=null?' (em '+f.dias+' dia(s))':'') : '❔ Vigência não informada')))+'</div>';
+  if(f.vencido){
+    var manualF = !!e.fNotificado;
+    H += '<label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin:6px 0"><input type="checkbox" style="width:auto;margin-top:2px" '+(manualF?'checked':'')+' onchange="dosMarcarF(\''+e.id+'\',this.checked)"> <span>Já notificado com F para o funcionamento (nada a fazer, só aguardar)</span></label>';
+  }
   if(f.ultimo && f.ultimo.protocolo) H += lin('Último F', dosEsc(f.ultimo.protocolo+(f.ultimo.data?' · '+f.ultimo.data:'')+(f.ultimo.sit?' · '+f.ultimo.sit:'')));
   if(f.sitTxt) H += lin('Situação (e-SCI)', dosEsc(f.sitTxt));
   if(f.vigenciaTxt) H += lin('Vigência (e-SCI)', dosEsc(f.vigenciaTxt));
@@ -9096,19 +9162,19 @@ function dosRenderLista(){
   var todas = (db.edificacoes||[]).filter(function(e){ return e.competencia!=='fora'; });
   var linhas = todas.map(function(e){ return {e:e, r:dosResumo(e)}; });
   var cont = {pend:0, venc:0, func:0, todas:linhas.length};
-  linhas.forEach(function(x){ if(x.r.total) cont.pend++; if(x.r.vencidos) cont.venc++; if(x.r.func.vencido) cont.func++; });
+  linhas.forEach(function(x){ if(x.r.total) cont.pend++; if(x.r.vencidos) cont.venc++; if(x.r.func.vencidoSemF) cont.func++; });
   var lista = linhas.filter(function(x){
     if(dosFiltro==='pend' && !x.r.total) return false;
     if(dosFiltro==='venc' && !x.r.vencidos) return false;
-    if(dosFiltro==='func' && !x.r.func.vencido) return false;
+    if(dosFiltro==='func' && !x.r.func.vencidoSemF) return false;
     if(!busca) return true;
     var e = x.e; return (e.re||'').toLowerCase().indexOf(busca)>=0 || (e.nome||'').toLowerCase().indexOf(busca)>=0 || (e.bairro||'').toLowerCase().indexOf(busca)>=0 || (e.municipio||'').toLowerCase().indexOf(busca)>=0;
   }).sort(function(a,b){ return (b.r.vencidos-a.r.vencidos) || (b.r.total-a.r.total) || (a.e.re||'').localeCompare(b.e.re||'', undefined, {numeric:true}); });
   var chip = function(k, t){ return '<button class="chip'+(dosFiltro===k?' on':'')+'" onclick="dosSetFiltro(\''+k+'\')">'+t+'</button>'; };
-  var topo = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'+chip('pend','Com pendência ('+cont.pend+')')+chip('venc','Prazo vencido ('+cont.venc+')')+chip('func','F vencido ('+cont.func+')')+chip('todas','Todas ('+cont.todas+')')+'</div>';
+  var topo = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'+chip('pend','Com pendência ('+cont.pend+')')+chip('venc','Prazo vencido ('+cont.venc+')')+chip('func','F vencido sem F ('+cont.func+')')+chip('todas','Todas ('+cont.todas+')')+'</div>';
   if(!lista.length){ el.innerHTML = topo+'<div class="empty"><div class="ico">📋</div>Nada nesta lista.</div>'; return; }
   el.innerHTML = topo + lista.slice(0,300).map(function(x){
-    var e = x.e, r = x.r, alerta = r.vencidos || r.func.vencido;
+    var e = x.e, r = x.r, alerta = r.vencidos || r.func.vencidoSemF;
     return '<div class="item-card" style="cursor:pointer;margin-bottom:8px;'+(alerta?'border-color:#ff6b6b;':'')+'" onclick="abrirDossie(\''+e.id+'\')">'+
       '<div style="font-weight:700;font-size:14px">'+dosEsc(e.nome||'Sem nome')+'</div>'+
       '<div style="font-size:12px;color:var(--sub)">'+dosEsc(e.re||'Sem RE')+(e.bairro?' · '+dosEsc(e.bairro):'')+(e.municipio?' · '+dosEsc(e.municipio):'')+'</div>'+
@@ -9198,6 +9264,7 @@ function importarArquivo(input){
       if(!antes) return;
       ed.cartorio = dosMergeCartorio(antes, ed.cartorio);
     });
+    aplicarMesclagens(db); // edificações que o Campo fundiu com outra já cadastrada
     (db.vistorias||[]).forEach(function(vv){ aplicarCartorioDaVistoria(db, vv); }); // visitas de Cartório feitas no Campo
     gerarPreAFsPendentes(db); // vistorias concluídas no Campo com pendência viram pré-AF
     (db.vistorias||[]).forEach(function(vv){ if(vv.rotaId && tumRota.indexOf(vv.rotaId)>=0) vv.rotaId = null; }); // rota excluída: concluídas ficam como histórico
