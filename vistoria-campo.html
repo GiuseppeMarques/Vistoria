@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v101</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v103</div>
   </header>
 
   <main>
@@ -808,7 +808,7 @@ function rotuloVistoria(v){
   var t = TIPOS_VISTORIA.find(function(x){return x.id===v.tipo;});
   var rot = t ? t.l : 'Habite-se';
   if(v.tipo==='cartorio' && v.cartorioSubtipo){
-    var sub = {multa:'Multa', af:'AF', ciencia:'Ciência'}[v.cartorioSubtipo];
+    var sub = {multa:'Multa', af:'AF', ciencia:'Ciência', notificacao:'Notificação (funcionamento)'}[v.cartorioSubtipo];
     if(v.cartorioSubtipo==='ciencia' && v.cienciaDe) sub += ' de '+(v.cienciaDe==='af'?'AF':'Multa');
     else if(v.cartorioSubtipo==='af' && v.cienciaItemId) sub = 'Conferir AF';
     else if(v.cartorioSubtipo==='multa' && v.cienciaItemId) sub = 'Multa (explicar)';
@@ -1356,6 +1356,32 @@ function confirmarPulo(edifId, vistId){
   else { try{ renderVistoriasCampo(); if(map) renderMapEdificacoes(); }catch(_){} }
   avisoMapaCampo('⏭️ Pulada. Foi para “'+pend.nome+'” ('+(pend.vistorias||[]).length+').');
 }
+// "Ciência / Notificação": abre direto a visita de Cartório já preparada para o que está pendente na edificação
+function abrirCienciaCampo(edifId){
+  var db = loadDB(), e = db.edificacoes.find(function(x){return x.id===edifId;}); if(!e) return;
+  var m = document.getElementById('modalEdif'); if(m) m.style.display='none';
+  var ex = (db.vistorias||[]).filter(function(x){return x.edificacaoId===edifId && !x.concluida && x.tipo==='cartorio';})[0];
+  if(!ex){
+    var jaCiente = {};
+    (db.vistorias||[]).forEach(function(x){ if(x.tipo==='cartorio' && x.cartorioSubtipo==='ciencia' && x.concluida && x.cienciaItemId) jaCiente[x.cienciaItemId] = true; });
+    var pend = dosPend(e).semCiencia.filter(function(i){ return !jaCiente[i.id]; });
+    var f = dosFunc(e);
+    var agora = new Date().toISOString();
+    ex = {id:novoId('vis'), edificacaoId:edifId, tipo:'cartorio', motivo:'', checklist:{}, situacaoHS:'', obs:'', concluida:false, concluidaEm:null, trajetoriaId:null, rotaId:null, criadoEm:agora,
+      cartorioSubtipo:null, cienciaDe:null, cienciaItemId:null, cienciaBaixas:[], afSistemas:[]};
+    if(pend.length){
+      var it = pend.filter(function(i){return i.tipo==='multa';})[0] || pend[0];
+      ex.cartorioSubtipo = 'ciencia'; ex.cienciaDe = it.tipo; ex.cienciaItemId = it.id;
+    } else if(f.estado==='agir' || f.vencido || f.semFunc){
+      ex.cartorioSubtipo = 'notificacao';
+    }
+    var r = e.responsavel || {};
+    if(r.nome) ex.cienciaRecebeuNome = r.nome;
+    if(r.tel) ex.cienciaRecebeuTel = r.tel;
+    db.vistorias.push(ex); saveDB(db);
+  }
+  abrirExecucao(edifId, ex.id);
+}
 function abrirAtualizacaoCampo(edifId){
   var m = document.getElementById('modalEdif'); if(m) m.style.display='none';
   abrirExecucao(edifId, undefined, true);
@@ -1755,14 +1781,14 @@ function htmlConferenciaCartorio(v, m, fnToggle){
 function htmlCartorioCampo(e, v, db){
   var h = '<div class="sec-title" style="margin-top:0">Visita de Cartório</div>';
   if(v.concluida){
-    return h + '<div class="sub">'+rotuloVistoria(v)+' — ✅ concluída. Será lançada no Cartório quando importar no Vistoria Quartel.</div>'+htmlEscopoCartorio(db, v, {set:'vcSetCampo', tipo:'vcTipoCampo', abrir:'vcAbrirCampo'})+(v.cartorioSubtipo==='ciencia' ? htmlRecebedorCiencia(v) : '')+htmlMsgLocal(e, v, db);
+    return h + '<div class="sub">'+rotuloVistoria(v)+' — ✅ concluída. Será lançada no Cartório quando importar no Vistoria Quartel.</div>'+htmlEscopoCartorio(db, v, {set:'vcSetCampo', tipo:'vcTipoCampo', abrir:'vcAbrirCampo'})+((v.cartorioSubtipo==='ciencia' || v.cartorioSubtipo==='notificacao') ? htmlRecebedorCiencia(v, v.cartorioSubtipo==='notificacao') : '')+htmlMsgLocal(e, v, db);
   }
   var sub = v.cartorioSubtipo;
   function btn(campo, valor, rot, ativo){
     return '<button type="button" class="btn" style="width:auto;padding:8px 14px;'+(ativo?'background:var(--red2);color:#fff':'')+'" onclick="setCartorioCampo(\''+campo+'\',\''+valor+'\')">'+rot+'</button>';
   }
   h += '<div class="btnrow" style="gap:6px;margin-bottom:8px;flex-wrap:wrap">'+
-    btn('cartorioSubtipo','multa','💰 Multa',sub==='multa')+btn('cartorioSubtipo','af','📋 AF',sub==='af')+btn('cartorioSubtipo','ciencia','✍️ Ciência',sub==='ciencia')+'</div>';
+    btn('cartorioSubtipo','multa','💰 Multa',sub==='multa')+btn('cartorioSubtipo','af','📋 AF',sub==='af')+btn('cartorioSubtipo','ciencia','✍️ Ciência',sub==='ciencia')+btn('cartorioSubtipo','notificacao','🔔 Notificação',sub==='notificacao')+'</div>';
   if(sub==='ciencia'){
     h += '<div class="sub" style="margin-bottom:4px">Ciência de:</div><div class="btnrow" style="gap:6px;margin-bottom:8px">'+
       btn('cienciaDe','multa','Multa',v.cienciaDe==='multa')+btn('cienciaDe','af','AF',v.cienciaDe==='af')+'</div>';
@@ -1798,6 +1824,11 @@ function htmlCartorioCampo(e, v, db){
     h += campoTxt(sub==='af' ? 'Detalhe da AF (opcional — além dos sistemas)' : 'Motivo da multa', 'cartorioMotivo', 'Ex: extintor sem carga no 2º pavimento');
     h += campoTxt(sub==='af' ? 'Número da AF (opcional)' : 'Número da multa', 'cartorioNumero', 'Ex: 2026/00123');
     h += campoTxt('Prazo (DD/MM/AAAA)', 'cartorioPrazo', 'DD/MM/AAAA', v.cartorioPrazo!=null ? v.cartorioPrazo : (sub==='af' ? prazoPadraoCartorioCampo(v) : ''));
+  } else if(sub==='notificacao'){
+    var fN = dosFunc(e);
+    h += '<div class="sub" style="margin-bottom:8px">Funcionamento: '+(fN.venc ? 'venc. '+escHtmlCart(fN.venc)+(fN.dias!=null ? ' ('+(fN.dias<0 ? 'vencido há '+(-fN.dias)+' d' : 'faltam '+fN.dias+' d')+')' : '') : (fN.semFunc ? 'não possui' : 'sem data'))+'. A notificação é colhida agora; no Quartel você gera a vistoria e a F.</div>';
+    h += campoTxt('O que foi apurado / o que está sendo feito', 'cartorioMotivo', 'Ex: funcionamento vencido desde 03/2026; orientado a requerer');
+    h += campoTxt('Prazo para regularizar (DD/MM/AAAA, opcional)', 'cartorioPrazo', 'DD/MM/AAAA');
   } else if(sub==='ciencia'){
     if(!v.cienciaDe){ h += '<div class="sub">Escolha acima se é ciência de Multa ou de AF.</div>'; }
     else {
@@ -1829,7 +1860,7 @@ function htmlCartorioCampo(e, v, db){
     h += '<div class="sub">Escolha acima o que vai ser feito nesta visita.</div>';
   }
   h += htmlEscopoCartorio(db, v, {set:'vcSetCampo', tipo:'vcTipoCampo', abrir:'vcAbrirCampo'});
-  if(sub==='ciencia') h += htmlRecebedorCiencia(v);
+  if(sub==='ciencia' || sub==='notificacao') h += htmlRecebedorCiencia(v, sub==='notificacao') + htmlResponsavelCiencia(e);
   if(sub) h += htmlSituacaoOcupacao(e);
   if(sub) h += htmlMsgLocal(e, v, db);
   return h;
@@ -1838,14 +1869,40 @@ function maskCpfCampo(t){
   var d = String(t||'').replace(/\D/g,'').slice(0,11);
   return d.replace(/^(\d{3})(\d)/,'$1.$2').replace(/^(\d{3})\.(\d{3})(\d)/,'$1.$2.$3').replace(/\.(\d{3})(\d)/,'.$1-$2');
 }
-function htmlRecebedorCiencia(v){
+function htmlRecebedorCiencia(v, notif){
   function esc(x){ return String(x||'').replace(/"/g,'&quot;'); }
   return '<div style="background:rgba(255,255,255,.06);border-radius:12px;padding:12px;margin:14px 0">'+
-    '<div class="sec-title" style="margin-top:0">✍️ Quem recebeu a notificação</div>'+
+    '<div class="sec-title" style="margin-top:0">✍️ Quem recebeu '+(notif ? 'a notificação' : 'a ciência')+'</div>'+
     '<label class="lbl">Nome completo</label><input type="text" value="'+esc(v.cienciaRecebeuNome)+'" placeholder="Nome de quem assinou a ciência" style="margin-bottom:10px" onchange="setRecebedorCiencia(\'cienciaRecebeuNome\',this.value)">'+
     '<label class="lbl">CPF</label><input type="text" inputmode="numeric" value="'+esc(v.cienciaRecebeuCpf)+'" placeholder="000.000.000-00" style="margin-bottom:10px" oninput="this.value=maskCpfCampo(this.value)" onchange="setRecebedorCiencia(\'cienciaRecebeuCpf\',this.value)">'+
     '<label class="lbl">Telefone (WhatsApp)</label><input type="tel" value="'+esc(v.cienciaRecebeuTel)+'" placeholder="(48) 99999-9999" style="margin-bottom:4px" onchange="setRecebedorCiencia(\'cienciaRecebeuTel\',this.value)">'+
-    '<div class="sub" style="margin-top:6px">Vai na mensagem de ciência e fica registrado na multa ou AF quando você importar no Quartel.</div></div>';
+    '<div class="sub" style="margin-top:6px">Vai na mensagem ao responsável e fica registrado '+(notif ? 'na edificação' : 'na multa ou AF')+' quando você importar no Quartel.</div></div>';
+}
+function htmlResponsavelCiencia(e){
+  function esc(x){ return String(x||'').replace(/"/g,'&quot;'); }
+  var r = e.responsavel || {};
+  return '<div style="background:rgba(255,255,255,.06);border-radius:12px;padding:12px;margin:14px 0">'+
+    '<div class="sec-title" style="margin-top:0">👤 Responsável da edificação</div>'+
+    '<label class="lbl">Nome</label><input type="text" value="'+esc(r.nome)+'" placeholder="Nome do responsável" style="margin-bottom:10px" onchange="setResponsavelCiencia(\'nome\',this.value)">'+
+    '<label class="lbl">Telefone (WhatsApp)</label><input type="tel" value="'+esc(r.tel)+'" placeholder="(48) 99999-9999" style="margin-bottom:8px" onchange="setResponsavelCiencia(\'tel\',this.value)">'+
+    '<button type="button" class="btn" style="width:100%" onclick="copiarRecebedorParaResponsavel()">⬆️ Usar nome e telefone de quem recebeu</button></div>';
+}
+function setResponsavelCiencia(campo, val){
+  var c = encCtx(); if(!c.e) return;
+  c.e.responsavel = c.e.responsavel || {nome:'', tel:''};
+  c.e.responsavel[campo] = String(val||'').trim();
+  c.e.atualizadoEm = new Date().toISOString();
+  saveDB(c.db);
+}
+function copiarRecebedorParaResponsavel(){
+  var c = encCtx(); if(!c.e) return;
+  var v = garantirVistoria();
+  c.e.responsavel = c.e.responsavel || {nome:'', tel:''};
+  if((v.cienciaRecebeuNome||'').trim()) c.e.responsavel.nome = v.cienciaRecebeuNome.trim();
+  if((v.cienciaRecebeuTel||'').trim()) c.e.responsavel.tel = v.cienciaRecebeuTel.trim();
+  c.e.atualizadoEm = new Date().toISOString();
+  saveDB(c.db);
+  renderExecucao();
 }
 function setRecebedorCiencia(campo, val){
   var v = garantirVistoria();
@@ -1911,6 +1968,7 @@ function concluirCartorioCampo(){
   if(sub==='af' && !temRef && !(v.afSistemas||[]).length && !(v.cartorioMotivo||'').trim()){ alert('Marque ao menos um sistema da AF ou escreva o detalhe.'); return; }
   if(sub==='multa' && !temRef && !(v.cartorioNumero||'').trim()){ alert('Informe o número da multa.'); return; }
   if(sub==='ciencia' && (!v.cienciaDe || !v.cienciaItemId)){ alert('Escolha qual '+(v.cienciaDe==='af'?'AF':'multa')+' recebeu a ciência.'); return; }
+  if((sub==='ciencia' || sub==='notificacao') && !(v.cienciaRecebeuNome||'').trim() && !confirm('Você não informou o NOME de quem recebeu. Concluir mesmo assim?')) return;
   var dbC = loadDB();
   var compPend = v.vistoriaCompletaId && dbC.vistorias.find(function(x){return x.id===v.vistoriaCompletaId && !x.concluida;});
   if(compPend && !confirm('A vistoria completa marcada nesta visita ainda NÃO foi concluída. Concluir só o Cartório agora e deixá-la pendente?')) return;
@@ -1920,8 +1978,22 @@ function concluirCartorioCampo(){
   v.concluida = true;
   v.concluidaEm = new Date().toISOString();
   salvarVistoria(v);
+  registrarCartorioLocalCampo(v);
   execConcluiuRotaId = v.rotaId || null;
   renderExecucao();
+}
+// marca já no aparelho (o mapa muda na hora); o Quartel repete o mesmo registro ao importar
+function registrarCartorioLocalCampo(v){
+  var db = loadDB(), e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;}); if(!e) return;
+  var rec = {nome:(v.cienciaRecebeuNome||'').trim(), cpf:(v.cienciaRecebeuCpf||'').trim(), tel:(v.cienciaRecebeuTel||'').trim()};
+  if(v.cartorioSubtipo==='ciencia'){
+    var m = (e.cartorio||[]).find(function(x){return x.id===v.cienciaItemId;});
+    if(m){ m.cienciaDadaEm = v.concluidaEm; m.aguardaCienciaEsci = false; if(rec.nome||rec.cpf||rec.tel) m.cienciaRecebidaPor = rec; }
+  } else if(v.cartorioSubtipo==='notificacao'){
+    e.notificacaoColhida = {em:v.concluidaEm, vistoriaId:v.id, recebidaPor:rec, obs:(v.cartorioMotivo||'').trim()};
+  } else return;
+  e.atualizadoEm = new Date().toISOString();
+  saveDB(db);
 }
 
 
@@ -2894,6 +2966,20 @@ function montarMensagemLocal(e, v, db){
       if(pend.length){ t += '\nAinda pendente:\n'+listaMsgLocal(pend).join('\n'); prazo = ref.prazo||''; }
       else t += '\nTodas as exigências foram cumpridas.';
       blocos.push(t);
+    } else if(sub==='notificacao'){
+      var dtN = new Date(v.concluidaEm||Date.now());
+      var fnN = dosFunc(e);
+      var tN = 'Em '+dtN.toLocaleDateString('pt-BR')+', às '+dtN.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+', o Corpo de Bombeiros notificou a edificação '+nomeRe+(fnN.venc ? ' pelo funcionamento '+(fnN.vencido ? 'vencido em *'+fnN.venc+'*' : 'com vencimento em *'+fnN.venc+'*') : ' pela falta de funcionamento')+'.';
+      if((v.cartorioMotivo||'').trim()) tN += '\nApurado: '+v.cartorioMotivo.trim();
+      var recN = [];
+      if((v.cienciaRecebeuNome||'').trim()) recN.push('Nome: *'+v.cienciaRecebeuNome.trim()+'*');
+      if((v.cienciaRecebeuCpf||'').trim()) recN.push('CPF: '+v.cienciaRecebeuCpf.trim());
+      if((v.cienciaRecebeuTel||'').trim()) recN.push('Telefone: '+v.cienciaRecebeuTel.trim());
+      if(recN.length) tN += '\nRecebida por:\n'+recN.join('\n');
+      blocos.push(tN);
+      blocos.push('Próximo passo: será lavrado o Auto de Infração (AF) com a exigência de regularização do funcionamento, que ficará disponível no sistema e-SCI (esci.cbm.sc.gov.br).');
+      if((v.cartorioPrazo||'').trim()) prazo = v.cartorioPrazo.trim();
+      apenasCiencia = true;
     } else if(sub==='ciencia'){
       // mensagem exclusiva da ciência: só registra que a ciência foi efetuada (sem misturar com a parte técnica)
       var dtC = new Date(v.concluidaEm||Date.now());
@@ -2972,9 +3058,9 @@ function htmlMsgLocal(e, v, db){
   var tel = telWhatsCampo(r.tel);
   return '<div style="background:rgba(255,255,255,.06);border-radius:12px;padding:12px;margin:14px 0">'+
     '<div class="sec-title" style="margin-top:0">📲 Avisar o responsável no local</div>'+
-    '<div class="sub" style="margin-bottom:8px">'+(v.tipo==='cartorio' && v.cartorioSubtipo==='ciencia' ? 'Confirma ao responsável, com data e hora, que a ciência foi efetuada.' : 'Envia o resultado, as pendências e os prazos já calculados, e pede a resposta com "ciente", nome completo, CPF e cargo.')+
+    '<div class="sub" style="margin-bottom:8px">'+(v.tipo==='cartorio' && v.cartorioSubtipo==='ciencia' ? 'Confirma ao responsável, com data e hora, que a ciência foi efetuada.' : (v.tipo==='cartorio' && v.cartorioSubtipo==='notificacao') ? 'Informa ao responsável, com data e hora, que a edificação foi notificada e o que foi apurado.' : 'Envia o resultado, as pendências e os prazos já calculados, e pede a resposta com "ciente", nome completo, CPF e cargo.')+
       (tel ? ' Destino: '+encAttr(r.nome||'responsável')+' ('+encAttr(r.tel)+').' : ' Sem telefone do responsável: o WhatsApp abre pra você escolher o contato.')+'</div>'+
-    (v.tipo==='cartorio' && v.cartorioSubtipo==='ciencia' ? '' : '<label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-bottom:10px"><input type="checkbox" style="width:auto;margin-top:3px" '+(v.msgFuncionamento?'checked':'')+' onchange="setMsgFuncionamento(this.checked)"> <span>Pedir que o responsável solicite o funcionamento (por bloco) no sistema</span></label>')+
+    (v.tipo==='cartorio' && (v.cartorioSubtipo==='ciencia' || v.cartorioSubtipo==='notificacao') ? '' : '<label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-bottom:10px"><input type="checkbox" style="width:auto;margin-top:3px" '+(v.msgFuncionamento?'checked':'')+' onchange="setMsgFuncionamento(this.checked)"> <span>Pedir que o responsável solicite o funcionamento (por bloco) no sistema</span></label>')+
     '<div class="btnrow" style="gap:6px;flex-wrap:wrap">'+
       '<button type="button" class="btn primary" style="flex:1" onclick="enviarMensagemLocal()">📤 Enviar mensagem</button>'+
       '<button type="button" class="btn" style="flex:1" onclick="verMensagemLocal()">👁️ Ver texto</button></div>'+
@@ -2997,7 +3083,7 @@ function verMensagemLocal(){
 function enviarMensagemLocal(){
   var c = ctxMensagemLocal(); if(!c.e) return;
   var texto = montarMensagemLocal(c.e, c.v, c.db);
-  var tel = telWhatsCampo((c.v.tipo==='cartorio' && c.v.cartorioSubtipo==='ciencia' && c.v.cienciaRecebeuTel) ? c.v.cienciaRecebeuTel : (c.e.responsavel||{}).tel);
+  var tel = telWhatsCampo((c.v.tipo==='cartorio' && (c.v.cartorioSubtipo==='ciencia' || c.v.cartorioSubtipo==='notificacao') && c.v.cienciaRecebeuTel) ? c.v.cienciaRecebeuTel : (c.e.responsavel||{}).tel);
   c.v.msgEnviadaEm = new Date().toISOString();
   salvarVistoria(c.v);
   window.open('https://wa.me/'+tel+'?text='+encodeURIComponent(texto), '_blank');
@@ -3453,7 +3539,7 @@ function renderEdifsCampo(){
         '</div>'+
       '</div>'+
       (textoProgramadaCampo(db, e.id) ? '<div style="font-size:12px;color:var(--sub);margin-top:8px">'+textoProgramadaCampo(db, e.id)+'</div>' : '')+
-      '<button class="btn primary" style="width:100%;margin-top:10px" onclick="event.stopPropagation();vistoriarDaRotaCampo(\''+e.id+'\')">✅ Vistoriar</button>'+
+      '<div class="btnrow" style="margin-top:10px"><button class="btn primary" onclick="event.stopPropagation();vistoriarDaRotaCampo(\''+e.id+'\')">✅ Vistoriar</button><button class="btn" onclick="event.stopPropagation();abrirCienciaCampo(\''+e.id+'\')">📜 Ciência / Notificação</button></div>'+
     '</div>';
   }).join('');
 }
@@ -5470,19 +5556,21 @@ function renderMapEdificacoes(){
     var cor = {1:'#34C759',2:'#A8D93A',3:'#FF9F0A',4:'#FF5E3A',5:'#C0272D'}[riscoM] || '#8E8E93';
     var num = riscoM || '?';
     var badgeDesocupada = e.desocupada ? '<div style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;background:#6b6b70;border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px">🏚️</div>' : '';
-    var fF = dosFunc(e), fVenc = fF.vencido, fAnd = fF.emAndamento;
+    var fF = dosFunc(e), fVenc = !!fF.estado, fEst = fF.estado, fAnd = (fEst==='ciencia'||fEst==='ok');
     var feita = !!feitasMapa[e.id], ehProxima = !!(alvoMapaId && alvoMapaId===e.id);
     var fundo = feita ? '#1f9d4d' : cor, miolo = feita ? '✓' : num, borda = ehProxima ? '3px solid #0A84FF' : '2px solid #fff';
     var tam = ehProxima ? 30 : 24, brilho = '';
     if(edifIdsDaRota && !foraDaRota && !ehProxima){ tam = 28; if(!feita){ borda = '3px solid #FFD60A'; brilho = '0 0 0 3px rgba(255,214,10,.4),'; } }
     if(foraDaRota) tam = fVenc ? 22 : 18;
-    var seloF = fVenc ? '<div style="position:absolute;top:-7px;left:-7px;min-width:16px;height:16px;padding:0 2px;box-sizing:border-box;border-radius:8px;background:'+(fAnd?'#0A84FF':'#ff3b30')+';border:2px solid #fff;color:#fff;font-size:9px;font-weight:900;line-height:12px;text-align:center;opacity:1;z-index:2">'+(fAnd?'F✓':'F')+'</div>' : '';
+    var seloF = fVenc ? '<div style="position:absolute;top:-7px;left:-7px;min-width:16px;height:16px;padding:0 2px;box-sizing:border-box;border-radius:8px;background:'+(fEst==='ok'?'#8E8E93':(fEst==='ciencia'?'#FF9F0A':'#ff3b30'))+';border:2px solid #fff;color:#fff;font-size:9px;font-weight:900;line-height:12px;text-align:center;opacity:1;z-index:2">'+(fEst==='ciencia'?'C':'F')+'</div>' : '';
+    var multasAb = (e.cartorio||[]).filter(function(m){ return m.tipo==='multa' && !m.resolvidaEm && !m.suspensaEm; });
+    var seloM = multasAb.length ? '<div style="position:absolute;bottom:-7px;right:-7px;min-width:16px;height:16px;padding:0 2px;box-sizing:border-box;border-radius:8px;background:#B00020;border:2px solid #fff;color:#fff;font-size:9px;font-weight:900;line-height:12px;text-align:center;z-index:2">M</div>' : '';
     var icon = L.divIcon({
-      html:'<div style="position:relative;width:'+tam+'px;height:'+tam+'px;border-radius:50%;background:'+fundo+';border:'+(foraDaRota?'1px solid #fff':borda)+';box-shadow:'+(ehProxima?'0 0 0 4px rgba(10,132,255,.35),':brilho)+'0 1px 3px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:'+(foraDaRota?10:(feita?15:12))+'px;font-weight:800;color:#fff;'+(foraDaRota?(fVenc?'opacity:.8;':'opacity:.5;'):(feita?'opacity:.85;':''))+'">'+miolo+(foraDaRota?'':badgeDesocupada)+seloF+'</div>',
+      html:'<div style="position:relative;width:'+tam+'px;height:'+tam+'px;border-radius:50%;background:'+fundo+';border:'+(foraDaRota?'1px solid #fff':borda)+';box-shadow:'+(ehProxima?'0 0 0 4px rgba(10,132,255,.35),':brilho)+'0 1px 3px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:'+(foraDaRota?10:(feita?15:12))+'px;font-weight:800;color:#fff;'+(foraDaRota?(fVenc?'opacity:.8;':'opacity:.5;'):(feita?'opacity:.85;':''))+'">'+miolo+(foraDaRota?'':badgeDesocupada)+seloF+seloM+'</div>',
       className:'', iconSize:[tam,tam], iconAnchor:[tam/2,tam/2]
     });
     var mk = L.marker([e.lat, e.lng], {icon:icon, zIndexOffset: ehProxima ? 1000 : (foraDaRota ? -500 : (edifIdsDaRota ? 300 : 0))}).addTo(lyrEdif);
-    if(e.desocupada || foraDaRota || fVenc) mk.bindTooltip((e.re||'Sem RE')+' — '+(e.nome||'')+(e.desocupada?' (desocupada)':'')+(foraDaRota?' (fora da rota)':'')+(fVenc?(fAnd?' · 🔵 F vencido, já notificado (nada a fazer)':' · ⚠️ funcionamento vencido'):''), {direction:'top'});
+    if(e.desocupada || foraDaRota || fVenc || multasAb.length) mk.bindTooltip((e.re||'Sem RE')+' — '+(e.nome||'')+(e.desocupada?' (desocupada)':'')+(foraDaRota?' (fora da rota)':'')+(multasAb.length?' · ⚠️ MULTA em aberto nº '+multasAb.map(function(m){return m.numero||'s/n';}).join(', '):'')+(fEst==='ok'?' · ⚪ sem funcionamento em dia, já notificado e com ciência: nada a fazer':(fEst==='ciencia'?' · 🟠 colher ciência (AF/multa)':(fEst==='agir'?' · 🔴 sem funcionamento em dia: notificar (criar AF)':''))), {direction:'top'});
     mk.on('click', function(){ abrirCartaoEdificacao(e); });
     // trajeto salvo (pontos de passagem) das paradas da rota, discreto, para ver o caminho combinado
     if(edifIdsDaRota && !foraDaRota && !feita && e.vias && e.vias.length){
@@ -5556,7 +5644,7 @@ function abrirCartaoEdificacao(e){
     '<div class="hs-banner '+hs.classe+'" style="margin:12px 0">'+hs.icone+' Habite-se: '+hs.texto+(hs.protocolo?' · '+hs.protocolo:'')+'</div>'+
     '<div style="margin:14px 0">'+
       (ocupLista(e).length ? '<div class="ecard-row"><span class="l">Ocupação</span><span style="text-align:right">'+ocupLista(e).map(ocupEsc).join('<br>')+'</span></div>' : '')+
-      '<div class="ecard-row"><span class="l">Funcionamento</span><span>'+venc+(dosFunc(e).vencido?(dosFunc(e).emAndamento?' 🔵 vencido, F já protocolado':' ⚠️ vencido'):'')+'</span></div>'+
+      '<div class="ecard-row"><span class="l">Funcionamento</span><span>'+venc+(dosFunc(e).estado==='ok'?' ⚪ nada a fazer':(dosFunc(e).estado==='ciencia'?' 🟠 colher ciência':(dosFunc(e).estado==='agir'?' 🔴 notificar (criar AF)':'')))+'</span></div>'+
       (e.ultimaVisitaEm ? '<div class="ecard-row"><span class="l">Última ida (atualização)</span><span>'+new Date(e.ultimaVisitaEm).toLocaleDateString('pt-BR')+'</span></div>' : '')+
       '<div class="ecard-row"><span class="l">Última vistoria</span><span style="text-align:right">'+textoUltimaVistoria(db, e.id, true)+'</span></div>'+
       '<div class="ecard-row" style="border-bottom:none"><span class="l">Endereço</span><span style="text-align:right">'+(e.endereco||'—')+(e.bairro?' — '+e.bairro:'')+'</span></div>'+
@@ -5567,6 +5655,8 @@ function abrirCartaoEdificacao(e){
       '<button class="btn" onclick="abrirDetalhesCompletos(\''+e.id+'\')">Detalhes</button>'+
       '<button class="btn primary" onclick="vistoriarDaRotaCampo(\''+e.id+'\')">Vistoriar</button>'+
     '</div>'+
+    '<button class="btn" style="width:100%;margin-top:8px;font-weight:700" onclick="abrirCienciaCampo(\''+e.id+'\')">📜 Ciência / Notificação</button>'+
+    (e.notificacaoColhida ? '<div class="sub" style="margin-top:4px">🔔 Notificação colhida em '+new Date(e.notificacaoColhida.em).toLocaleDateString('pt-BR')+((e.notificacaoColhida.recebidaPor||{}).nome ? ' ('+escHtmlCart(e.notificacaoColhida.recebidaPor.nome)+')' : '')+' — gerar a F no Quartel</div>' : '')+
     '<div class="btnrow" style="margin-top:8px"><button class="btn" onclick="abrirAtualizacaoCampo(\''+e.id+'\')">📷 Só atualizar foto/local</button>'+(vistoriasProgramadasDaEdif(db, e.id).length ? '<button class="btn" onclick="document.getElementById(\'modalEdif\').style.display=\'none\';abrirModalPular(\''+e.id+'\',null)">⏭️ Pular</button>' : '')+'</div>'+
     '<button class="btn" style="width:100%;margin-top:8px" onclick="editarEdifDoMapa(\''+e.id+'\')">✏️ Editar edificação'+(e.origem==='campo'?' (registrada em campo)':'')+'</button>'+
     '<button class="btn stop" style="width:100%;margin-top:8px" onclick="navegarComVias(\''+e.id+'\')">🧭 Navegar'+(viasDe(e.id).length?' ('+viasDe(e.id).length+' pontos de passagem)':'')+'</button>';
@@ -5817,8 +5907,15 @@ function dosFunc(e){
   // F já protocolado (pendente/em análise) ou marcado por você: nada a fazer, só aguardar o resultado
   var pF = ((e && e.dossie && e.dossie.protocolos)||[]).filter(function(p){ return String(p.t||p.p||'').charAt(0).toUpperCase()==='F' && /pendente|an[aá]lise|andamento|aguard/i.test(p.sit||''); });
   var manual = (e && e.fNotificado) || null;
-  var emAnd = !!(pF.length || manual);
-  return {venc:venc, dias:n, vencido:vencido, emAndamento:emAnd, vencidoSemF:(vencido && !emAnd), protAndamento:(pF[0] ? (pF[0].p||'') : (manual ? (manual.protocolo||'marcado por você') : '')), semFunc:sem, situacao:v.situacao||'', ultimo:d.ultimo||null, obs:d.obs||'', vigenciaTxt:d.vigencia||'', sitTxt:d.situacao||''};
+  // notificado = F protocolado, marcado por você, ou AF pendente que cobra o funcionamento
+  var afFunc = dosItens(e).filter(function(m){ return m.tipo==='af' && !m.resolvidaEm && /funcionamento/i.test((m.motivo||'')+' '+dosExigencias(m).map(function(x){return x.texto;}).join(' ')); })[0];
+  var emAnd = !!(pF.length || manual || afFunc);
+  var falta = vencido || sem;
+  var semCiencia = dosPend(e).semCiencia.length;
+  // '' = funcionamento vigente, sem pendência de ciência (sem aviso)
+  // agir = falta funcionamento e ainda não foi notificado (criar AF); ciencia = falta colher ciência de AF/multa; ok = falta funcionamento, mas já notificado e com ciência (só informativo)
+  var estado = falta ? (!emAnd ? 'agir' : (semCiencia ? 'ciencia' : 'ok')) : (semCiencia ? 'ciencia' : '');
+  return {venc:venc, dias:n, vencido:vencido, emAndamento:emAnd, estado:estado, vencidoSemF:(estado==='agir'), protAndamento:(pF[0] ? (pF[0].p||'') : (manual ? (manual.protocolo||'marcado por você') : (afFunc ? 'AF '+(afFunc.numero||'') : ''))), semFunc:sem, situacao:v.situacao||'', ultimo:d.ultimo||null, obs:d.obs||'', vigenciaTxt:d.vigencia||'', sitTxt:d.situacao||''};
 }
 function dosItens(e){ return ((e && e.cartorio)||[]).filter(function(m){ return (m.tipo==='af'||m.tipo==='multa') && !m.suspensaEm; }); }
 function dosPend(e){
@@ -5953,7 +6050,10 @@ function dosProtocolos(e){
 }
 function dosBotaoTexto(e){
   var r = dosResumo(e), partes = [];
-  partes.push(r.func.vencido ? (r.func.emAndamento ? 'F vencido, F já protocolado' : 'F vencido') : (r.func.semFunc ? 'sem F' : (r.func.venc ? 'F até '+r.func.venc : 'F: sem dados')));
+  var est = r.func.estado;
+  if(r.func.vencido || r.func.semFunc){
+    partes.push(est==='ok' ? (r.func.semFunc?'Sem F':'F vencido')+', nada a fazer' : (est==='ciencia' ? (r.func.semFunc?'Sem F':'F vencido')+', colher ciência' : (r.func.semFunc?'Sem F: notificar (criar AF)':'F vencido: notificar (criar AF)')));
+  } else partes.push(r.func.venc ? 'F até '+r.func.venc : 'F: sem dados');
   if(r.af) partes.push(r.af+' AF');
   if(r.multa) partes.push(r.multa+' multa(s)');
   if(r.ciencia) partes.push(r.ciencia+' sem ciência');
@@ -5961,7 +6061,7 @@ function dosBotaoTexto(e){
   return '📋 Dossiê · '+partes.join(' · ');
 }
 function dosBotaoHtml(e, extraStyle){
-  var r = dosResumo(e), alerta = r.vencidos || r.func.vencidoSemF;
+  var r = dosResumo(e), alerta = r.vencidos || r.func.estado==='agir' || r.func.estado==='ciencia';
   return '<button class="btn" style="width:100%;margin-bottom:8px;text-align:left;font-weight:700;'+(alerta?'border:1px solid #ff6b6b;':'border:1px solid #0A84FF;')+(extraStyle||'')+'" onclick="event.stopPropagation();abrirDossie(\''+e.id+'\')">'+dosEsc(dosBotaoTexto(e))+'</button>';
 }
 function dossieBannerHtml(e){ return e ? dosBotaoHtml(e) : ''; }
@@ -6023,7 +6123,7 @@ function abrirDossie(id){
   if(d.resumo) H += '<div style="font-size:13px;background:var(--card2);border-radius:8px;padding:8px 10px;margin-bottom:6px;line-height:1.5">'+dosEsc(d.resumo)+'</div>';
 
   H += sec('Funcionamento (F)');
-  H += '<div style="border-radius:10px;padding:8px 10px;margin-bottom:6px;font-size:13px;font-weight:700;background:'+(f.vencido?(f.emAndamento?'rgba(10,132,255,.15)':'rgba(255,59,48,.15)'):(f.semFunc?'rgba(255,159,10,.15)':'rgba(52,199,89,.12)'))+'">'+
+  H += '<div style="border-radius:10px;padding:8px 10px;margin-bottom:6px;font-size:13px;font-weight:700;background:'+((f.vencido||f.semFunc)?(f.estado==='ok'?'rgba(142,142,147,.2)':(f.estado==='ciencia'?'rgba(255,159,10,.18)':'rgba(255,59,48,.15)')):(f.semFunc?'rgba(255,159,10,.15)':'rgba(52,199,89,.12)'))+'">'+
     (f.vencido ? (f.emAndamento ? '🔵 Vencido em ' : '⚠️ Vencido em ')+dosEsc(f.venc||'—')+(f.dias!=null?' (há '+(-f.dias)+' dia(s))':'')+(f.emAndamento ? ' · F já protocolado ('+dosEsc(f.protAndamento)+'): nada a fazer, só aguardar' : '') : (f.semFunc ? '❌ Não possui funcionamento' : (f.venc ? '✅ Válido até '+dosEsc(f.venc)+(f.dias!=null?' (em '+f.dias+' dia(s))':'') : '❔ Vigência não informada')))+'</div>';
   if(f.vencido){
     var manualF = !!e.fNotificado;
@@ -6064,20 +6164,21 @@ function dosRenderLista(){
   var db = loadDB(), busca = ((document.getElementById('dosBusca')||{}).value||'').toLowerCase().trim();
   var todas = (db.edificacoes||[]).filter(function(e){ return e.competencia!=='fora'; });
   var linhas = todas.map(function(e){ return {e:e, r:dosResumo(e)}; });
-  var cont = {pend:0, venc:0, func:0, todas:linhas.length};
-  linhas.forEach(function(x){ if(x.r.total) cont.pend++; if(x.r.vencidos) cont.venc++; if(x.r.func.vencidoSemF) cont.func++; });
+  var cont = {pend:0, venc:0, func:0, cienc:0, todas:linhas.length};
+  linhas.forEach(function(x){ if(x.r.total) cont.pend++; if(x.r.vencidos) cont.venc++; if(x.r.func.estado==='agir') cont.func++; if(x.r.func.estado==='ciencia') cont.cienc++; });
   var lista = linhas.filter(function(x){
     if(dosFiltro==='pend' && !x.r.total) return false;
     if(dosFiltro==='venc' && !x.r.vencidos) return false;
-    if(dosFiltro==='func' && !x.r.func.vencidoSemF) return false;
+    if(dosFiltro==='func' && x.r.func.estado!=='agir') return false;
+    if(dosFiltro==='cienc' && x.r.func.estado!=='ciencia') return false;
     if(!busca) return true;
     var e = x.e; return (e.re||'').toLowerCase().indexOf(busca)>=0 || (e.nome||'').toLowerCase().indexOf(busca)>=0 || (e.bairro||'').toLowerCase().indexOf(busca)>=0 || (e.municipio||'').toLowerCase().indexOf(busca)>=0;
   }).sort(function(a,b){ return (b.r.vencidos-a.r.vencidos) || (b.r.total-a.r.total) || (a.e.re||'').localeCompare(b.e.re||'', undefined, {numeric:true}); });
   var chip = function(k, t){ return '<button class="chip'+(dosFiltro===k?' on':'')+'" onclick="dosSetFiltro(\''+k+'\')">'+t+'</button>'; };
-  var topo = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'+chip('pend','Com pendência ('+cont.pend+')')+chip('venc','Prazo vencido ('+cont.venc+')')+chip('func','F vencido sem F ('+cont.func+')')+chip('todas','Todas ('+cont.todas+')')+'</div>';
+  var topo = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'+chip('pend','Com pendência ('+cont.pend+')')+chip('venc','Prazo vencido ('+cont.venc+')')+chip('func','Notificar: criar AF ('+cont.func+')')+chip('cienc','Colher ciência ('+cont.cienc+')')+chip('todas','Todas ('+cont.todas+')')+'</div>';
   if(!lista.length){ el.innerHTML = topo+'<div class="empty"><div class="ico">📋</div>Nada nesta lista.</div>'; return; }
   el.innerHTML = topo + lista.slice(0,300).map(function(x){
-    var e = x.e, r = x.r, alerta = r.vencidos || r.func.vencidoSemF;
+    var e = x.e, r = x.r, alerta = r.vencidos || r.func.estado==='agir' || r.func.estado==='ciencia';
     return '<div class="item-card" style="cursor:pointer;margin-bottom:8px;'+(alerta?'border-color:#ff6b6b;':'')+'" onclick="abrirDossie(\''+e.id+'\')">'+
       '<div style="font-weight:700;font-size:14px">'+dosEsc(e.nome||'Sem nome')+'</div>'+
       '<div style="font-size:12px;color:var(--sub)">'+dosEsc(e.re||'Sem RE')+(e.bairro?' · '+dosEsc(e.bairro):'')+(e.municipio?' · '+dosEsc(e.municipio):'')+'</div>'+

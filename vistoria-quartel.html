@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v138</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v141</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -646,6 +646,7 @@
     <div class="view" id="v-esci">
       <h2>Lançar no e-SCI</h2>
       <div class="lead">O que foi feito em campo e ainda precisa ser cadastrado no e-SCI. Depois de lançar lá, dê o OK aqui: o item sai da lista e fica marcado no app (vistoria, Cartório).</div>
+      <div id="esciBarra" class="btnrow" style="gap:8px;margin-bottom:10px;flex-wrap:wrap"></div>
       <div id="esciLista"></div>
       <div class="sec-title" style="margin-top:22px">Lançados recentemente</div>
       <div id="esciFeitos"></div>
@@ -1251,7 +1252,7 @@ function rotuloVistoria(v){
   var t = TIPOS_VISTORIA.find(function(x){return x.id===v.tipo;});
   var rot = t ? t.l : 'Habite-se';
   if(v.tipo==='cartorio' && v.cartorioSubtipo){
-    var sub = {multa:'Multa', af:'AF', ciencia:'Ciência'}[v.cartorioSubtipo];
+    var sub = {multa:'Multa', af:'AF', ciencia:'Ciência', notificacao:'Notificação (funcionamento)'}[v.cartorioSubtipo];
     if(v.cartorioSubtipo==='ciencia' && v.cienciaDe) sub += ' de '+(v.cienciaDe==='af'?'AF':'Multa');
     else if(v.cartorioSubtipo==='af' && v.cienciaItemId) sub = 'Conferir AF';
     else if(v.cartorioSubtipo==='multa' && v.cienciaItemId) sub = 'Multa (explicar)';
@@ -3899,6 +3900,9 @@ function aplicarCartorioDaVistoria(db, v){
         });
       }
     }
+  } else if(sub==='notificacao'){
+    e.notificacaoColhida = {em:agora, vistoriaId:v.id, obs:(v.cartorioMotivo||'').trim(), prazo:(v.cartorioPrazo||'').trim(),
+      recebidaPor:{nome:(v.cienciaRecebeuNome||'').trim(), cpf:(v.cienciaRecebeuCpf||'').trim(), tel:(v.cienciaRecebeuTel||'').trim()}};
   }
   v.cartorioAplicadoEm = new Date().toISOString();
   return true;
@@ -4058,6 +4062,10 @@ function abrirRelatorioCartorio(v, e, vistId){
     var item = e && (e.cartorio||[]).find(function(m){return m.vistoriaOrigemId===v.id;});
     var prazo = (v.cartorioPrazo!=null && v.cartorioPrazo!=='') ? v.cartorioPrazo : (item ? item.prazo : '');
     if(prazo) L.push('Prazo: '+prazo);
+  } else if(v.cartorioSubtipo==='notificacao'){
+    L.push('Notificação por funcionamento vencido/inexistente — a F ainda deve ser gerada.');
+    if((v.cartorioMotivo||'').trim()) L.push('Apurado: '+v.cartorioMotivo.trim());
+    if((v.cartorioPrazo||'').trim()) L.push('Prazo informado: '+v.cartorioPrazo.trim());
   } else if(v.cartorioSubtipo==='ciencia'){
     var it = e && (e.cartorio||[]).find(function(m){return m.id===v.cienciaItemId;});
     L.push('Ciência de '+(v.cienciaDe==='af'?'AF':'multa')+(it ? ' nº '+(it.numero||'(sem número)') : ''));
@@ -4066,6 +4074,9 @@ function abrirRelatorioCartorio(v, e, vistId){
       L.push('Itens baixados nesta visita:');
       v.cienciaBaixas.forEach(function(i){ if(baixados[i]) L.push('- '+baixados[i].texto); });
     }
+  }
+  if((v.cienciaRecebeuNome||v.cienciaRecebeuCpf||v.cienciaRecebeuTel) && (v.cartorioSubtipo==='ciencia' || v.cartorioSubtipo==='notificacao')){
+    L.push('Recebida por: '+[v.cienciaRecebeuNome, v.cienciaRecebeuCpf?'CPF '+v.cienciaRecebeuCpf:'', v.cienciaRecebeuTel?'tel. '+v.cienciaRecebeuTel:''].filter(Boolean).join(' · '));
   }
   var compR = v.vistoriaCompletaId ? (loadDB().vistorias||[]).find(function(x){return x.id===v.vistoriaCompletaId;}) : null;
   L.push('');
@@ -4887,6 +4898,7 @@ function renderExecucaoQuartel(){
   if(v.origemCartorioId) html += '<div style="margin:8px 0"><button class="btn" onclick="quVoltarAoCartorio()">← Voltar à visita de Cartório</button></div>';
   if(v.corrigindoEm) html += '<div style="margin:10px 0;padding:8px 10px;border-radius:8px;background:rgba(255,159,10,.15);border:1px solid var(--amar);font-size:12px">✏️ <b>Modo correção.</b> Altere o que for preciso; ao fechar, a correção fica registrada e o resultado é recalculado. A versão original (de campo) fica guardada.<br><button class="btn primary" style="margin-top:8px;width:100%" onclick="fecharExecucaoQuartel()">💾 Registrar correção e fechar</button></div>';
   html += dosBotaoHtml(e); // dossiê à mão durante a vistoria
+  if(e.notificacaoColhida){ var nc = e.notificacaoColhida, rp = nc.recebidaPor||{}; html += '<div style="background:rgba(255,159,10,.15);border:1px solid rgba(255,159,10,.5);border-radius:10px;padding:8px 10px;margin-bottom:8px;font-size:13px;line-height:1.5">🔔 <b>Notificação colhida em campo</b> em '+new Date(nc.em).toLocaleString('pt-BR')+(rp.nome?' · '+rp.nome:'')+(rp.cpf?' · CPF '+rp.cpf:'')+(rp.tel?' · '+rp.tel:'')+(nc.obs?'<br>Apurado: '+String(nc.obs).replace(/</g,'&lt;'):'')+'<br>Falta gerar a vistoria e a F.</div>'; }
   html += encTopHtml(e, db);
 
   if(v.tipo==='cartorio'){
@@ -6440,7 +6452,7 @@ function normalizarItensPendencia(itens){
 var PREAF_DESDE = '2026-10-27T03:00:00.000Z';
 var ESCI_DESDE = '2026-10-27T03:00:00.000Z';
 var ESCI_TIPOS_VIST = ['funcionamento','habite-se','ex-oficio'];
-var ESCI_ROTULO = {vistoria:'📋 Registrar o resultado da vistoria', af:'📝 Cadastrar a AF (pré-AF)', ciencia:'✍️ Registrar a ciência', conferencia:'🔍 Registrar a conferência da AF', multa:'💰 Cadastrar a multa'};
+var ESCI_ROTULO = {vistoria:'📋 Registrar o resultado da vistoria', af:'📝 Cadastrar a AF (pré-AF)', ciencia:'✍️ Registrar a ciência', conferencia:'🔍 Registrar a conferência da AF', multa:'💰 Cadastrar a multa', notificacao:'🔔 Notificação colhida em campo (vistoria + F)'};
 function gerarPreAFDaVistoria(db, v){
   if(!v || !v.concluida || v.preAFGeradaEm) return false;
   if(['funcionamento','habite-se','ex-oficio'].indexOf(v.tipo)<0) return false;
@@ -8914,8 +8926,15 @@ function dosFunc(e){
   // F já protocolado (pendente/em análise) ou marcado por você: nada a fazer, só aguardar o resultado
   var pF = ((e && e.dossie && e.dossie.protocolos)||[]).filter(function(p){ return String(p.t||p.p||'').charAt(0).toUpperCase()==='F' && /pendente|an[aá]lise|andamento|aguard/i.test(p.sit||''); });
   var manual = (e && e.fNotificado) || null;
-  var emAnd = !!(pF.length || manual);
-  return {venc:venc, dias:n, vencido:vencido, emAndamento:emAnd, vencidoSemF:(vencido && !emAnd), protAndamento:(pF[0] ? (pF[0].p||'') : (manual ? (manual.protocolo||'marcado por você') : '')), semFunc:sem, situacao:v.situacao||'', ultimo:d.ultimo||null, obs:d.obs||'', vigenciaTxt:d.vigencia||'', sitTxt:d.situacao||''};
+  // notificado = F protocolado, marcado por você, ou AF pendente que cobra o funcionamento
+  var afFunc = dosItens(e).filter(function(m){ return m.tipo==='af' && !m.resolvidaEm && /funcionamento/i.test((m.motivo||'')+' '+dosExigencias(m).map(function(x){return x.texto;}).join(' ')); })[0];
+  var emAnd = !!(pF.length || manual || afFunc);
+  var falta = vencido || sem;
+  var semCiencia = dosPend(e).semCiencia.length;
+  // '' = funcionamento vigente, sem pendência de ciência (sem aviso)
+  // agir = falta funcionamento e ainda não foi notificado (criar AF); ciencia = falta colher ciência de AF/multa; ok = falta funcionamento, mas já notificado e com ciência (só informativo)
+  var estado = falta ? (!emAnd ? 'agir' : (semCiencia ? 'ciencia' : 'ok')) : (semCiencia ? 'ciencia' : '');
+  return {venc:venc, dias:n, vencido:vencido, emAndamento:emAnd, estado:estado, vencidoSemF:(estado==='agir'), protAndamento:(pF[0] ? (pF[0].p||'') : (manual ? (manual.protocolo||'marcado por você') : (afFunc ? 'AF '+(afFunc.numero||'') : ''))), semFunc:sem, situacao:v.situacao||'', ultimo:d.ultimo||null, obs:d.obs||'', vigenciaTxt:d.vigencia||'', sitTxt:d.situacao||''};
 }
 function dosItens(e){ return ((e && e.cartorio)||[]).filter(function(m){ return (m.tipo==='af'||m.tipo==='multa') && !m.suspensaEm; }); }
 function dosPend(e){
@@ -9050,7 +9069,10 @@ function dosProtocolos(e){
 }
 function dosBotaoTexto(e){
   var r = dosResumo(e), partes = [];
-  partes.push(r.func.vencido ? (r.func.emAndamento ? 'F vencido, F já protocolado' : 'F vencido') : (r.func.semFunc ? 'sem F' : (r.func.venc ? 'F até '+r.func.venc : 'F: sem dados')));
+  var est = r.func.estado;
+  if(r.func.vencido || r.func.semFunc){
+    partes.push(est==='ok' ? (r.func.semFunc?'Sem F':'F vencido')+', nada a fazer' : (est==='ciencia' ? (r.func.semFunc?'Sem F':'F vencido')+', colher ciência' : (r.func.semFunc?'Sem F: notificar (criar AF)':'F vencido: notificar (criar AF)')));
+  } else partes.push(r.func.venc ? 'F até '+r.func.venc : 'F: sem dados');
   if(r.af) partes.push(r.af+' AF');
   if(r.multa) partes.push(r.multa+' multa(s)');
   if(r.ciencia) partes.push(r.ciencia+' sem ciência');
@@ -9058,7 +9080,7 @@ function dosBotaoTexto(e){
   return '📋 Dossiê · '+partes.join(' · ');
 }
 function dosBotaoHtml(e, extraStyle){
-  var r = dosResumo(e), alerta = r.vencidos || r.func.vencidoSemF;
+  var r = dosResumo(e), alerta = r.vencidos || r.func.estado==='agir' || r.func.estado==='ciencia';
   return '<button class="btn" style="width:100%;margin-bottom:8px;text-align:left;font-weight:700;'+(alerta?'border:1px solid #ff6b6b;':'border:1px solid #0A84FF;')+(extraStyle||'')+'" onclick="event.stopPropagation();abrirDossie(\''+e.id+'\')">'+dosEsc(dosBotaoTexto(e))+'</button>';
 }
 function dossieBannerHtml(e){ return e ? dosBotaoHtml(e) : ''; }
@@ -9120,7 +9142,7 @@ function abrirDossie(id){
   if(d.resumo) H += '<div style="font-size:13px;background:var(--card2);border-radius:8px;padding:8px 10px;margin-bottom:6px;line-height:1.5">'+dosEsc(d.resumo)+'</div>';
 
   H += sec('Funcionamento (F)');
-  H += '<div style="border-radius:10px;padding:8px 10px;margin-bottom:6px;font-size:13px;font-weight:700;background:'+(f.vencido?(f.emAndamento?'rgba(10,132,255,.15)':'rgba(255,59,48,.15)'):(f.semFunc?'rgba(255,159,10,.15)':'rgba(52,199,89,.12)'))+'">'+
+  H += '<div style="border-radius:10px;padding:8px 10px;margin-bottom:6px;font-size:13px;font-weight:700;background:'+((f.vencido||f.semFunc)?(f.estado==='ok'?'rgba(142,142,147,.2)':(f.estado==='ciencia'?'rgba(255,159,10,.18)':'rgba(255,59,48,.15)')):(f.semFunc?'rgba(255,159,10,.15)':'rgba(52,199,89,.12)'))+'">'+
     (f.vencido ? (f.emAndamento ? '🔵 Vencido em ' : '⚠️ Vencido em ')+dosEsc(f.venc||'—')+(f.dias!=null?' (há '+(-f.dias)+' dia(s))':'')+(f.emAndamento ? ' · F já protocolado ('+dosEsc(f.protAndamento)+'): nada a fazer, só aguardar' : '') : (f.semFunc ? '❌ Não possui funcionamento' : (f.venc ? '✅ Válido até '+dosEsc(f.venc)+(f.dias!=null?' (em '+f.dias+' dia(s))':'') : '❔ Vigência não informada')))+'</div>';
   if(f.vencido){
     var manualF = !!e.fNotificado;
@@ -9161,20 +9183,21 @@ function dosRenderLista(){
   var db = loadDB(), busca = ((document.getElementById('dosBusca')||{}).value||'').toLowerCase().trim();
   var todas = (db.edificacoes||[]).filter(function(e){ return e.competencia!=='fora'; });
   var linhas = todas.map(function(e){ return {e:e, r:dosResumo(e)}; });
-  var cont = {pend:0, venc:0, func:0, todas:linhas.length};
-  linhas.forEach(function(x){ if(x.r.total) cont.pend++; if(x.r.vencidos) cont.venc++; if(x.r.func.vencidoSemF) cont.func++; });
+  var cont = {pend:0, venc:0, func:0, cienc:0, todas:linhas.length};
+  linhas.forEach(function(x){ if(x.r.total) cont.pend++; if(x.r.vencidos) cont.venc++; if(x.r.func.estado==='agir') cont.func++; if(x.r.func.estado==='ciencia') cont.cienc++; });
   var lista = linhas.filter(function(x){
     if(dosFiltro==='pend' && !x.r.total) return false;
     if(dosFiltro==='venc' && !x.r.vencidos) return false;
-    if(dosFiltro==='func' && !x.r.func.vencidoSemF) return false;
+    if(dosFiltro==='func' && x.r.func.estado!=='agir') return false;
+    if(dosFiltro==='cienc' && x.r.func.estado!=='ciencia') return false;
     if(!busca) return true;
     var e = x.e; return (e.re||'').toLowerCase().indexOf(busca)>=0 || (e.nome||'').toLowerCase().indexOf(busca)>=0 || (e.bairro||'').toLowerCase().indexOf(busca)>=0 || (e.municipio||'').toLowerCase().indexOf(busca)>=0;
   }).sort(function(a,b){ return (b.r.vencidos-a.r.vencidos) || (b.r.total-a.r.total) || (a.e.re||'').localeCompare(b.e.re||'', undefined, {numeric:true}); });
   var chip = function(k, t){ return '<button class="chip'+(dosFiltro===k?' on':'')+'" onclick="dosSetFiltro(\''+k+'\')">'+t+'</button>'; };
-  var topo = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'+chip('pend','Com pendência ('+cont.pend+')')+chip('venc','Prazo vencido ('+cont.venc+')')+chip('func','F vencido sem F ('+cont.func+')')+chip('todas','Todas ('+cont.todas+')')+'</div>';
+  var topo = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'+chip('pend','Com pendência ('+cont.pend+')')+chip('venc','Prazo vencido ('+cont.venc+')')+chip('func','Notificar: criar AF ('+cont.func+')')+chip('cienc','Colher ciência ('+cont.cienc+')')+chip('todas','Todas ('+cont.todas+')')+'</div>';
   if(!lista.length){ el.innerHTML = topo+'<div class="empty"><div class="ico">📋</div>Nada nesta lista.</div>'; return; }
   el.innerHTML = topo + lista.slice(0,300).map(function(x){
-    var e = x.e, r = x.r, alerta = r.vencidos || r.func.vencidoSemF;
+    var e = x.e, r = x.r, alerta = r.vencidos || r.func.estado==='agir' || r.func.estado==='ciencia';
     return '<div class="item-card" style="cursor:pointer;margin-bottom:8px;'+(alerta?'border-color:#ff6b6b;':'')+'" onclick="abrirDossie(\''+e.id+'\')">'+
       '<div style="font-weight:700;font-size:14px">'+dosEsc(e.nome||'Sem nome')+'</div>'+
       '<div style="font-size:12px;color:var(--sub)">'+dosEsc(e.re||'Sem RE')+(e.bairro?' · '+dosEsc(e.bairro):'')+(e.municipio?' · '+dosEsc(e.municipio):'')+'</div>'+
@@ -9301,9 +9324,26 @@ function importarArquivo(input){
 // ════════════════════════════════════════
 // Uma vistoria técnica concluída entra na lista do e-SCI a menos que você tenha marcado "Não precisa lançar"
 // (esciStatus 'nenhum' escolhido por você); 'lancado' ou esciLancadoEm contam como já lançada.
+// onde ficam guardados os passos e a marca de "pendente do mês" do item
+function esciPortador(p){ return p.v || p.m; }
+function passosESCI(p){
+  if(p.kind==='notificacao') return [{k:'vis',l:'Lançar a vistoria no e-SCI'},{k:'f',l:'Gerar a F (funcionamento)'},{k:'cien',l:'Registrar a ciência colhida (nome, CPF, data e hora)'},{k:'msg',l:'Avisar o responsável (WhatsApp)'}];
+  if(p.kind==='vistoria'){
+    var r = calcularResumoPendenciasVistoria(p.e, p.v), L = [{k:'res',l:'Lançar o resultado da vistoria no e-SCI'}];
+    if(r.indeferido || r.deferidoComAF) L.push({k:'af',l:'Cadastrar a AF dessa vistoria'});
+    return L;
+  }
+  if(p.kind==='ciencia'){
+    var L2 = [{k:'cien',l:'Registrar a ciência no e-SCI'}];
+    if(p.v.cienciaBaixas && p.v.cienciaBaixas.length) L2.push({k:'baixa',l:'Certificar os itens já regularizados'});
+    return L2;
+  }
+  if(p.kind==='conferencia') return [{k:'cert',l:'Registrar a conferência no e-SCI'}];
+  return [];
+}
 function esciVistLancada(v){ return !!v.esciLancadoEm || v.esciStatus==='lancado'; }
 function esciVistPendente(v){ return !esciVistLancada(v) && v.esciStatus!=='nenhum'; }
-function listarPendenciasESCI(db, feitos){
+function listarPendenciasESCI(db, feitos, soPendMes){
   var out = [];
   var edif = {}; (db.edificacoes||[]).forEach(function(e){ edif[e.id] = e; });
   var pega = function(x){ return feitos ? !!x.esciLancadoEm : !x.esciLancadoEm; };
@@ -9314,7 +9354,8 @@ function listarPendenciasESCI(db, feitos){
     if(ESCI_TIPOS_VIST.indexOf(v.tipo)>=0){ out.push({kind:'vistoria', e:e, v:v, quando:v.concluidaEm}); return; }
     if(v.tipo!=='cartorio') return;
     var item = v.cienciaItemId ? (e.cartorio||[]).find(function(m){return m.id===v.cienciaItemId;}) : null;
-    if(v.cartorioSubtipo==='ciencia' && item) out.push({kind:'ciencia', e:e, v:v, m:item, quando:v.concluidaEm});
+    if(v.cartorioSubtipo==='notificacao') out.push({kind:'notificacao', e:e, v:v, quando:v.concluidaEm});
+    else if(v.cartorioSubtipo==='ciencia' && item) out.push({kind:'ciencia', e:e, v:v, m:item, quando:v.concluidaEm});
     else if(v.cartorioSubtipo==='af' && item) out.push({kind:'conferencia', e:e, v:v, m:item, quando:v.concluidaEm});
     else if(v.cartorioSubtipo==='multa' && !v.cienciaItemId){
       var nova = (e.cartorio||[]).find(function(m){return m.vistoriaOrigemId===v.id;});
@@ -9328,6 +9369,7 @@ function listarPendenciasESCI(db, feitos){
       out.push({kind:'af', e:e, m:m, quando:m.criadaEm||''});
     });
   });
+  if(!feitos){ out = out.filter(function(p){ var c = esciPortador(p); return soPendMes ? !!c.esciPendenteMes : !c.esciPendenteMes; }); }
   out.sort(function(a,b){ return feitos ? String(b.v&&b.v.esciLancadoEm||b.m&&b.m.esciLancadoEm).localeCompare(String(a.v&&a.v.esciLancadoEm||a.m&&a.m.esciLancadoEm)) : String(a.quando).localeCompare(String(b.quando)); });
   return out;
 }
@@ -9363,6 +9405,12 @@ function textoPendenciaESCI(p){
     if(pend.length){ L.push('Ainda NÃO cumprido:'); pend.forEach(function(i){ L.push('- '+i.texto); }); }
     else L.push('Todas as exigências cumpridas.');
     if(vis && vis.obs) L.push('Obs.: '+vis.obs);
+  } else if(p.kind==='notificacao'){
+    var rp = p.e.notificacaoColhida && p.e.notificacaoColhida.recebidaPor || {};
+    var fq = dosFunc(p.e);
+    L.push('Funcionamento '+(fq.vencido ? 'vencido em '+fq.venc : (fq.semFunc ? 'inexistente' : 'sem data'))+' — notificado em campo em '+new Date(p.v.concluidaEm).toLocaleString('pt-BR'));
+    if((p.v.cartorioMotivo||'').trim()) L.push('Apurado: '+p.v.cartorioMotivo.trim());
+    L.push('Recebida por: '+[p.v.cienciaRecebeuNome||rp.nome, (p.v.cienciaRecebeuCpf||rp.cpf)?'CPF '+(p.v.cienciaRecebeuCpf||rp.cpf):'', (p.v.cienciaRecebeuTel||rp.tel)?'tel. '+(p.v.cienciaRecebeuTel||rp.tel):''].filter(Boolean).join(' · '));
   } else if(p.kind==='multa'){
     L.push('Cadastrar multa nº '+(p.m.numero||'(sem número)')+(p.m.prazo?' · prazo '+p.m.prazo:''));
     if(p.m.motivo) L.push('Motivo: '+p.m.motivo.replace(/\n/g,'; '));
@@ -9374,26 +9422,41 @@ function renderESCI(){
   var db = loadDB();
   aplicarCartorioPendentes();
   db = loadDB();
-  var lista = listarPendenciasESCI(db);
+  var soPend = !!window._esciVerPend;
+  var nPend = listarPendenciasESCI(db, false, true).length;
+  var barra = document.getElementById('esciBarra');
+  if(barra) barra.innerHTML = '<button class="btn'+(soPend?'':' primary')+'" style="width:auto" onclick="esciAlternarPend(false)">📋 A lançar</button> <button class="btn'+(soPend?' primary':'')+'" style="width:auto" onclick="esciAlternarPend(true)">📌 Pendentes do mês ('+nPend+')</button>';
+  var lista = listarPendenciasESCI(db, false, soPend);
+  if(soPend) lista.sort(function(a,b){ return String(esciPortador(a).esciPendenteMes.em).localeCompare(String(esciPortador(b).esciPendenteMes.em)); });
   window._esciLista = lista;
   var el = document.getElementById('esciLista');
   el.innerHTML = lista.length ? lista.map(function(p, i){
     var txt = textoPendenciaESCI(p);
+    var passos = passosESCI(p), feitosP = esciPortador(p).esciPassos || {};
     var acao = p.kind==='af'
       ? '<input type="text" id="esci-num-'+i+'" placeholder="Nº da AF no e-SCI (ex: AF8013000120A/26)" style="flex:1;min-width:200px">'+
         '<button class="btn primary" style="width:auto" onclick="okESCI('+i+')">✅ Cadastrei</button>'
-      : '<button class="btn primary" style="flex:1" onclick="okESCI('+i+')">✅ Lancei no e-SCI</button>';
+      : (passos.length>1 ? '' : '<button class="btn primary" style="flex:1" onclick="okESCI('+i+')">✅ Lancei no e-SCI</button>');
+    var pendInfo = esciPortador(p).esciPendenteMes;
+    var chk = passos.length>1 ? '<div style="margin:6px 0">'+passos.map(function(ps){
+      var on = !!feitosP[ps.k];
+      return '<label style="display:flex;gap:8px;align-items:flex-start;padding:7px 0;font-size:14px;border-bottom:1px solid var(--border)"><input type="checkbox" style="width:auto;margin-top:3px" '+(on?'checked':'')+' onchange="esciPasso('+i+',\''+ps.k+'\',this.checked)"> <span style="'+(on?'text-decoration:line-through;opacity:.6':'')+'">'+ps.l+'</span></label>';
+    }).join('')+'</div>' : '';
+    var pm = soPend
+      ? '<button class="btn" style="width:auto" onclick="esciPendenteMes('+i+',false)">↩️ Voltar para a lista</button>'
+      : '<button class="btn" style="width:auto" onclick="esciPendenteMes('+i+',true)">📌 Pendente do mês</button>';
     return '<div class="elist-item" style="margin-bottom:10px;border-color:var(--amar)">'+
       '<div class="elist-t">'+ESCI_ROTULO[p.kind]+'</div>'+
       '<pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;margin:6px 0">'+escHtmlCart(txt)+'</pre>'+
-      '<div class="btnrow" style="gap:8px;flex-wrap:wrap">'+acao+
+      (pendInfo ? '<div class="sub" style="color:var(--amar);margin-bottom:4px">📌 Marcado em '+new Date(pendInfo.em).toLocaleDateString('pt-BR')+(pendInfo.motivo ? ' — falta: '+escHtmlCart(pendInfo.motivo) : '')+'</div>' : '')+chk+
+      '<div class="btnrow" style="gap:8px;flex-wrap:wrap">'+acao+pm+
         '<button class="btn" style="width:auto" onclick="copiarESCI('+i+')">📋 Copiar</button>'+
         (telefoneParaWhatsapp(p.e.responsavel && p.e.responsavel.tel)
           ? '<button class="btn" style="width:auto;background:#25D366;color:#fff" title="Abre o WhatsApp com o responsável pela edificação" onclick="'+(p.kind==='vistoria' ? 'enviarResultadoVistoriaWhatsapp(\''+p.v.id+'\')' : 'enviarMensagemGenericaEdificacao(\''+p.e.id+'\')')+'">💬 WhatsApp'+(p.kind==='vistoria' ? ' (resultado)' : '')+'</button>'
           : '<button class="btn" style="width:auto;opacity:.55" title="Sem telefone cadastrado" onclick="alert(\'Esta edificação não tem telefone cadastrado.\')">💬 Sem telefone</button>')+
       '</div>'+
     '</div>';
-  }).join('') : '<div class="empty"><div class="ico">✅</div>Nada pendente para lançar no e-SCI.</div>';
+  }).join('') : '<div class="empty"><div class="ico">'+(soPend?'📌':'✅')+'</div>'+(soPend?'Nenhum item aguardando informação.':'Nada pendente para lançar no e-SCI.')+'</div>';
   var feitos = listarPendenciasESCI(db, true).slice(0, 20);
   window._esciFeitos = feitos;
   document.getElementById('esciFeitos').innerHTML = feitos.length ? feitos.map(function(p, i){
@@ -9415,10 +9478,46 @@ function okESCI(i){
     var m = (e.cartorio||[]).find(function(x){return x.id===p.m.id;}); if(!m) return;
     m.numero = num; m.esciLancadoEm = agora;
   } else {
-    var v = db.vistorias.find(function(x){return x.id===p.v.id;}); if(!v) return;
-    v.esciLancadoEm = agora; v.esciStatus = 'lancado'; v.esciEm = agora; v.atualizadoEm = agora;
-    if(p.m){ var mm = (e.cartorio||[]).find(function(x){return x.id===p.m.id;}); if(mm && p.kind!=='conferencia' && p.kind!=='ciencia') mm.esciLancadoEm = agora; }
+    esciFinalizar(db, p, agora);
   }
+  saveDB(db);
+  renderESCI();
+}
+function esciFinalizar(db, p, agora){
+  var e = db.edificacoes.find(function(x){return x.id===p.e.id;}); if(!e) return;
+  var v = db.vistorias.find(function(x){return x.id===p.v.id;}); if(!v) return;
+  v.esciLancadoEm = agora; v.esciStatus = 'lancado'; v.esciEm = agora; v.atualizadoEm = agora;
+  delete v.esciPendenteMes;
+  if(p.m){ var mm = (e.cartorio||[]).find(function(x){return x.id===p.m.id;}); if(mm && p.kind!=='conferencia' && p.kind!=='ciencia') mm.esciLancadoEm = agora; }
+}
+function esciAlternarPend(on){ window._esciVerPend = !!on; renderESCI(); }
+function esciAcharPortador(db, p){
+  if(p.v) return db.vistorias.find(function(x){return x.id===p.v.id;});
+  var e = db.edificacoes.find(function(x){return x.id===p.e.id;});
+  return e && (e.cartorio||[]).find(function(x){return x.id===p.m.id;});
+}
+// marca/desmarca um passo; quando todos estão marcados, o item sai da lista como lançado
+function esciPasso(i, k, on){
+  var p = (window._esciLista||[])[i]; if(!p) return;
+  var db = loadDB(), c = esciAcharPortador(db, p); if(!c) return;
+  c.esciPassos = c.esciPassos || {};
+  if(on) c.esciPassos[k] = new Date().toISOString(); else delete c.esciPassos[k];
+  c.atualizadoEm = new Date().toISOString();
+  var todos = passosESCI(p).every(function(ps){ return !!c.esciPassos[ps.k]; });
+  if(todos && p.v) esciFinalizar(db, p, new Date().toISOString());
+  saveDB(db);
+  renderESCI();
+}
+// guarda o item numa lista à parte ("pendentes do mês"), com o que está faltando para concluir
+function esciPendenteMes(i, on){
+  var p = (window._esciLista||[])[i]; if(!p) return;
+  var db = loadDB(), c = esciAcharPortador(db, p); if(!c) return;
+  if(on){
+    var motivo = window.prompt('O que falta para concluir? (ex: faltou o CPF, protocolo não localizado, aguardar o responsável)', '');
+    if(motivo===null) return;
+    c.esciPendenteMes = {em:new Date().toISOString(), motivo:String(motivo||'').trim()};
+  } else delete c.esciPendenteMes;
+  c.atualizadoEm = new Date().toISOString();
   saveDB(db);
   renderESCI();
 }
