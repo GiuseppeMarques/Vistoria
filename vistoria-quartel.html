@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v144</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v146</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -2351,8 +2351,36 @@ var NTF_SINONIMOS = {
   tel:['telefone','celular','celular responsavel','contato','telefone responsavel'],
   ocupacao:['ocupacao','ocupacoes','ocupacao uso','tipo de ocupacao','ocupacao principal','descricao da ocupacao','uso','uso ocupacao'],
   ocupDivisao:['ocupacao divisao','divisao','divisao ocupacao','divisao de ocupacao'],
-  ocupGrupo:['ocupacao grupo','grupo ocupacao','grupo de ocupacao','grupo']
+  ocupGrupo:['ocupacao grupo','grupo ocupacao','grupo de ocupacao','grupo'],
+  // funcionamento por bloco (tabela do BI: uma linha por bloco)
+  bloco:['bloco','nome bloco'],
+  funcData:['data validade atestado','validade atestado','vencimento funcionamento'],
+  funcProtocolo:['protocolo funcionamento','protocolo f'],
+  funcStatus:['status geral funcionamento'],
+  funcValidade:['funcionamento validade','status atestado'],
+  funcProcesso:['funcionamento situacao processo'],
+  funcLink:['link atestado']
 };
+// data do BI: "2025-06-05", "05/06/2025", Date (o XLSX lê como meia-noite UTC) ou serial do Excel
+function ntfData(v){
+  if(v==null || v==='') return null;
+  if(v instanceof Date){
+    if(isNaN(v.getTime())) return null;
+    return (v.getUTCHours()===0 && v.getUTCMinutes()===0) ? new Date(v.getUTCFullYear(), v.getUTCMonth(), v.getUTCDate()) : new Date(v.getFullYear(), v.getMonth(), v.getDate());
+  }
+  if(typeof v==='number') return ntfData(new Date(Math.round((v-25569)*86400*1000)));
+  var t = String(v).trim(), m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m) return new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
+  return parseDataBR(t);
+}
+// junta os blocos do BI numa situação da edificação: o vencimento que vale é o do bloco que vence PRIMEIRO
+function ntfFuncResumo(d){
+  var bl = d.funcBlocos || []; if(!bl.length) return null;
+  var comData = bl.filter(function(b){ return b.data; }).sort(function(a,b){ return a.data - b.data; });
+  var st = bl.map(function(b){return b.status;}).filter(Boolean)[0] || '';
+  return {venc: comData.length ? comData[0].data : null, protocolo: comData.length ? comData[0].protocolo : (bl.map(function(b){return b.protocolo;}).filter(Boolean)[0]||''),
+          status: st, semAtestado: bl.filter(function(b){ return !b.data; }).length, blocos: bl};
+}
 function ntfCampo(row, chave){
   var mapa = {}; Object.keys(row).forEach(function(k){ mapa[ntfNorm(k)] = row[k]; });
   var sins = NTF_SINONIMOS[chave];
@@ -2388,7 +2416,13 @@ function ntfExtrair(row){
     area:String(ntfCampo(row,'area')||'').trim(), altura:String(ntfCampo(row,'altura')||'').trim(),
     tel:String(ntfCampo(row,'tel')||'').trim(),
     // BI traz "Ocupação grupo" (ex.: Local de Reunião de Público) e "Ocupação divisão" (ex.: F-8 — Local para refeição). Usa a divisão (tem o código); se não houver, o grupo.
-    ocupacoes: ocupDividir(ntfCampo(row,'ocupacao') || ntfCampo(row,'ocupDivisao') || ntfCampo(row,'ocupGrupo')).filter(function(o){ return !/^sem informa/i.test(o); })
+    ocupacoes: ocupDividir(ntfCampo(row,'ocupacao') || ntfCampo(row,'ocupDivisao') || ntfCampo(row,'ocupGrupo')).filter(function(o){ return !/^sem informa/i.test(o); }),
+    funcBlocos: (function(){
+      var prot = String(ntfCampo(row,'funcProtocolo')||'').trim(), dt = ntfData(ntfCampo(row,'funcData')), st = String(ntfCampo(row,'funcStatus')||'').trim(), va = String(ntfCampo(row,'funcValidade')||'').trim();
+      if(!prot && !dt && !st && !va) return [];
+      return [{bloco:String(ntfCampo(row,'bloco')||'').trim(), protocolo:prot, data:dt, status:st, validade:va,
+               processo:String(ntfCampo(row,'funcProcesso')||'').trim(), link:String(ntfCampo(row,'funcLink')||'').trim()}];
+    })()
   };
 }
 // nPav = total de pavimentos incluindo o térreo (ex: 3 → Térreo, 1º, 2º); se vier mais de um bloco,
@@ -2404,7 +2438,7 @@ function ntfGerarBlocos(nBlocos, nPav, risco){
 }
 function ntfDistM(a,b,c,d){ return haversineKm(a,b,c,d)*1000; }
 function ntfPlanejar(db, linhas){
-  var plano = {criar:[], atualizar:[], semMudanca:0, semId:0};
+  var plano = {criar:[], atualizar:[], semMudanca:0, semId:0, func:[], funcDiv:[], funcIgual:0};
   // O arquivo do BI vem com uma linha por bloco: junta as linhas da mesma edificação (RE) antes de planejar,
   // somando as ocupações de todos os blocos e completando campos vazios com os das outras linhas.
   var mapaD = {}, ordemD = [];
@@ -2414,19 +2448,21 @@ function ntfPlanejar(db, linhas){
     var k = d.re ? d.re.toUpperCase() : 'n|'+ntfNorm(d.nome)+'|'+ntfNorm(d.municipio), m = mapaD[k];
     if(!m){ mapaD[k] = d; ordemD.push(k); return; }
     d.ocupacoes.forEach(function(o){ if(!m.ocupacoes.some(function(x){return x.toLowerCase()===o.toLowerCase();})) m.ocupacoes.push(o); });
-    Object.keys(d).forEach(function(c){ if(c!=='ocupacoes' && (m[c]==null || m[c]==='') && d[c]!=null && d[c]!=='') m[c] = d[c]; });
+    m.funcBlocos = (m.funcBlocos||[]).concat(d.funcBlocos||[]);
+    Object.keys(d).forEach(function(c){ if(c!=='ocupacoes' && c!=='funcBlocos' && (m[c]==null || m[c]==='') && d[c]!=null && d[c]!=='') m[c] = d[c]; });
   });
   ordemD.forEach(function(k){
     var d = mapaD[k];
     var e = d.re ? (db.edificacoes||[]).find(function(x){return x.re && x.re.trim().toUpperCase()===d.re.toUpperCase();}) : null;
     if(!e && !d.re) e = (db.edificacoes||[]).find(function(x){ return ntfNorm(x.nome)===ntfNorm(d.nome) && (!d.municipio || !x.municipio || ntfNorm(x.municipio)===ntfNorm(d.municipio)); });
     if(!e){ plano.criar.push(d); return; }
+    ntfPlanejarFunc(plano, e, d);
     var od = e.origemDados || {}, preencher = [], divergencias = [];
     ['nome','endereco','bairro','municipio','grauRisco','area','altura'].forEach(function(c){
       var imp = d[c]; if(imp==null || imp==='') return;
       var atual = e[c];
       if(atual==null || atual==='') preencher.push(c);
-      else if(String(atual).trim()!==String(imp).trim()){
+      else if(ntfNorm(atual)!==ntfNorm(imp)){ // maiúscula/acento não conta como divergência
         if(od[c]==='importado') preencher.push(c); else divergencias.push({campo:ROTULOS_CAMPOS[c], atual:atual, importado:imp});
       }
     });
@@ -2455,6 +2491,36 @@ function ntfPlanejar(db, linhas){
   });
   return plano;
 }
+// Funcionamento vindo do BI (dado oficial do e-SCI): atualiza o vencimento quando o BI traz data MAIS NOVA
+// (renovou) ou o app está sem data. Se o app tem data mais nova que a do BI, mantém a do app e mostra na prévia.
+function ntfPlanejarFunc(plano, e, d){
+  var r = ntfFuncResumo(d); if(!r) return;
+  var vf = e.vigenciaFuncionamento || {}, atual = parseDataBR(vf.vencimento);
+  if(r.venc){
+    if(!atual || r.venc.getTime() > atual.getTime()) plano.func.push({e:e, r:r, de:vf.vencimento||'', para:esciFormatarData(r.venc)});
+    else if(r.venc.getTime() < atual.getTime()) plano.funcDiv.push({e:e, r:r, atual:vf.vencimento, bi:esciFormatarData(r.venc)});
+    else if(r.protocolo && !vf.protocolo) plano.func.push({e:e, r:r, de:vf.vencimento, para:vf.vencimento, soProtocolo:true});
+    else plano.funcIgual++;
+  } else if(atual){
+    plano.funcDiv.push({e:e, r:r, atual:vf.vencimento, bi:'sem atestado'});
+  } else plano.funcIgual++;
+}
+function ntfGravarFunc(e, r, agora){
+  e.funcBI = {em:agora, status:r.status, blocos:r.blocos.map(function(b){ return {bloco:b.bloco, protocolo:b.protocolo, validade:b.data?esciFormatarData(b.data):'', situacao:b.validade, processo:b.processo, link:b.link}; })};
+  if(!r.venc) return false;
+  var venc = esciFormatarData(r.venc), vf = e.vigenciaFuncionamento = e.vigenciaFuncionamento || {};
+  e.projetos = e.projetos || [];
+  var linhas = e.projetos.filter(function(p){ return p.tipo==='funcionamento'; }), ult = linhas[linhas.length-1];
+  if(ult && (!ult.num || !r.protocolo || ult.num.trim().toUpperCase()===r.protocolo.toUpperCase())){
+    ult.vencimento = venc; if(r.protocolo && !ult.num) ult.num = r.protocolo; ult.origemBI = agora;
+  } else {
+    e.projetos.push({id:'proj_'+Math.random().toString(36).slice(2,8), tipo:'funcionamento', num:r.protocolo||'', dataEmissao:'', vencimento:venc, origemBI:agora});
+  }
+  var mudou = vf.vencimento !== venc;
+  vf.situacao = 'possui'; if(r.protocolo) vf.protocolo = r.protocolo; vf.vencimento = venc;
+  if(mudou){ vf.dataEmissao = ''; vf.avisoEnviadoEm = null; } // renovado: o aviso antigo era do vencimento anterior
+  return true;
+}
 var ntfLinhas = [];
 function abrirImportarNotificacao(){
   ntfLinhas = [];
@@ -2473,7 +2539,8 @@ function ntfLerArquivo(input){
         var j = JSON.parse(ev.target.result);
         linhas = Array.isArray(j) ? j : (j.edificacoes || j.notificacoes || j.itens || j.data || []);
       } else {
-        var wb = XLSX.read(new Uint8Array(ev.target.result), {type:'array', cellDates:true});
+        var ehCsv = /\.csv$/i.test(file.name);
+        var wb = XLSX.read(new Uint8Array(ev.target.result), ehCsv ? {type:'array', raw:true} : {type:'array', cellDates:true});
         wb.SheetNames.forEach(function(n){ linhas = linhas.concat(XLSX.utils.sheet_to_json(wb.Sheets[n], {defval:''})); });
       }
       ntfLinhas = linhas;
@@ -2495,8 +2562,13 @@ function ntfMostrarPrevia(){
   if(comDiv.length) h += '<div style="font-size:13px;color:var(--amar)">↔ <b>'+comDiv.length+'</b> com divergência (o que você cadastrou <b>continua valendo</b>; o importado não entra):</div><div class="sub" style="margin:2px 0 8px 14px;max-height:140px;overflow-y:auto">'+
     comDiv.slice(0,30).map(function(a){ return (a.e.re||'sem RE')+' — '+(a.e.nome||'')+'<br>'+a.divergencias.map(function(x){ return '&nbsp;&nbsp;'+x.campo+': tem “'+x.atual+'”, notificação traz “'+x.importado+'”'; }).join('<br>'); }).join('<br>')+'</div>';
   if(plano.semMudanca) h += '<div class="sub">'+plano.semMudanca+' já estavam iguais.</div>';
+  if(plano.func.length) h += '<div style="font-size:13px;margin-top:8px">📅 <b>'+plano.func.length+'</b> funcionamento(s) atualizado(s) pelo BI</div><div class="sub" style="margin:2px 0 8px 14px;max-height:140px;overflow-y:auto">'+
+    plano.func.map(function(a){ return (a.e.re||'')+' — '+(a.e.nome||'')+': '+(a.soProtocolo ? 'protocolo '+a.r.protocolo : (a.de||'sem data')+' → <b>'+a.para+'</b>'+(a.r.protocolo?' ('+a.r.protocolo+')':'')); }).join('<br>')+'</div>';
+  if(plano.funcDiv.length) h += '<div style="font-size:13px;color:var(--amar)">↔ <b>'+plano.funcDiv.length+'</b> funcionamento(s) com data no app mais nova que a do BI (fica a do app):</div><div class="sub" style="margin:2px 0 8px 14px;max-height:110px;overflow-y:auto">'+
+    plano.funcDiv.map(function(a){ return (a.e.re||'')+' — '+(a.e.nome||'')+': app '+a.atual+', BI '+a.bi; }).join('<br>')+'</div>';
+  if(plano.funcIgual) h += '<div class="sub">'+plano.funcIgual+' funcionamento(s) já batiam com o BI.</div>';
   document.getElementById('ntfPrevia').innerHTML = h;
-  document.getElementById('ntfBtnAplicar').style.display = (plano.criar.length || comPreench.length) ? '' : 'none';
+  document.getElementById('ntfBtnAplicar').style.display = (plano.criar.length || comPreench.length || plano.func.length) ? '' : 'none';
 }
 function ntfAplicar(){
   var db = loadDB(), plano = ntfPlanejar(db, ntfLinhas), agora = new Date().toISOString();
@@ -2507,6 +2579,7 @@ function ntfAplicar(){
       grauRisco:d.grauRisco, ocupacoes:(d.ocupacoes||[]).slice(), ocupacao:ocupTexto(d.ocupacoes||[]), origem:'cadastro', criadoEm:agora, atualizadoEm:agora};
     if(d.lat!=null){ e.lat = d.lat; e.lng = d.lng; e.locOrigem = 'importado'; }
     if(d.nBlocos || d.nPav) e.blocos = ntfGerarBlocos(d.nBlocos, d.nPav, d.grauRisco);
+    var rf = ntfFuncResumo(d); if(rf){ if(!ntfGravarFunc(e, rf, agora)) e.vigenciaFuncionamento = {situacao:'nao_possui'}; }
     CAMPOS_RASTREADOS.forEach(function(c){ var v = e[c]; if(v!=null && v!=='' && !(Array.isArray(v) && !v.length)) od[c]='importado'; });
     e.origemDados = od; e.aConferir = {em:agora, motivo:'importada'};
     db.edificacoes.push(e);
@@ -2522,10 +2595,13 @@ function ntfAplicar(){
     });
     e.atualizadoEm = agora;
   });
+  var nFunc = 0;
+  plano.func.forEach(function(a){ if(ntfGravarFunc(a.e, a.r, agora)){ a.e.atualizadoEm = agora; nFunc++; } });
+  db.funcBIAtualizadoEm = agora;
   saveDB(db);
   document.getElementById('modalImportarNotificacao').style.display = 'none';
   renderEdificacoes();
-  alert('Importação concluída: '+plano.criar.length+' nova(s) e '+plano.atualizar.filter(function(a){return a.preencher.length;}).length+' completada(s). Tudo que veio da notificação aparece como "a conferir".');
+  alert('Importação concluída: '+plano.criar.length+' nova(s), '+plano.atualizar.filter(function(a){return a.preencher.length;}).length+' completada(s) e '+nFunc+' funcionamento(s) atualizado(s) pelo BI. O que veio da notificação aparece como "a conferir".');
 }
 function conferirEdifQuartel(){
   if(!edifEmEdicaoId) return;
@@ -8091,7 +8167,7 @@ function renderQMapaConteudo(){
       });
       var mkFora = L.marker([e.lat,e.lng], {icon:iconFora}).addTo(qlyForaComp);
       mkFora.bindTooltip((e.re||'Sem RE')+' — '+(e.nome||'')+' (fora de competência)', {direction:'top'});
-      mkFora.bindPopup('<div style="text-align:center"><b>'+(e.re||'Sem RE')+' — '+(e.nome||'')+'</b><br>Fora de competência<br>'+
+      mkFora.bindPopup('<div style="text-align:center"><b>'+(e.re||'Sem RE')+' — '+(e.nome||'')+'</b><br>Fora de competência<br><span style="font-size:12px">'+(e.competenciaMotivo ? escHtmlCampo(e.competenciaMotivo) : 'Motivo não registrado')+'</span><br>'+
         '<button class="btn primary" style="margin-top:8px;width:100%" onclick="abrirFormEdif(\''+e.id+'\')">Ver detalhes</button></div>');
       qmMarcadoresEdif[e.id] = mkFora;
       return;

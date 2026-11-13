@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v108</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v109</div>
   </header>
 
   <main>
@@ -1366,6 +1366,7 @@ function confirmarPulo(edifId, vistId){
 function reativarEdificacao(id){
   var db = loadDB(), e = db.edificacoes.find(function(x){return x.id===id;}); if(!e) return;
   e.desocupada = false; e.situacaoOcupacao = '';
+  if(e.competencia==='fora'){ e.foraAnterior = {motivo:e.competenciaMotivo||'', data:e.competenciaData||'', reativadaEm:new Date().toISOString()}; e.competencia = ''; e.competenciaMotivo = ''; e.competenciaData = ''; /* vazio (não delete) para a mescla com o Quartel apagar também lá */ }
   e.reativadaEm = new Date().toISOString();
   e.atualizadoEm = e.reativadaEm;
   saveDB(db);
@@ -4178,7 +4179,7 @@ function salvarEdifEditCampo(){
   if(document.getElementById('ee-fora').checked){
     if(e.competencia!=='fora') e.competenciaData = new Date().toISOString();
     e.competencia = 'fora'; e.competenciaMotivo = document.getElementById('ee-fora-motivo').value.trim();
-  } else if(e.competencia==='fora'){ delete e.competencia; delete e.competenciaMotivo; delete e.competenciaData; }
+  } else if(e.competencia==='fora'){ e.competencia = ''; e.competenciaMotivo = ''; e.competenciaData = ''; }
   e.nome = document.getElementById('ee-nome').value.trim();
   var _oi = document.getElementById('ee-ocup-in'); if(_oi && _oi.value.trim()) ocupAdd(ceOcup, _oi.value);
   e.ocupacoes = ceOcup.slice(); e.ocupacao = ocupTexto(ceOcup);
@@ -5720,6 +5721,7 @@ function abrirCartaoEdificacao(e){
       '<div style="font-size:12px;color:var(--sub)">'+e.nome+(e.desocupada?' · Desocupada':'')+'</div></div>'+
     '</div>'+
     fotoCartaoHtml(db, e)+
+    (e.competencia==='fora' ? '<div style="margin:12px 0;background:rgba(107,107,112,.22);border:1px solid #6b6b70;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5"><b>🚫 Fora de competência: não fiscalizamos</b><br>Motivo: '+(e.competenciaMotivo ? ocupEsc(e.competenciaMotivo) : '<i>não registrado (toque em Detalhes e depois em Editar para informar)</i>')+(e.competenciaData ? '<br><span style="color:var(--sub);font-size:11px">Marcada em '+new Date(e.competenciaData).toLocaleDateString('pt-BR')+'</span>' : '')+'</div>' : '')+
     '<div class="hs-banner '+hs.classe+'" style="margin:12px 0">'+hs.icone+' Habite-se: '+hs.texto+(hs.protocolo?' · '+hs.protocolo:'')+'</div>'+
     '<div style="margin:14px 0">'+
       (ocupLista(e).length ? '<div class="ecard-row"><span class="l">Ocupação</span><span style="text-align:right">'+ocupLista(e).map(ocupEsc).join('<br>')+'</span></div>' : '')+
@@ -5735,6 +5737,7 @@ function abrirCartaoEdificacao(e){
       '<button class="btn primary" onclick="vistoriarDaRotaCampo(\''+e.id+'\')">Vistoriar</button>'+
     '</div>'+
     ((e.desocupada||e.situacaoOcupacao==='desocupada'||e.situacaoOcupacao==='desativada') ? '<button class="btn primary" style="width:100%;margin-top:8px;font-weight:700" onclick="reativarEdificacao(\''+e.id+'\')">🏢 Voltou a ficar ocupada: reativar</button>' : '')+
+    (e.competencia==='fora' ? '<button class="btn primary" style="width:100%;margin-top:8px;font-weight:700" onclick="reativarEdificacao(\''+e.id+'\')">✅ Voltou a ser nossa: reativar (tirar de fora de competência)</button>' : '')+
     '<button class="btn" style="width:100%;margin-top:8px;font-weight:700" onclick="abrirCienciaCampo(\''+e.id+'\')">📜 Ciência / Notificação</button>'+
     (e.notificacaoColhida ? '<div class="sub" style="margin-top:4px">🔔 Notificação colhida em '+new Date(e.notificacaoColhida.em).toLocaleDateString('pt-BR')+((e.notificacaoColhida.recebidaPor||{}).nome ? ' ('+escHtmlCart(e.notificacaoColhida.recebidaPor.nome)+')' : '')+' — gerar a F no Quartel</div>' : '')+
     '<div class="btnrow" style="margin-top:8px"><button class="btn" onclick="abrirAtualizacaoCampo(\''+e.id+'\')">📷 Só atualizar foto/local</button>'+(vistoriasProgramadasDaEdif(db, e.id).length ? '<button class="btn" onclick="document.getElementById(\'modalEdif\').style.display=\'none\';abrirModalPular(\''+e.id+'\',null)">⏭️ Pular</button>' : '')+'</div>'+
