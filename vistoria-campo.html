@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v106</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v107</div>
   </header>
 
   <main>
@@ -6277,6 +6277,18 @@ function dossieImportar(pacote, input){
     if(!e){ sem.push(d.re); return; }
     var antes = (e.cartorio||[]).length;
     var novo = Object.assign({}, d, {geradoEm:pacote.geradoEm, rota:pacote.rota||'', fonte:pacote.fonte||'e-SCI'}); delete novo.re;
+    // arquivo parcial: 'protocolos' troca só o histórico (mantém pendências); 'pendencias' troca só AFs/multas/ciências (mantém protocolos)
+    if(pacote.parcial && e.dossie){
+      var ant = e.dossie;
+      if(pacote.parcial==='protocolos'){
+        ['afs','multas','cienciasPendentes'].forEach(function(k){ novo[k] = ant[k]||[]; });
+        if(ant.funcionamento){ var fnov = novo.funcionamento||{}; novo.funcionamento = Object.assign({}, ant.funcionamento, {ultimo:(fnov.ultimo&&fnov.ultimo.p)?fnov.ultimo:(ant.funcionamento.ultimo||{})}); }
+        if(ant.resumo && ant.resumo.indexOf('Último F')!==0) novo.resumo = ant.resumo;
+      } else if(pacote.parcial==='pendencias'){
+        novo.protocolos = (ant.protocolos&&ant.protocolos.length)?ant.protocolos:(novo.protocolos||[]);
+      }
+      delete novo.parcial;
+    }
     // preserva a marcação "pedir ciência" já feita
     var antigos = {}; ((e.cartorio)||[]).forEach(function(m){ if(m.cobrarCiencia) antigos[m.id] = true; });
     e.dossie = novo; dosEspelhar(e, true);
