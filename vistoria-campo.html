@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v107</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v108</div>
   </header>
 
   <main>
@@ -6050,6 +6050,8 @@ function dosEspelhar(e, limpar){
       e.cartorio.push(m); mudou = true;
     }
     vistos[m.id] = true;
+    // voltou a constar pendente no e-SCI: reabre o que o próprio levantamento tinha baixado por engano/defasagem
+    if(m.resolvidaEm && m.baixaPor && String(m.baixaPor).indexOf('levantamento e-SCI')===0){ m.resolvidaEm = null; m.baixaPor = ''; m.reabertaEm = agora; mudou = true; }
     Object.keys(extra||{}).forEach(function(k){ if(extra[k]!=null && extra[k]!=='' && JSON.stringify(m[k])!==JSON.stringify(extra[k])){ m[k] = extra[k]; mudou = true; } });
     return m;
   }
