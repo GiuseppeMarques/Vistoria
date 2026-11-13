@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v103</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v104</div>
   </header>
 
   <main>
@@ -252,6 +252,7 @@
         <button class="map-fab" style="bottom:138px" onclick="abrirCamadas()">🗂️</button>
         <button class="map-fab" style="bottom:202px" onclick="abrirMapasOffline()">⬇️</button>
         <button class="map-fab" id="btnFonteMapa" style="bottom:266px" onclick="trocarFonteMapa()">🛰️</button>
+        <button class="map-fab" id="btnAddEdifMapa" style="bottom:330px;background:#0A84FF;color:#fff;font-weight:900" onclick="abrirAdicionarEdifMapa()" title="Adicionar edificação encontrada">➕</button>
       </div>
     </div>
 
@@ -424,6 +425,10 @@
         <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px;color:var(--sub);cursor:pointer">
           <input type="checkbox" id="ee-desocupada" style="width:auto"> Edificação desocupada
         </label>
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px;color:var(--sub);cursor:pointer">
+          <input type="checkbox" id="ee-fora" style="width:auto" onchange="document.getElementById('ee-fora-motivo').style.display=this.checked?'block':'none'"> 🚫 Não faz parte do que eu fiscalizo (fora de competência)
+        </label>
+        <input type="text" id="ee-fora-motivo" placeholder="Motivo (opcional): ex. residência unifamiliar, galpão agrícola" style="margin-bottom:12px;display:none">
         <label class="lbl">Nome da edificação</label>
         <input type="text" id="ee-nome" style="margin-bottom:12px">
         <label class="lbl">Ocupação (pode ter mais de uma)</label>
@@ -3884,6 +3889,54 @@ function abrirNovaEdifCampo(){
   abrirEdifEditCampo(e.id);
   capturarGPSEdif(); // já pega a localização de onde você está
 }
+// ➕ do mapa: cadastra uma edificação encontrada no local escolhido (GPS ou toque no mapa)
+var mapAddModo = false;
+function abrirAdicionarEdifMapa(){
+  fecharAdicionarEdifMapa();
+  var d = document.createElement('div'); d.id = 'mapAddSheet';
+  d.style.cssText = 'position:absolute;left:10px;right:10px;bottom:14px;z-index:900;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px;box-shadow:0 4px 16px rgba(0,0,0,.5);max-width:420px;margin:0 auto';
+  d.innerHTML = '<div style="font-weight:800;margin-bottom:8px">➕ Adicionar edificação encontrada</div>'+
+    '<button class="btn primary" style="width:100%;margin-bottom:8px" onclick="mapAddEscolher(\'gps\',false)">📍 Aqui, onde estou (GPS)</button>'+
+    '<button class="btn" style="width:100%;margin-bottom:8px" onclick="mapAddEscolher(\'toque\',false)">👆 Tocar no mapa para escolher o local</button>'+
+    '<button class="btn" style="width:100%;margin-bottom:8px" onclick="mapAddEscolher(\'gps\',true)">🚫 Aqui, mas fora do que eu fiscalizo</button>'+
+    '<button class="btn" style="width:100%" onclick="fecharAdicionarEdifMapa()">Cancelar</button>';
+  document.getElementById('mapWrap').appendChild(d);
+}
+function fecharAdicionarEdifMapa(){
+  var d = document.getElementById('mapAddSheet'); if(d) d.remove();
+  var h = document.getElementById('mapAddDica'); if(h) h.remove();
+  if(mapAddModo && map){ map.off('click', mapAddToque); mapAddModo = false; }
+}
+function mapAddEscolher(modo, fora){
+  var d = document.getElementById('mapAddSheet'); if(d) d.remove();
+  if(modo==='gps'){
+    if(!navigator.geolocation){ alert('Este dispositivo não tem GPS disponível.'); return; }
+    navigator.geolocation.getCurrentPosition(function(pos){
+      novaEdifNoLocal(pos.coords.latitude, pos.coords.longitude, fora);
+    }, function(){ alert('Não consegui o GPS. Use "Tocar no mapa".'); abrirAdicionarEdifMapa(); }, {enableHighAccuracy:true, timeout:15000});
+  } else {
+    mapAddModo = true; map._mapAddFora = !!fora;
+    var h = document.createElement('div'); h.id = 'mapAddDica';
+    h.style.cssText = 'position:absolute;left:10px;right:10px;bottom:14px;z-index:900;background:#0A84FF;color:#fff;border-radius:12px;padding:12px;font-weight:700;text-align:center;display:flex;gap:10px;align-items:center;justify-content:space-between';
+    h.innerHTML = '<span>👆 Toque no mapa onde está a edificação</span><button class="btn" style="width:auto;padding:6px 12px" onclick="fecharAdicionarEdifMapa()">Cancelar</button>';
+    document.getElementById('mapWrap').appendChild(h);
+    map.once('click', mapAddToque);
+  }
+}
+function mapAddToque(ev){
+  var fora = !!map._mapAddFora;
+  fecharAdicionarEdifMapa();
+  novaEdifNoLocal(ev.latlng.lat, ev.latlng.lng, fora);
+}
+function novaEdifNoLocal(lat, lng, fora){
+  var db = loadDB();
+  var e = {id:novoId('edif'), re:'', nome:'', endereco:'', bairro:'', municipio:'', responsavel:{nome:'',tel:''}, habiteSe:{}, vigenciaFuncionamento:{},
+    blocos:[], projetos:[], inquilinos:[], preventivos:{}, origem:'campo', lat:lat, lng:lng, locOrigem:'local', criadoEm:new Date().toISOString(), atualizadoEm:new Date().toISOString()};
+  if(fora){ e.competencia = 'fora'; e.competenciaData = new Date().toISOString(); }
+  db.edificacoes.push(e); saveDB(db);
+  edifNovaCampoId = e.id;
+  abrirEdifEditCampo(e.id);
+}
 function cancelarEdifEditCampo(){
   document.getElementById('modalEdifEditarCampo').style.display='none';
   if(edifNovaCampoId){   // edificação nova que não chegou a ser salva some de novo
@@ -3903,6 +3956,9 @@ function abrirEdifEditCampo(id){
   document.getElementById('ee-re').value = e.re||'';
   document.getElementById('ee-risco').value = e.grauRisco||'';
   document.getElementById('ee-desocupada').checked = !!e.desocupada;
+  document.getElementById('ee-fora').checked = e.competencia==='fora';
+  document.getElementById('ee-fora-motivo').value = e.competenciaMotivo||'';
+  document.getElementById('ee-fora-motivo').style.display = e.competencia==='fora' ? 'block' : 'none';
   document.getElementById('ee-nome').value = e.nome||'';
   ceOcup = ocupLista(e); ceOcupRender();
   document.getElementById('ee-endereco').value = e.endereco||'';
@@ -4107,6 +4163,10 @@ function salvarEdifEditCampo(){
   e.re = document.getElementById('ee-re').value.trim();
   e.grauRisco = document.getElementById('ee-risco').value || null;
   e.desocupada = document.getElementById('ee-desocupada').checked;
+  if(document.getElementById('ee-fora').checked){
+    if(e.competencia!=='fora') e.competenciaData = new Date().toISOString();
+    e.competencia = 'fora'; e.competenciaMotivo = document.getElementById('ee-fora-motivo').value.trim();
+  } else if(e.competencia==='fora'){ delete e.competencia; delete e.competenciaMotivo; delete e.competenciaData; }
   e.nome = document.getElementById('ee-nome').value.trim();
   var _oi = document.getElementById('ee-ocup-in'); if(_oi && _oi.value.trim()) ocupAdd(ceOcup, _oi.value);
   e.ocupacoes = ceOcup.slice(); e.ocupacao = ocupTexto(ceOcup);
@@ -5544,11 +5604,11 @@ function renderMapEdificacoes(){
     if(mapFiltroGeo && ((e.municipio||'Sem município')!==mapFiltroGeo.municipio || (e.bairro||'Sem bairro')!==mapFiltroGeo.bairro)) return;
     if(e.competencia==='fora'){
       var iconFora = L.divIcon({
-        html:'<div style="width:24px;height:24px;border-radius:50%;background:#6b6b70;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:12px">🚫</div>',
-        className:'', iconSize:[24,24], iconAnchor:[12,12]
+        html:'<div style="width:22px;height:22px;border-radius:3px;background:#4a4a52;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.55),0 1px 4px rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:900;line-height:1">✕</div>',
+        className:'', iconSize:[22,22], iconAnchor:[11,11]
       });
       var mkFora = L.marker([e.lat, e.lng], {icon:iconFora}).addTo(lyrForaComp);
-      mkFora.bindTooltip((e.nome||'Sem nome')+' (fora de competência)', {direction:'top'});
+      mkFora.bindTooltip((e.nome||'Sem nome')+' (fora de competência, já olhada)', {direction:'top'});
       mkFora.on('click', function(){ abrirCartaoEdificacao(e); });
       return;
     }
@@ -5588,8 +5648,15 @@ function renderMapPontos(){
   var db = loadDB();
   (db.pontos||[]).forEach(function(p){
     if(p.tipo==='edificacao_desconhecida' && p.status==='convertido') return;
-    var cat = CATEGORIAS_PONTO[p.tipo] || {ic:'📍'};
-    var icon = L.divIcon({html:'<div style="font-size:20px;line-height:1">'+cat.ic+'</div>', className:'', iconSize:[24,24]});
+    var cat = CATEGORIAS_PONTO.find(function(c){ return c.tipo===p.tipo; }) || {ic:'📍', l:'Ponto'};
+    var html;
+    if(p.tipo==='edificacao_desconhecida'){
+      // edificação encontrada que ainda não foi cadastrada: triângulo âmbar
+      html = '<svg width="28" height="26" viewBox="0 0 28 26" style="filter:drop-shadow(0 1px 3px rgba(0,0,0,.6))"><polygon points="14,2 26,24 2,24" fill="#FFB800" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/><text x="14" y="21" text-anchor="middle" font-size="13" font-weight="900" fill="#1c1c1e">!</text></svg>';
+    } else {
+      html = '<div style="width:24px;height:24px;border-radius:6px;background:#fff;border:2px solid #1c1c1e;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.6)">'+cat.ic+'</div>';
+    }
+    var icon = L.divIcon({html:html, className:'', iconSize:[28,26], iconAnchor:[14,13]});
     L.marker([p.lat, p.lng], {icon:icon}).addTo(lyrPontos)
       .bindTooltip(p.nome || cat.l || p.tipo, {direction:'top'});
   });
