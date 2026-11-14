@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v146</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v147</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -523,6 +523,8 @@
       <h2>Avisos de Vencimento</h2>
       <div class="lead">Controle e envio dos avisos de vencimento de funcionamento por WhatsApp — tarefa que não foi enviada fica pendente pro dia seguinte.</div>
 
+      <div class="card2-box" id="avisosPausaBox" style="margin-bottom:16px"></div>
+
       <div class="sec-title" style="margin-top:0">Dados da OBM (usados na mensagem)</div>
       <div class="frow">
         <div class="fcol"><label class="lbl">Nome da OBM (ex: 1º/3º/2ª/10º BATALHÃO – RANCHO QUEIMADO)</label>
@@ -633,6 +635,13 @@
           <button class="btn" style="width:auto;padding:6px 12px;font-size:12px" onclick="abrirCarregarAF()">📥 Carregar AFs (planilha ou PDFs)</button>
           <button class="btn" style="width:auto;padding:6px 12px;font-size:12px" onclick="copiarRelatorioMultas()">📋 Copiar relatório em texto</button>
         </div>
+      </div>
+      <div class="card2-box" style="margin:10px 0">
+        <div class="frow">
+          <div class="fcol"><label class="lbl">Filtrar por RE (ou nome)</label><input type="search" id="mtFiltroRE" placeholder="Ex: 8013000110 ou nome" oninput="renderMultas()"></div>
+          <div class="fcol"><label class="lbl">Mês de vencimento do prazo</label><select id="mtFiltroMes" onchange="renderMultas()"><option value="">Todos os meses</option></select></div>
+        </div>
+        <div class="sub" id="mtFiltroInfo" style="margin-top:6px"></div>
       </div>
       <div id="multasAtivasLista"></div>
 
@@ -6005,6 +6014,43 @@ function montarMensagemAviso(e, dataVenc, dias, posVencimento){
 // tarefa = {edificacaoId, vencimento (string original), janela} — janela negativa = aviso pós-vencimento
 function chaveTarefa(edifId, vencimento, janela){ return edifId+'|'+vencimento+'|'+janela; }
 
+// Botão geral dos avisos de funcionamento: db.avisosFuncPausa = {ativo:true, retomarEm:'AAAA-MM-DD'|''}
+function avisosFuncPausado(db){
+  var p = (db||loadDB()).avisosFuncPausa;
+  if(!p || !p.ativo) return false;
+  if(p.retomarEm){
+    var hoje = new Date(); var h = hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0')+'-'+String(hoje.getDate()).padStart(2,'0');
+    if(h >= p.retomarEm) return false;
+  }
+  return true;
+}
+function avisosFuncPausar(){
+  var db = loadDB();
+  var d = (document.getElementById('avisosPausaData')||{}).value || '';
+  db.avisosFuncPausa = {ativo:true, retomarEm:d, desde:new Date().toISOString()};
+  saveDB(db); renderAvisos();
+}
+function avisosFuncReativar(){
+  var db = loadDB();
+  db.avisosFuncPausa = {ativo:false, retomarEm:''};
+  saveDB(db); renderAvisos();
+}
+function renderAvisosPausa(){
+  var box = document.getElementById('avisosPausaBox'); if(!box) return;
+  var db = loadDB(), p = db.avisosFuncPausa || {}, pausado = avisosFuncPausado(db);
+  var fmt = function(iso){ return iso ? iso.split('-').reverse().join('/') : ''; };
+  if(pausado){
+    box.innerHTML = '<div class="sec-title" style="margin-top:0">⏸️ Avisos de funcionamento PAUSADOS</div>'+
+      '<div class="sub" style="margin-bottom:8px">Nenhuma tarefa de aviso de funcionamento aparece na lista nem no contador'+(p.retomarEm?' até '+fmt(p.retomarEm)+' (volta sozinho nessa data)':' até você reativar')+'. Os avisos já enviados ficam guardados.</div>'+
+      '<button class="btn primary" onclick="avisosFuncReativar()">▶️ Reativar avisos agora</button>';
+  } else {
+    box.innerHTML = '<div class="sec-title" style="margin-top:0">🔔 Avisos de funcionamento: ativos</div>'+
+      '<div class="sub" style="margin-bottom:8px">Use quando o Cartório já estiver mandando as mensagens e a lista só crescer. Pausa todos de uma vez; ao reativar, voltam só os que ainda estiverem dentro da janela de aviso.</div>'+
+      '<div class="frow"><div class="fcol"><label class="lbl">Reativar sozinho a partir de (opcional)</label><input type="date" id="avisosPausaData"></div></div>'+
+      '<button class="btn" style="background:var(--amar);color:#000" onclick="avisosFuncPausar()">⏸️ Pausar todos os avisos de funcionamento</button>';
+  }
+}
+
 function calcularTarefasAvisos(){
   var db = loadDB();
   var enviados = db.avisosEnviados || [];
@@ -6015,7 +6061,9 @@ function calcularTarefasAvisos(){
   var diasPos = carregarDiasPosVencimento();
 
   var pendentes = [];
+  var pausado = avisosFuncPausado(db);
   (db.edificacoes||[]).forEach(function(e){
+    if(pausado) return; // botão geral: avisos de funcionamento pausados, a lista não cresce
     var venc = e.vigenciaFuncionamento && e.vigenciaFuncionamento.vencimento;
     var dataVenc = parseDataBR(venc);
     if(!dataVenc) return;
@@ -6061,6 +6109,7 @@ function renderAvisos(){
   document.getElementById('obmLinkVistoria').value = obm.linkVistoria;
   document.getElementById('obmLinkRenovacao').value = obm.linkRenovacao;
 
+  renderAvisosPausa();
   var r = calcularTarefasAvisos();
 
   var badge = document.getElementById('badgeAvisos');
@@ -6069,7 +6118,7 @@ function renderAvisos(){
 
   var lista = document.getElementById('avisosLista');
   if(!r.pendentes.length){
-    lista.innerHTML = '<div class="empty"><div class="ico">📱</div>Nenhuma tarefa de aviso pendente hoje.</div>';
+    lista.innerHTML = '<div class="empty"><div class="ico">'+(avisosFuncPausado()?'⏸️':'📱')+'</div>'+(avisosFuncPausado()?'Avisos de funcionamento pausados.':'Nenhuma tarefa de aviso pendente hoje.')+'</div>';
   } else {
     lista.innerHTML = r.pendentes.map(function(it){
       var msg = montarMensagemAviso(it.e, it.dataVenc, it.dias, it.posVencimento);
@@ -8642,8 +8691,39 @@ function renderMultas(){
   });
   resolvidas.sort(function(a,b){ return new Date(b.m.resolvidaEm)-new Date(a.m.resolvidaEm); });
 
+  // filtros do Cartório: por RE/nome e por mês do prazo (mantém o mês escolhido ao redesenhar)
+  var elQ = document.getElementById('mtFiltroRE'), elMes = document.getElementById('mtFiltroMes');
+  var totalAtivas = ativas.length;
+  if(elQ && elMes){
+    var mesSel = elMes.value;
+    var mesesSet = {}, temSem = false;
+    ativas.forEach(function(x){ var d = parseDataBR(x.m.prazo); if(d) mesesSet[d.getFullYear()*100+d.getMonth()+1] = 1; else temSem = true; });
+    var chavesMes = Object.keys(mesesSet).map(Number).sort(function(a,b){return a-b;});
+    var NM = ['','janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+    elMes.innerHTML = '<option value="">Todos os meses</option>'+chavesMes.map(function(k){ var a=Math.floor(k/100), mm=k%100; return '<option value="'+k+'">'+NM[mm]+' de '+a+'</option>'; }).join('')+(temSem?'<option value="sem">Sem prazo</option>':'');
+    elMes.value = mesSel;
+    if(elMes.value !== mesSel) elMes.value = '';
+    var q = (elQ.value||'').toUpperCase().replace(/[^A-Z0-9 ]/g,'').trim();
+    var mes = elMes.value;
+    if(q || mes){
+      ativas = ativas.filter(function(x){
+        if(q){
+          var alvo = ((x.e.re||'')+' '+(x.e.nome||'')).toUpperCase().replace(/[^A-Z0-9 ]/g,'');
+          if(alvo.indexOf(q)<0) return false;
+        }
+        if(mes){
+          var d = parseDataBR(x.m.prazo);
+          if(mes==='sem') return !d;
+          if(!d || String(d.getFullYear()*100+d.getMonth()+1)!==mes) return false;
+        }
+        return true;
+      });
+    }
+    var info = document.getElementById('mtFiltroInfo');
+    if(info) info.textContent = (q||mes) ? 'Mostrando '+ativas.length+' de '+totalAtivas+' pendentes.' : totalAtivas+' pendentes.';
+  }
   var badge = document.getElementById('badgeMultas');
-  if(ativas.length){ badge.style.display='inline-block'; badge.textContent=ativas.length; }
+  if(totalAtivas){ badge.style.display='inline-block'; badge.textContent=totalAtivas; }
   else { badge.style.display='none'; }
 
   var elAtivas = document.getElementById('multasAtivasLista');
