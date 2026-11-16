@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v147</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v148</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -617,10 +617,17 @@
           </div>
           <div class="frow">
             <div class="fcol"><label class="lbl" id="mt-lbl-numero">Número da AF</label><input type="text" id="mt-numero" placeholder="Ex: 2026/00123"></div>
-            <div class="fcol"><label class="lbl" id="mt-lbl-prazo">Prazo pra regularizar</label><input type="text" id="mt-prazo" placeholder="DD/MM/AAAA"></div>
+            <div class="fcol" id="mt-prazo-box"><label class="lbl" id="mt-lbl-prazo">Prazo pra regularizar</label><input type="text" id="mt-prazo" placeholder="DD/MM/AAAA"></div>
           </div>
-          <label class="lbl">Motivo</label>
-          <input type="text" id="mt-motivo" placeholder="Ex: Deixar de solicitar vistoria para funcionamento" style="margin-bottom:10px">
+          <div id="mt-af-itens" style="margin-bottom:10px">
+            <label class="lbl">Exigências da AF (cada uma com o seu prazo)</label>
+            <div id="mt-itens-lista"></div>
+            <button type="button" class="btn" style="width:auto;padding:6px 12px;font-size:12px" onclick="mtAddItem()">+ Adicionar exigência</button>
+          </div>
+          <div id="mt-motivo-box">
+            <label class="lbl">Motivo</label>
+            <input type="text" id="mt-motivo" placeholder="Ex: Deixar de solicitar vistoria para funcionamento" style="margin-bottom:10px">
+          </div>
           <button class="btn primary" id="mt-btn-registrar" onclick="registrarMulta()">📋 Registrar AF</button>
         </div>
       </div>
@@ -6563,7 +6570,7 @@ function abrirGerarAFDeVistoria(vistId){
 // (array de strings puras) pra nunca quebrar com dado salvo antes dessa mudança
 function normalizarItensPendencia(itens){
   return (itens||[]).map(function(it){
-    return typeof it==='string' ? {texto:it, resolvidoEm:null} : {texto:it.texto, resolvidoEm:it.resolvidoEm||null};
+    return typeof it==='string' ? {texto:it, resolvidoEm:null} : {texto:it.texto, resolvidoEm:it.resolvidoEm||null, prazo:it.prazo||''};
   });
 }
 // ════════════════════════════════════════
@@ -6660,6 +6667,8 @@ function toggleItemResolvidoAF(edifId, afId, idx){
   var item = af.itensPendencia[idx];
   if(!item) return;
   item.resolvidoEm = item.resolvidoEm ? null : new Date().toISOString();
+  var _pz = mtPrazoMaisCedo(af.itensPendencia);   // o prazo do registro passa a ser o da próxima exigência em aberto
+  if(_pz) af.prazo = _pz;
   saveDB(db);
   renderMultas();
 }
@@ -8321,6 +8330,27 @@ function setMtTipo(tipo){
   document.getElementById('mt-lbl-numero').textContent = tipo==='af' ? 'Número da AF (opcional)' : 'Número da multa';
   document.getElementById('mt-lbl-prazo').textContent = tipo==='af' ? 'Prazo pra regularizar' : 'Prazo (se houver)';
   document.getElementById('mt-btn-registrar').textContent = tipo==='af' ? '📋 Registrar AF' : '💰 Registrar multa';
+  // AF: várias exigências, cada uma com o seu prazo; multa: motivo e prazo únicos
+  document.getElementById('mt-af-itens').style.display = tipo==='af' ? 'block' : 'none';
+  document.getElementById('mt-motivo-box').style.display = tipo==='af' ? 'none' : 'block';
+  document.getElementById('mt-prazo-box').style.display = tipo==='af' ? 'none' : '';
+}
+function mtAddItem(txt, prazo){
+  var box = document.getElementById('mt-itens-lista');
+  var d = document.createElement('div'); d.className = 'mt-item';
+  d.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:6px';
+  d.innerHTML = '<input type="text" class="mt-it-txt" placeholder="Exigência (ex: Executar sistema preventivo por extintores)" style="flex:3;min-width:0">'+
+    '<input type="text" class="mt-it-prazo" placeholder="Prazo DD/MM/AAAA" inputmode="numeric" style="flex:1.2;min-width:0">'+
+    '<button type="button" class="btn" style="width:auto;padding:6px 10px" title="Remover" onclick="this.parentNode.remove()">✕</button>';
+  box.appendChild(d);
+  if(typeof txt==='string') d.querySelector('.mt-it-txt').value = txt;
+  if(typeof prazo==='string') d.querySelector('.mt-it-prazo').value = prazo;
+}
+function mtItensReset(){ document.getElementById('mt-itens-lista').innerHTML = ''; mtAddItem(); }
+function mtPrazoMaisCedo(itens){
+  var best = null;
+  (itens||[]).forEach(function(it){ if(it.resolvidoEm || !it.prazo) return; var d = parseDataBR(it.prazo); if(d && (!best || d<best.d)) best = {d:d, t:it.prazo}; });
+  return best ? best.t : '';
 }
 
 function renderMtEdifLista(){
@@ -8353,6 +8383,7 @@ function selecionarEdifMulta(id){
   document.getElementById('mt-numero').value='';
   document.getElementById('mt-prazo').value='';
   document.getElementById('mt-motivo').value='';
+  mtItensReset();
   setMtTipo('af');
   document.getElementById('mt-form-detalhe').style.display='block';
 }
@@ -8362,11 +8393,26 @@ function registrarMulta(){
   var prazo = document.getElementById('mt-prazo').value.trim();
   var motivo = document.getElementById('mt-motivo').value.trim();
   if(!numero && mtTipoAtual==='multa'){ alert('Informe o número da multa.'); return; }
+  var itensAF = [];
+  if(mtTipoAtual==='af'){
+    var linhas = document.querySelectorAll('#mt-itens-lista .mt-item');
+    for(var i=0;i<linhas.length;i++){
+      var tx = linhas[i].querySelector('.mt-it-txt').value.trim(), pz = linhas[i].querySelector('.mt-it-prazo').value.trim();
+      if(!tx && !pz) continue;
+      if(!tx){ alert('A exigência '+(i+1)+' tem prazo mas não tem texto.'); return; }
+      if(pz && !parseDataBR(pz)){ alert('Prazo inválido na exigência "'+tx+'". Use DD/MM/AAAA.'); return; }
+      itensAF.push({texto:tx, prazo:pz, resolvidoEm:null});
+    }
+    motivo = itensAF.map(function(it){return it.texto;}).join('; ');
+    prazo = mtPrazoMaisCedo(itensAF);
+  }
   var db = loadDB();
   var e = db.edificacoes.find(function(x){return x.id===mtEdifSelecionadaId;});
   if(!e) return;
   if(!e.cartorio) e.cartorio=[];
-  e.cartorio.push({id:novoId('cart'), tipo:mtTipoAtual, numero:numero, motivo:motivo, prazo:prazo, criadaEm:new Date().toISOString(), resolvidaEm:null, cienciaDadaEm:null, avisoEnviadoEm:null, afOrigemId:null});
+  var novoReg = {id:novoId('cart'), tipo:mtTipoAtual, numero:numero, motivo:motivo, prazo:prazo, criadaEm:new Date().toISOString(), resolvidaEm:null, cienciaDadaEm:null, avisoEnviadoEm:null, afOrigemId:null};
+  if(itensAF.length) novoReg.itensPendencia = itensAF;
+  e.cartorio.push(novoReg);
   saveDB(db);
   mtEdifSelecionadaId = null;
   document.getElementById('mt-edif-busca').value = '';
@@ -8753,7 +8799,7 @@ function renderMultas(){
       ? '<div style="margin-top:6px">'+itensNorm.map(function(it, i){
           return '<div style="display:flex;align-items:flex-start;gap:6px;padding:3px 0;font-size:12px'+(it.resolvidoEm?';opacity:.65':'')+'">'+
             '<button class="btn" style="width:auto;padding:2px 8px;font-size:11px;'+(it.resolvidoEm?'background:var(--verde);color:#fff':'')+'" onclick="toggleItemResolvidoAF(\''+e.id+'\',\''+m.id+'\','+i+')">'+(it.resolvidoEm?'✓':'○')+'</button>'+
-            '<span>'+it.texto+(it.resolvidoEm?' <span style="color:var(--verde)">— resolvido em '+new Date(it.resolvidoEm).toLocaleDateString('pt-BR')+'</span>':'')+'</span>'+
+            '<span>'+it.texto+(it.prazo && !it.resolvidoEm ? (function(){ var dd = diasAteOuDesde(it.prazo); return ' <span style="font-weight:700;color:'+(dd!=null && dd<0 ? 'var(--red2)' : (dd!=null && dd<=7 ? 'var(--amar)' : 'var(--sub)'))+'">· prazo '+it.prazo+(dd!=null ? (dd<0 ? ' (venceu há '+Math.abs(dd)+' dia(s))' : (dd===0 ? ' (HOJE)' : ' (em '+dd+' dia(s))')) : '')+'</span>'; })() : '')+(it.resolvidoEm?' <span style="color:var(--verde)">— resolvido em '+new Date(it.resolvidoEm).toLocaleDateString('pt-BR')+'</span>':'')+'</span>'+
           '</div>';
         }).join('')+'</div>'
       : (m.motivo?'<div class="sub" style="margin-top:4px">'+m.motivo+'</div>':'');
