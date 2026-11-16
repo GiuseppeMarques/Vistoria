@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v109</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v110</div>
   </header>
 
   <main>
@@ -416,6 +416,14 @@
         <div id="gpsEdifStatus" class="sub" style="margin:-6px 0 12px"></div>
         <button class="btn" style="width:100%;margin-bottom:12px" onclick="abrirMesclaCampo()" title="Use quando esta edificação já existia com outro cadastro">🔗 Já existe cadastrada? Mesclar com a antiga</button>
 
+        <div class="sec-title" style="margin-top:0">Foto da edificação</div>
+        <img id="ee-foto-prev" alt="" style="display:none;width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin-bottom:8px">
+        <input type="file" accept="image/*" id="ee-foto-arq" style="display:none" onchange="eeFotoArquivo(this)">
+        <div class="btnrow" style="gap:8px;margin-bottom:12px">
+          <button type="button" class="btn" style="flex:1" onclick="tirarFoto('ee')">📷 Tirar foto</button>
+          <button type="button" class="btn" style="flex:1" onclick="document.getElementById('ee-foto-arq').click()">🖼️ Da galeria</button>
+          <button type="button" class="btn" style="width:auto" id="ee-foto-rem" onclick="eeFotoRemover()">🗑️</button>
+        </div>
         <div class="frow">
           <div class="fcol"><label class="lbl">RE</label><input type="text" id="ee-re"></div>
           <div class="fcol"><label class="lbl">Grau de Risco (geral)</label>
@@ -448,6 +456,9 @@
           <div class="fcol"><label class="lbl">Área (m²)</label><input type="text" id="ee-area"></div>
           <div class="fcol"><label class="lbl">Altura (m)</label><input type="text" id="ee-altura"></div>
         </div>
+
+        <label class="lbl">Observações</label>
+        <textarea id="ee-obs" rows="4" placeholder="O que encontrou no local: referência para achar o prédio, quem atendeu, situação, pendências..." style="width:100%;box-sizing:border-box;margin-bottom:12px;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--txt);font-family:inherit;font-size:14px"></textarea>
 
         <div class="sec-title">Protocolos</div>
         <div class="sub" style="margin:-4px 0 8px">Cadastre aqui cada protocolo (Projeto, Habite-se ou Funcionamento).</div>
@@ -3276,8 +3287,8 @@ var fotoPronto = fotoCarregarTudo().then(function(){
 // ════════════════════════════════════════
 var _camStream = null, _camFacing = 'environment', _camCb = null, _camFallback = null;
 function tirarFoto(destino){
-  var cb = destino==='enc' ? aplicarFotoEnc : aplicarFotoDet;
-  var fallbackId = destino==='enc' ? 'encFotoInput' : 'detFoto';
+  var cb = destino==='enc' ? aplicarFotoEnc : (destino==='ee' ? eeFotoAplicar : aplicarFotoDet);
+  var fallbackId = destino==='enc' ? 'encFotoInput' : (destino==='ee' ? 'ee-foto-arq' : 'detFoto');
   _camCb = cb; _camFallback = fallbackId; _camFacing = 'environment';
   if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)){ var i = document.getElementById(fallbackId); if(i) i.click(); return; }
   camAbrir();
@@ -3950,6 +3961,21 @@ function novaEdifNoLocal(lat, lng, fora){
   edifNovaCampoId = e.id;
   abrirEdifEditCampo(e.id);
 }
+// foto da edificação no formulário de edição (inclui a ➕ do mapa): fica em e.foto, como nas outras telas
+var ceFotoRef = null, ceFotoMudou = false;
+function eeFotoMostrar(){
+  var img = document.getElementById('ee-foto-prev'), rem = document.getElementById('ee-foto-rem'); if(!img) return;
+  var src = ceFotoRef ? fotoSrc(ceFotoRef) : '';
+  if(src){ img.src = src; img.style.display = 'block'; } else { img.removeAttribute('src'); img.style.display = 'none'; }
+  if(rem) rem.style.display = ceFotoRef ? '' : 'none';
+}
+function eeFotoAplicar(dataUrl){ ceFotoRef = fotoGuardar(dataUrl); ceFotoMudou = true; eeFotoMostrar(); }
+function eeFotoArquivo(input){
+  var file = input.files && input.files[0]; if(!file) return;
+  encRedimensionar(file, eeFotoAplicar);
+  input.value = '';
+}
+function eeFotoRemover(){ if(!confirm('Remover a foto desta edificação?')) return; ceFotoRef = null; ceFotoMudou = true; eeFotoMostrar(); }
 function cancelarEdifEditCampo(){
   document.getElementById('modalEdifEditarCampo').style.display='none';
   if(edifNovaCampoId){   // edificação nova que não chegou a ser salva some de novo
@@ -3982,6 +4008,8 @@ function abrirEdifEditCampo(id){
   document.getElementById('ee-vinculo').value = (e.responsavel&&e.responsavel.vinculo)||'';
   document.getElementById('ee-area').value = e.area||'';
   document.getElementById('ee-altura').value = e.altura||'';
+  document.getElementById('ee-obs').value = e.obsCampo||'';
+  ceFotoRef = e.foto || null; ceFotoMudou = false; eeFotoMostrar();
 
   ceProjetos = e.projetos ? JSON.parse(JSON.stringify(e.projetos)).map(function(p){p.id=p.id||('proj_'+Math.random().toString(36).slice(2,8));return p;}) : [];
   // migração de dados antigos (mesma lógica do Quartel): cria a linha de protocolo se ainda não existir
@@ -4193,6 +4221,12 @@ function salvarEdifEditCampo(){
   };
   e.area = document.getElementById('ee-area').value.trim();
   e.altura = document.getElementById('ee-altura').value.trim();
+  e.obsCampo = document.getElementById('ee-obs').value.trim();
+  if(ceFotoMudou){
+    if(ceFotoRef) e.foto = ceFotoRef; else delete e.foto;
+    (db.pontos||[]).forEach(function(p){ if(p.edificacaoGeradaId===e.id && p.foto) p.foto = ceFotoRef || null; });
+    ceFotoMudou = false;
+  }
 
   e.projetos = ceProjetos;
   e.preventivos = cePreventivos;
@@ -5731,9 +5765,11 @@ function abrirCartaoEdificacao(e){
       '<div class="ecard-row" style="border-bottom:none"><span class="l">Endereço</span><span style="text-align:right">'+(e.endereco||'—')+(e.bairro?' — '+e.bairro:'')+'</span></div>'+
     '</div>'+
     (textoProgramadaCampo(db, e.id) ? '<div style="font-size:12px;background:rgba(10,132,255,.12);border:1px solid rgba(10,132,255,.4);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.6">'+textoProgramadaCampo(db, e.id)+'</div>' : '')+
+    (e.obsCampo ? '<div style="font-size:12px;background:rgba(255,159,10,.12);border:1px solid rgba(255,159,10,.4);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;white-space:pre-wrap"><b>📝 Observações:</b> '+ocupEsc(e.obsCampo)+'</div>' : '')+
     dossieBannerHtml(e)+
     '<div class="btnrow">'+
       '<button class="btn" onclick="abrirDetalhesCompletos(\''+e.id+'\')">Detalhes</button>'+
+      '<button class="btn" onclick="editarEdifDoMapa(\''+e.id+'\')">✏️ Editar</button>'+
       '<button class="btn primary" onclick="vistoriarDaRotaCampo(\''+e.id+'\')">Vistoriar</button>'+
     '</div>'+
     ((e.desocupada||e.situacaoOcupacao==='desocupada'||e.situacaoOcupacao==='desativada') ? '<button class="btn primary" style="width:100%;margin-top:8px;font-weight:700" onclick="reativarEdificacao(\''+e.id+'\')">🏢 Voltou a ficar ocupada: reativar</button>' : '')+
