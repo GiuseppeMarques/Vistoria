@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v151</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v152</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -674,6 +674,7 @@
         <div class="sec-title" style="margin-top:0">💾 Backup completo</div>
         <div class="sub" style="margin-bottom:14px">Salva TUDO deste computador: todas as edificações, todas as vistorias (concluídas e pendentes), rotas, avisos já enviados, e as configurações de Avisos (nome da OBM, links, mensagens, datas). É diferente do "Exportar pro Campo" ao lado, que só manda uma parte pra sincronizar com o celular. Guarde esse arquivo num lugar seguro (nuvem, pendrive) — é ele que te salva se perder o navegador ou o computador.</div>
         <button class="btn primary" onclick="exportarBackupCompleto()">💾 Baixar backup completo</button>
+        <div class="sub gdrive-status" style="margin-top:6px;font-weight:600"></div>
         <input type="file" id="importBackupInput" accept=".vst,.json" style="display:none" onchange="restaurarBackupCompleto(this)">
         <button class="btn" style="margin-top:8px" onclick="document.getElementById('importBackupInput').click()">♻️ Restaurar backup completo</button>
       </div>
@@ -690,6 +691,8 @@
         <div class="sub" style="margin-bottom:14px">Arquivo pequeno com o que está aberto no Cartório (AF e multa, com motivos e prazos) e as vistorias feitas desde o último resumo. Salve na pasta do Drive e o Claude lê na conferência quinzenal.</div>
         <button class="btn primary" onclick="exportarResumoClaude()">📤 Gerar resumo pro Claude</button>
         <div class="sub" id="resumoClaudeInfo" style="margin-top:8px"></div>
+        <div class="sub gdrive-status" style="margin-top:6px;font-weight:600"></div>
+        <div class="sub" style="margin-top:6px">O resumo e o backup completo também vão sozinhos para a pasta "Vistoria Claude" do Drive (conta SSCI). Na primeira vez, e de vez em quando, o Google pede um toque na conta; precisa de internet e de abrir o app por giuseppemarques.github.io/Vistoria.</div>
       </div>
 
       <div class="card2-box" style="margin-top:16px">
@@ -8933,6 +8936,7 @@ function exportarBackupCompleto2(){
   a.href = URL.createObjectURL(blob);
   a.download = 'BACKUP_COMPLETO_VISTORIA_'+d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'_'+p(d.getHours())+p(d.getMinutes())+'.vst';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  gdriveEnviar(a.download, blob).catch(function(){});
 }
 
 function restaurarBackupCompleto(input){
@@ -8986,6 +8990,83 @@ function exportarParaCampo2(){
   baixarPacote(pacote);
 }
 
+// ════════════════════════════════════════
+// ENVIO AO GOOGLE DRIVE (pasta "Vistoria Claude" da conta SSCI)
+// Login pelo Google Identity Services, só com o escopo drive.file (o app enxerga apenas os arquivos que ele mesmo cria).
+// Precisa de internet e de abrir o app pelo endereço giuseppemarques.github.io/Vistoria. Se falhar, o arquivo já foi baixado normalmente.
+// ════════════════════════════════════════
+var GDRIVE_CLIENT_ID = '659798983978-pfasthvc84fgeltrke8mm8idfgv8cn1l.apps.googleusercontent.com';
+var GDRIVE_PASTA = 'Vistoria Claude';
+var gdriveTok = {t:'', ate:0};
+function gdriveStatus(msg, erro){
+  var els = document.querySelectorAll('.gdrive-status');
+  for(var i=0;i<els.length;i++){ els[i].textContent = msg; els[i].style.color = erro ? 'var(--amar)' : 'var(--verde)'; }
+}
+function gdriveCarregarGIS(){
+  return new Promise(function(ok, falha){
+    if(window.google && google.accounts && google.accounts.oauth2) return ok();
+    var sc = document.createElement('script'); sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true;
+    sc.onload = function(){ ok(); };
+    sc.onerror = function(){ falha(new Error('sem internet ou o Google não respondeu')); };
+    document.head.appendChild(sc);
+  });
+}
+function gdriveToken(){
+  if(gdriveTok.t && Date.now() < gdriveTok.ate) return Promise.resolve(gdriveTok.t);
+  return gdriveCarregarGIS().then(function(){
+    return new Promise(function(ok, falha){
+      var cli = google.accounts.oauth2.initTokenClient({
+        client_id: GDRIVE_CLIENT_ID, scope: 'https://www.googleapis.com/auth/drive.file', login_hint: '10215ssci@gmail.com',
+        callback: function(r){
+          if(r && r.access_token){ gdriveTok = {t:r.access_token, ate:Date.now()+(Number(r.expires_in||3600)-120)*1000}; ok(gdriveTok.t); }
+          else falha(new Error((r && (r.error_description||r.error)) || 'login não concluído'));
+        },
+        error_callback: function(e){ falha(new Error((e && (e.message||e.type)) || 'login cancelado')); }
+      });
+      cli.requestAccessToken({prompt: ''});
+    });
+  });
+}
+function gdriveApi(url, tok, opt){
+  opt = opt || {}; opt.headers = Object.assign({Authorization:'Bearer '+tok}, opt.headers||{});
+  return fetch(url, opt).then(function(r){
+    if(!r.ok) return r.text().then(function(t){ throw new Error('Drive '+r.status+': '+t.slice(0,120)); });
+    return r;
+  });
+}
+function gdrivePasta(tok){
+  var salvo = localStorage.getItem('vistoria_gdrive_pasta');
+  var busca = function(){
+    var q = encodeURIComponent("name='"+GDRIVE_PASTA+"' and mimeType='application/vnd.google-apps.folder' and trashed=false");
+    return gdriveApi('https://www.googleapis.com/drive/v3/files?q='+q+'&fields=files(id)', tok).then(function(r){ return r.json(); }).then(function(j){
+      if(j.files && j.files.length) return j.files[0].id;
+      return gdriveApi('https://www.googleapis.com/drive/v3/files?fields=id', tok, {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({name:GDRIVE_PASTA, mimeType:'application/vnd.google-apps.folder'})}).then(function(r){ return r.json(); }).then(function(x){ return x.id; });
+    });
+  };
+  if(!salvo) return busca().then(function(id){ localStorage.setItem('vistoria_gdrive_pasta', id); return id; });
+  return gdriveApi('https://www.googleapis.com/drive/v3/files/'+salvo+'?fields=id,trashed', tok).then(function(r){ return r.json(); })
+    .then(function(j){ if(j.trashed) throw new Error('lixeira'); return salvo; })
+    .catch(function(){ localStorage.removeItem('vistoria_gdrive_pasta'); return busca().then(function(id){ localStorage.setItem('vistoria_gdrive_pasta', id); return id; }); });
+}
+// envia um Blob para a pasta (upload retomável: aguenta arquivo grande, como o backup com fotos)
+function gdriveEnviar(nome, blob){
+  if(!navigator.onLine) return Promise.reject(new Error('sem internet'));
+  gdriveStatus('☁️ Enviando ao Drive…');
+  return gdriveToken().then(function(tok){
+    return gdrivePasta(tok).then(function(pasta){
+      return gdriveApi('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name', tok, {method:'POST',
+        headers:{'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Type':'application/json'},
+        body: JSON.stringify({name:nome, parents:[pasta]})}).then(function(r){
+          var loc = r.headers.get('Location'); if(!loc) throw new Error('o Drive não devolveu o endereço de envio');
+          return gdriveApi(loc, tok, {method:'PUT', headers:{'Content-Type':'application/json'}, body: blob});
+        });
+    });
+  }).then(function(){ gdriveStatus('☁️ Enviado ao Drive (pasta '+GDRIVE_PASTA+'): '+nome); }, function(e){
+    gdriveStatus('⚠️ Não enviou ao Drive ('+e.message+'). O arquivo foi baixado normalmente; coloque-o na pasta à mão.', true); throw e;
+  });
+}
+
 function exportarResumoClaude(){
   var db = loadDB(), desde = db.resumoClaudeEm || '', agora = new Date().toISOString();
   var cart = [];
@@ -9011,6 +9092,7 @@ function exportarResumoClaude(){
   var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = 'RESUMO_CLAUDE_'+agora.slice(0,10)+'.json';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  gdriveEnviar(a.download, blob).catch(function(){});
   db.resumoClaudeEm = agora; saveDB(db);
   var info = document.getElementById('resumoClaudeInfo');
   if(info) info.textContent = 'Gerado agora: '+cart.length+' item(ns) do Cartório e '+vist.length+' vistoria(s) concluída(s) desde '+(desde?new Date(desde).toLocaleDateString('pt-BR'):'o início')+'.';
