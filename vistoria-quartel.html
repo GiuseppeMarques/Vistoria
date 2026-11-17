@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v148</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v151</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -683,6 +683,13 @@
         <div class="sub" style="margin-bottom:14px">Gera um arquivo com edificações, vistorias planejadas e rotas — leve pro celular e importe lá em "Mais".</div>
         <button class="btn primary" onclick="exportarParaCampo()">⬇️ Exportar pacote (.vst)</button>
         <div class="sub" style="margin-top:8px">Os dossiês do e-SCI vão juntos no mesmo arquivo, dentro de cada edificação.</div>
+      </div>
+
+      <div class="card2-box" style="margin-top:16px">
+        <div class="sec-title" style="margin-top:0">Resumo pro Claude</div>
+        <div class="sub" style="margin-bottom:14px">Arquivo pequeno com o que está aberto no Cartório (AF e multa, com motivos e prazos) e as vistorias feitas desde o último resumo. Salve na pasta do Drive e o Claude lê na conferência quinzenal.</div>
+        <button class="btn primary" onclick="exportarResumoClaude()">📤 Gerar resumo pro Claude</button>
+        <div class="sub" id="resumoClaudeInfo" style="margin-top:8px"></div>
       </div>
 
       <div class="card2-box" style="margin-top:16px">
@@ -3651,13 +3658,27 @@ function carregarModeloConversarAgendar(){
 function salvarModeloConversarAgendar(){
   localStorage.setItem('vistoria_modelo_conversar_agendar', document.getElementById('avisoModeloConversarAgendar').value);
 }
+// AFs abertas da edificação (número + pendência, sem prazo) para as mensagens ao responsável
+function blocoAFsAbertasMsg(e, excluirIds){
+  var afs = dosPend(e).afs.filter(function(m){ return !(excluirIds||[]).length || excluirIds.indexOf(m.id)<0; });
+  if(!afs.length) return '';
+  return '*AFs em aberto desta edificação:*\n'+afs.map(function(m){
+    var d = dosDescricao(m);
+    return '- AF nº '+(String(m.numero||'').replace(/^AF\s*(n[ºo°.]*)?\s*/i,'')||'(sem número)')+(d?': '+d:'');
+  }).join('\n');
+}
+function inserirBlocoAFs(texto, bloco){
+  if(!bloco) return texto;
+  var i = texto.lastIndexOf('Att.,');
+  return i<0 ? texto+'\n\n'+bloco : texto.slice(0,i)+bloco+'\n\n'+texto.slice(i);
+}
 function montarMensagemAgendarVisita(e, v){
   var obm = carregarDadosObm();
-  return carregarModeloConversarAgendar()
+  return inserirBlocoAFs(carregarModeloConversarAgendar()
     .replace(/{OBM}/g, obm.nome||'')
     .replace(/{NOME}/g, e.nome||'')
     .replace(/(RE)?\{RE\}/g, reMsg(e.re))
-    .replace(/{TIPO}/g, rotuloVistoria(v));
+    .replace(/{TIPO}/g, rotuloVistoria(v)), blocoAFsAbertasMsg(e));
 }
 
 // Modelo pra quando já está numa rota (confirma data e período)
@@ -3676,13 +3697,13 @@ function salvarModeloConfirmarVisita(){
 }
 function montarMensagemConfirmarVisita(e, v, data, periodo){
   var obm = carregarDadosObm();
-  return carregarModeloConfirmarVisita()
+  return inserirBlocoAFs(carregarModeloConfirmarVisita()
     .replace(/{OBM}/g, obm.nome||'')
     .replace(/{NOME}/g, e.nome||'')
     .replace(/(RE)?\{RE\}/g, reMsg(e.re))
     .replace(/{TIPO}/g, rotuloVistoria(v))
     .replace(/{DATA}/g, data)
-    .replace(/{PERIODO}/g, periodo);
+    .replace(/{PERIODO}/g, periodo), blocoAFsAbertasMsg(e));
 }
 
 // ════════════════════════════════════════
@@ -4353,6 +4374,12 @@ function gerarRelatorioTexto(e, v, pendGerais, duvidasGerais, porBloco, aprovado
     linhas.push('=== 📌 PENDENTE DE CIÊNCIA NO e-SCI ===');
     cobrarC.forEach(function(c){ linhas.push('- '+(c.tipo||'AF')+' nº '+(c.numero||'(sem número)')+(c.descricao?' ('+c.descricao+')':'')); });
     linhas.push('Pedimos que dê ciência no sistema e-SCI (esci.cbm.sc.gov.br).');
+  }
+  var afsAbertas = blocoAFsAbertasMsg(e, dosPend(e).semCiencia.filter(function(m){return m.cobrarCiencia;}).map(function(m){return m.id;}));
+  if(afsAbertas){
+    linhas.push('');
+    linhas.push('=== 📋 AFs EM ABERTO (a regularizar) ===');
+    linhas.push(afsAbertas.replace(/^\*[^\n]*\n/,''));
   }
   if(duvidasGerais.length){
     linhas.push('');
@@ -8959,6 +8986,36 @@ function exportarParaCampo2(){
   baixarPacote(pacote);
 }
 
+function exportarResumoClaude(){
+  var db = loadDB(), desde = db.resumoClaudeEm || '', agora = new Date().toISOString();
+  var cart = [];
+  (db.edificacoes||[]).forEach(function(e){
+    (e.cartorio||[]).forEach(function(m){
+      if(m.tipo!=='af' && m.tipo!=='multa') return;
+      var aberto = !m.resolvidaEm && !m.suspensaEm;
+      var mudou = (m.resolvidaEm && m.resolvidaEm>desde) || (m.cienciaDadaEm && m.cienciaDadaEm>desde) || (m.criadaEm && m.criadaEm>desde);
+      if(!aberto && !mudou) return;
+      var itens = (typeof dosExigencias==='function' ? dosExigencias(m) : []).map(function(x){ return {texto:x.texto, prazo:x.prazo||'', resolvido:!!x.ok}; });
+      cart.push({re:e.re||'', edificacao:e.nome||'', bairro:e.bairro||'', municipio:e.municipio||'', tipo:m.tipo, numero:m.numero||'',
+        semNumero:!String(m.numero||'').trim(), motivo:m.motivo||'', itens:itens, prazo:m.prazo||'', criadaEm:m.criadaEm||'',
+        cienciaDadaEm:m.cienciaDadaEm||'', resolvidaEm:m.resolvidaEm||'', baixaPor:m.baixaPor||'', suspensa:!!m.suspensaEm, novaDesdeUltimoResumo:!!(m.criadaEm && m.criadaEm>desde)});
+    });
+  });
+  var porId = {}; (db.edificacoes||[]).forEach(function(e){ porId[e.id] = e; });
+  var vist = (db.vistorias||[]).filter(function(v){ return v.concluida && v.concluidaEm && v.concluidaEm>desde; }).map(function(v){
+    var e = porId[v.edificacaoId]||{};
+    return {re:e.re||'', edificacao:e.nome||'', tipo:v.tipo||'', subtipo:v.cartorioSubtipo||'', concluidaEm:v.concluidaEm, esciLancadoEm:v.esciLancadoEm||''};
+  });
+  var pacote = {tipo:'resumo-claude', versao:1, geradoEm:agora, desde:desde, cartorio:cart, vistoriasConcluidas:vist};
+  var blob = new Blob([JSON.stringify(pacote,null,1)], {type:'application/json'});
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'RESUMO_CLAUDE_'+agora.slice(0,10)+'.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  db.resumoClaudeEm = agora; saveDB(db);
+  var info = document.getElementById('resumoClaudeInfo');
+  if(info) info.textContent = 'Gerado agora: '+cart.length+' item(ns) do Cartório e '+vist.length+' vistoria(s) concluída(s) desde '+(desde?new Date(desde).toLocaleDateString('pt-BR'):'o início')+'.';
+}
+
 function exportarPontosReferencia(){
   var CATEGORIAS_PONTO_LABEL = {
     bifurcacao:'Bifurcação', acesso:'Acesso', referencia:'Referência', ponto_risco:'Ponto de risco',
@@ -9162,8 +9219,8 @@ function dossieCienciasMarcadas(e){
 }
 function dosExigencias(m){
   var l = [];
-  if(m.exigencias && m.exigencias.length) l = m.exigencias.map(function(x){ return {texto:x, ok:false}; });
-  else if(m.itensPendencia && m.itensPendencia.length) l = m.itensPendencia.map(function(it){ return typeof it==='string' ? {texto:it, ok:false} : {texto:it.texto, ok:!!it.resolvidoEm}; });
+  if(m.itensPendencia && m.itensPendencia.length) l = m.itensPendencia.map(function(it){ return typeof it==='string' ? {texto:it, ok:false} : {texto:it.texto, ok:!!it.resolvidoEm, prazo:it.prazo||''}; });
+  else if(m.exigencias && m.exigencias.length) l = m.exigencias.map(function(x){ return typeof x==='string' ? {texto:x, ok:false} : {texto:x.texto, ok:!!x.ok, prazo:x.prazo||''}; });
   return l;
 }
 function dosDescricao(m){
@@ -9172,6 +9229,13 @@ function dosDescricao(m){
   return String(base).replace(/\s*\n\s*/g,'; ').slice(0,300);
 }
 function dosNumCart(a){ return dosNorm(a); }
+// "dd/mm/aaaa" (ou ISO) -> ISO; vazio se inválido (data de ciência vinda do histórico do e-SCI / da tabela)
+function dosDataISO(v){
+  if(!v) return '';
+  var s = String(v).trim(), m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if(m) return m[3]+'-'+m[2]+'-'+m[1]+'T12:00:00.000Z';
+  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s : '';
+}
 // Espelha o levantamento (AFs, multas e ciências pendentes) no Cartório. limpar=true: o que veio de levantamento
 // anterior e não está mais pendente é baixado (resolvido no e-SCI).
 function dosEspelhar(e, limpar){
@@ -9185,6 +9249,13 @@ function dosEspelhar(e, limpar){
   }
   function garantir(tipo, numero, extra){
     var m = achar(tipo, numero);
+    // AF lançada na vistoria ainda sem número: o número só sai depois no e-SCI. Adota o rascunho sem número mais antigo
+    // da edificação (a ordem do tempo casa certo) em vez de criar um segundo registro.
+    if(!m && tipo==='af'){
+      var rasc = e.cartorio.filter(function(x){ return x.tipo==='af' && !String(x.numero||'').trim() && !x.resolvidaEm && !x.suspensaEm && !x.origemDossie; })
+                           .sort(function(p,q){ return String(p.criadaEm||'').localeCompare(String(q.criadaEm||'')); })[0];
+      if(rasc){ rasc.numero = numero; rasc.origemDossie = true; rasc.adotadoDoRascunho = true; vistos[rasc.id] = true; mudou = true; m = rasc; }
+    }
     if(!m){
       m = {id:'cart_dos_'+dosNorm(numero).replace(/\//g,'_'), tipo:tipo, numero:numero, motivo:'', prazo:'', criadaEm:d.geradoEm||agora,
            resolvidaEm:null, cienciaDadaEm:null, avisoEnviadoEm:null, afOrigemId:null, origemDossie:true};
@@ -9198,7 +9269,7 @@ function dosEspelhar(e, limpar){
   }
   (d.afs||[]).forEach(function(a){
     if(!a.numero) return;
-    garantir('af', a.numero, {prazo:a.prazo, prazoN:a.prazoN, exigencias:a.exigencias, motivo:(a.exigencias||[]).join('\n'), protocoloAF:a.protocolo, statusEsci:a.status});
+    garantir('af', a.numero, {prazo:a.prazo, prazoN:a.prazoN, exigencias:a.exigencias, motivo:(a.exigencias||[]).map(function(x){return typeof x==='string'?x:x.texto;}).join('\n'), protocoloAF:a.protocolo, statusEsci:a.status, cienciaDadaEm:dosDataISO(a.cienciaEm)});
   });
   (d.multas||[]).forEach(function(x){
     if(!x.numero) return;
@@ -9322,7 +9393,7 @@ function dosItemHtml(e, m){
     if(m.pagamentoAte) h += '<div style="font-size:12px">Pagamento até: '+dosPrazoHtml(m.pagamentoAte)+'</div>';
     h += '<div style="font-size:12px;margin-bottom:4px">Cumprimento até: '+dosPrazoHtml(m.cumprimentoAte||m.prazo)+'</div>';
   }
-  if(ex.length) h += '<ul style="margin:4px 0;padding-left:18px;font-size:12px;line-height:1.6">'+ex.map(function(x){ return '<li style="'+(x.ok?'text-decoration:line-through;opacity:.6':'')+'">'+dosEsc(x.texto)+'</li>'; }).join('')+'</ul>';
+  if(ex.length) h += '<ul style="margin:4px 0;padding-left:18px;font-size:12px;line-height:1.6">'+ex.map(function(x){ return '<li style="'+(x.ok?'text-decoration:line-through;opacity:.6':'')+'">'+dosEsc(x.texto)+(x.prazo&&!x.ok?' <span style="color:var(--sub)">· até '+dosPrazoHtml(x.prazo)+'</span>':'')+'</li>'; }).join('')+'</ul>';
   else if(m.tipo==='af' && m.motivo) h += '<div style="font-size:12px;line-height:1.5;margin:4px 0">'+dosEsc(m.motivo)+'</div>';
   h += '<div style="font-size:12px;margin-top:4px;color:'+(m.cienciaDadaEm?'var(--verde)':'#ffb340')+'">'+(m.cienciaDadaEm ? '✍️ Ciência dada em '+new Date(m.cienciaDadaEm).toLocaleDateString('pt-BR') : '⏳ Aguardando ciência')+'</div>';
   if(m.resolvidaEm) h += '<div style="font-size:12px;color:var(--verde)">✅ Baixada em '+new Date(m.resolvidaEm).toLocaleDateString('pt-BR')+(m.baixaPor?' ('+dosEsc(m.baixaPor)+')':'')+'</div>'+
