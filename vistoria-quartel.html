@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v155</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v156</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -535,6 +535,15 @@
           <input type="text" id="obmLinkVistoria" placeholder="https://..." onchange="salvarDadosObm()"></div>
         <div class="fcol"><label class="lbl">Link tutorial — Renovação do Funcionamento</label>
           <input type="text" id="obmLinkRenovacao" placeholder="https://..." onchange="salvarDadosObm()"></div>
+      </div>
+
+      <div class="frow" style="margin-bottom:16px">
+        <div class="fcol"><label class="lbl">Link tutorial — Cadastro da edificação e criação do RE</label>
+          <input type="text" id="obmLinkCadastro" placeholder="https://..." onchange="salvarDadosObm()"></div>
+        <div class="fcol"><label class="lbl">Link tutorial — Solicitar análise de Projeto</label>
+          <input type="text" id="obmLinkProjeto" placeholder="https://..." onchange="salvarDadosObm()"></div>
+        <div class="fcol"><label class="lbl">Link tutorial — Solicitar Habite-se</label>
+          <input type="text" id="obmLinkHabiteSe" placeholder="https://..." onchange="salvarDadosObm()"></div>
       </div>
 
       <div class="sec-title">Datas de aviso (dias antes do vencimento)</div>
@@ -3255,8 +3264,10 @@ function triagemConfirmarForaComp(){
   triagemAtualizar();
 }
 
-// ── Mensagem pro responsável (WhatsApp) a partir da triagem: precisa regularizar OU já está regularizada
-var triagemMsgId = null, triagemMsgModo = null;
+// ── Mensagem pro responsável (WhatsApp) a partir da triagem. Dois casos:
+//   "nova": a edificação não existe no sistema → regularizar do zero (tutoriais de cadastro/RE, projeto, habite-se, funcionamento)
+//   "existe": é uma edificação já cadastrada (você escolhe qual) → dados dela, situação do funcionamento e tutorial de renovação
+var triagemMsgId = null, triagemMsgModo = 'nova', triagemMsgDestId = null;
 function triagemSituacaoFunc(e){
   var v = e.vigenciaFuncionamento || {};
   var venc = v.vencimento ? parseDataBR(v.vencimento) : null;
@@ -3266,37 +3277,52 @@ function triagemSituacaoFunc(e){
   if(v.situacao==='vencido') return 'vencido';
   return 'sem';
 }
-function triagemMontarMensagem(e, modo){
+function triagemMontarMensagem(a, modo, d){
   var obm = carregarDadosObm();
-  var v = e.vigenciaFuncionamento || {};
-  var sit = triagemSituacaoFunc(e);
-  var end = [e.endereco, e.bairro, e.municipio].filter(Boolean).join(', ');
-  var dados = '*'+(e.nome||'Edificação')+'*'+(e.re?' - '+reMsg(e.re):'');
+  var enderecoDe = function(x){ return [x.endereco, x.bairro, x.municipio].filter(Boolean).join(', '); };
   var L = ['*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*'];
   if(obm.nome) L.push('*'+obm.nome+'*');
   L.push('', 'Olá, boa tarde.');
-  var resp = e.responsavel && e.responsavel.nome ? ' ('+e.responsavel.nome+')' : '';
-  if(modo==='regularizada'){
-    L.push('I. Durante levantamento realizado pelo Corpo de Bombeiros, confirmamos o cadastro da edificação '+dados+resp+'.');
-    var d = ['Nome: '+(e.nome||'-')];
-    if(e.re) d.push('RE: '+reMsg(e.re));
-    if(end) d.push('Endereço: '+end);
-    if(e.area) d.push('Área: '+e.area+' m²');
-    if(e.grauRisco) d.push('Grau de risco: '+e.grauRisco);
-    L.push('', '*Dados da edificação:*'); d.forEach(function(x){ L.push('• '+x); });
-    var fx = ['Situação: '+(sit==='vigente'?'*vigente*':'—')];
-    if(v.vencimento) fx.push('Válido até: *'+v.vencimento+'*');
+  if(modo==='existe' && d){
+    var v = d.vigenciaFuncionamento || {}, sit = triagemSituacaoFunc(d), end = enderecoDe(d);
+    L.push('I. Durante levantamento realizado pelo Corpo de Bombeiros, confirmamos que a edificação visitada corresponde ao cadastro abaixo.');
+    var dd = ['Nome: '+(d.nome||'-')];
+    if(d.re) dd.push('RE: '+reMsg(d.re));
+    if(end) dd.push('Endereço: '+end);
+    if(d.area) dd.push('Área: '+d.area+' m²');
+    if(d.grauRisco) dd.push('Grau de risco: '+d.grauRisco);
+    L.push('', '*Dados da edificação:*'); dd.forEach(function(x){ L.push('• '+x); });
+    var fx;
+    if(sit==='vigente') fx = ['Situação: *VIGENTE*'].concat(v.vencimento?['Válido até: *'+v.vencimento+'*']:[]);
+    else if(sit==='vencido') fx = ['Situação: *VENCIDO*'+(v.vencimento?' desde *'+v.vencimento+'*':'')];
+    else fx = ['Situação: *não consta Atestado de Funcionamento vigente*'];
     if(v.protocolo) fx.push('Protocolo: '+v.protocolo);
     L.push('', '*Funcionamento:*'); fx.forEach(function(x){ L.push('• '+x); });
-    L.push('', 'II. Pedimos que confira os dados acima. Havendo divergência, responda esta mensagem.');
-    if(obm.linkRenovacao) L.push('', 'III. Para renovar antes do vencimento: '+obm.linkRenovacao);
+    if(sit==='vigente'){
+      L.push('', 'II. Pedimos que confira os dados acima. Havendo divergência, responda esta mensagem.');
+      if(obm.linkRenovacao) L.push('', 'III. Tutorial de como renovar o Funcionamento antes do vencimento: '+obm.linkRenovacao);
+    } else if(sit==='vencido'){
+      L.push('', 'II. É necessário renovar o Funcionamento junto ao Corpo de Bombeiros. Enquanto não regularizada, a edificação fica sujeita às infrações administrativas previstas na legislação.');
+      if(obm.linkRenovacao) L.push('', 'III. Tutorial de como renovar o Funcionamento: '+obm.linkRenovacao);
+      L.push('', '*Favor desconsiderar esta mensagem, caso a renovação já esteja cadastrada no sistema e-SCI.*');
+    } else {
+      L.push('', 'II. É necessário solicitar a Vistoria para Funcionamento no sistema e-SCI. Enquanto não regularizada, a edificação fica sujeita às infrações administrativas previstas na legislação.');
+      if(obm.linkVistoria) L.push('', 'III. Tutorial de como solicitar Vistoria para Funcionamento: '+obm.linkVistoria);
+      L.push('', '*Favor desconsiderar esta mensagem, caso a solicitação já esteja cadastrada no sistema e-SCI.*');
+    }
   } else {
-    L.push('I. Durante levantamento realizado pelo Corpo de Bombeiros, identificamos a edificação '+dados+resp+(end?', localizada em '+end:'')+'.');
-    if(sit==='vencido') L.push('', 'II. O Atestado de Funcionamento desta edificação consta *vencido'+(v.vencimento?' desde '+v.vencimento:'')+'*. É necessário regularizar a situação junto ao Corpo de Bombeiros, solicitando a Vistoria para Funcionamento no sistema e-SCI.');
-    else L.push('', 'II. Não localizamos Atestado de Funcionamento vigente para esta edificação. É necessário regularizar a situação junto ao Corpo de Bombeiros, solicitando a Vistoria para Funcionamento no sistema e-SCI.');
-    L.push('', 'III. Caso não seja dado prosseguimento, a edificação ficará sujeita às infrações administrativas previstas na legislação.');
-    if(obm.linkVistoria) L.push('', 'IV. Tutorial de como solicitar Vistoria para Funcionamento: '+obm.linkVistoria);
-    L.push('', '*Favor desconsiderar esta mensagem, caso a solicitação já esteja cadastrada no sistema e-SCI.*');
+    var end2 = enderecoDe(a);
+    var resp = a.responsavel && a.responsavel.nome ? ' ('+a.responsavel.nome+')' : '';
+    L.push('I. Durante levantamento realizado pelo Corpo de Bombeiros, identificamos a edificação *'+(a.nome||'sem nome')+'*'+resp+(end2?', localizada em '+end2:'')+', que não consta regularizada junto ao Corpo de Bombeiros.');
+    L.push('', 'II. Para regularizar, seguem os tutoriais das etapas:');
+    var etapa = function(n, titulo, link){ L.push('', n+') '+titulo+(link?': '+link:'')); };
+    etapa(1, 'Cadastro da edificação no e-SCI', obm.linkCadastro);
+    if(obm.linkRE) L.push('Como localizar o RE: '+obm.linkRE);
+    etapa(2, 'Solicitação de análise do Projeto (PPCI)', obm.linkProjeto);
+    etapa(3, 'Solicitação do Habite-se', obm.linkHabiteSe);
+    etapa(4, 'Solicitação de Funcionamento (bloco, área total)', obm.linkFuncBloco || obm.linkVistoria);
+    L.push('', 'III. Enquanto não regularizada, a edificação fica sujeita às infrações administrativas previstas na legislação.');
+    L.push('', '*Favor desconsiderar esta mensagem, caso a edificação já esteja regularizada.*');
   }
   L.push('', 'Att.,', 'SSCI'+(obm.nome?' da '+obm.nome:''));
   return L.join('\n');
@@ -3304,16 +3330,20 @@ function triagemMontarMensagem(e, modo){
 function triagemAbrirMensagem(id){
   var e = (loadDB().edificacoes||[]).find(function(x){return x.id===id;});
   if(!e) return;
-  triagemMsgId = id;
-  triagemMsgModo = triagemSituacaoFunc(e)==='vigente' ? 'regularizada' : 'regularizar';
+  triagemMsgId = id; triagemMsgDestId = null; triagemMsgModo = 'nova';
   var ov = document.getElementById('modalTriagemMsg');
   if(!ov){
     ov = document.createElement('div'); ov.id = 'modalTriagemMsg'; ov.className = 'modal-overlay';
-    ov.innerHTML = '<div class="modal" style="max-width:680px"><h3>📱 Mensagem pro responsável</h3>'+
+    ov.innerHTML = '<div class="modal" style="max-width:700px"><h3>📱 Mensagem pro responsável</h3>'+
       '<div class="sub" id="tmg-sub"></div>'+
-      '<div class="btnrow" style="margin:10px 0"><button class="btn" id="tmg-b-reg" onclick="triagemTrocarModoMsg(\'regularizar\')">Precisa regularizar</button>'+
-      '<button class="btn" id="tmg-b-ok" onclick="triagemTrocarModoMsg(\'regularizada\')">Já está regularizada</button></div>'+
+      '<div class="btnrow" style="margin:10px 0"><button class="btn" id="tmg-b-nova" onclick="triagemTrocarModoMsg(\'nova\')">Não existe: regularizar</button>'+
+      '<button class="btn" id="tmg-b-existe" onclick="triagemTrocarModoMsg(\'existe\')">Já existe: é uma edificação cadastrada</button></div>'+
+      '<div id="tmg-pick" style="display:none"><div class="sub" style="margin-bottom:6px">Escolha a edificação cadastrada (as mais próximas primeiro):</div>'+
+      '<input type="text" id="tmg-busca" placeholder="Buscar por nome, RE, endereço ou bairro" oninput="triagemRenderListaMsg()" style="margin-bottom:8px">'+
+      '<div id="tmg-lista" style="max-height:34vh;overflow:auto"></div></div>'+
+      '<div id="tmg-escolhida" class="sub" style="display:none;margin-bottom:6px"></div>'+
       '<textarea id="tmg-texto" rows="14" style="width:100%;box-sizing:border-box"></textarea>'+
+      '<label id="tmg-juntar-box" style="display:none;margin:8px 0;font-size:13px"><input type="checkbox" id="tmg-juntar" checked> Juntar as duas (é duplicada) depois de abrir o WhatsApp</label>'+
       '<div class="modal-actions"><button class="btn" onclick="document.getElementById(\'modalTriagemMsg\').style.display=\'none\'">Fechar</button>'+
       '<button class="btn" onclick="triagemCopiarMsg()">📋 Copiar</button>'+
       '<button class="btn primary" onclick="triagemEnviarMsg()">Abrir no WhatsApp</button></div></div>';
@@ -3322,16 +3352,46 @@ function triagemAbrirMensagem(id){
   var tel = e.responsavel && e.responsavel.tel;
   document.getElementById('tmg-sub').textContent = (e.nome||'Sem nome')+' · '+(tel ? '📞 '+tel : '⚠️ sem telefone cadastrado (use "Completar dados" ou copie o texto)');
   ov.style.display = 'flex';
-  triagemTrocarModoMsg(triagemMsgModo);
+  triagemTrocarModoMsg('nova');
 }
 function triagemTrocarModoMsg(modo){
   triagemMsgModo = modo;
-  var e = (loadDB().edificacoes||[]).find(function(x){return x.id===triagemMsgId;});
-  if(!e) return;
-  document.getElementById('tmg-texto').value = triagemMontarMensagem(e, modo);
-  document.getElementById('tmg-b-reg').style.outline = modo==='regularizar' ? '2px solid var(--red2)' : 'none';
-  document.getElementById('tmg-b-ok').style.outline = modo==='regularizada' ? '2px solid var(--red2)' : 'none';
+  var a = (loadDB().edificacoes||[]).find(function(x){return x.id===triagemMsgId;});
+  if(!a) return;
+  if(modo==='nova') triagemMsgDestId = null;
+  document.getElementById('tmg-b-nova').style.outline = modo==='nova' ? '2px solid var(--red2)' : 'none';
+  document.getElementById('tmg-b-existe').style.outline = modo==='existe' ? '2px solid var(--red2)' : 'none';
+  var escolhendo = (modo==='existe' && !triagemMsgDestId);
+  document.getElementById('tmg-pick').style.display = escolhendo ? 'block' : 'none';
+  document.getElementById('tmg-juntar-box').style.display = modo==='existe' ? 'block' : 'none';
+  var esc = document.getElementById('tmg-escolhida');
+  var d = triagemMsgDestId ? (loadDB().edificacoes||[]).find(function(x){return x.id===triagemMsgDestId;}) : null;
+  if(modo==='existe' && d){ esc.style.display='block'; esc.innerHTML = 'Edificação escolhida: <b>'+escHtmlCampo(d.nome||'Sem nome')+(d.re?' · '+escHtmlCampo(d.re):'')+'</b> <a href="#" onclick="triagemMsgDestId=null;triagemTrocarModoMsg(\'existe\');return false">trocar</a>'; }
+  else esc.style.display = 'none';
+  if(escolhendo){ document.getElementById('tmg-texto').value = ''; document.getElementById('tmg-busca').value=''; triagemRenderListaMsg(); return; }
+  document.getElementById('tmg-texto').value = triagemMontarMensagem(a, modo, d);
 }
+function triagemRenderListaMsg(){
+  var db = loadDB();
+  var a = db.edificacoes.find(function(x){return x.id===triagemMsgId;});
+  if(!a) return;
+  var q = (document.getElementById('tmg-busca').value||'').toLowerCase();
+  var itens = db.edificacoes.filter(function(e){
+    if(e.id===a.id || e.competencia==='fora') return false;
+    if(!q) return true;
+    return ((e.nome||'')+' '+(e.re||'')+' '+(e.endereco||'')+' '+(e.bairro||'')).toLowerCase().indexOf(q)>=0;
+  }).map(function(e){
+    var dist = (a.lat&&a.lng&&e.lat&&e.lng) ? haversineKm(a.lat,a.lng,e.lat,e.lng)*1000 : 1e12;
+    return {e:e, d:dist};
+  }).sort(function(x,y){ return x.d-y.d; }).slice(0,40);
+  document.getElementById('tmg-lista').innerHTML = itens.length ? itens.map(function(it){
+    var e = it.e, ds = it.d<1e12 ? (it.d<1000 ? Math.round(it.d)+' m' : (it.d/1000).toFixed(1)+' km') : 'sem localização';
+    return '<div class="elist-item" style="cursor:pointer" onclick="triagemEscolherDestMsg(\''+e.id+'\')"><div class="elist-row"><div style="flex:1;min-width:0">'+
+      '<div class="elist-t">'+escHtmlCampo(e.nome||'Sem nome')+(e.re?' · '+escHtmlCampo(e.re):'')+'</div>'+
+      '<div class="elist-s">'+escHtmlCampo([e.endereco,e.bairro].filter(Boolean).join(' · '))+' · '+ds+'</div></div></div></div>';
+  }).join('') : '<div class="sub">Nenhuma edificação encontrada.</div>';
+}
+function triagemEscolherDestMsg(id){ triagemMsgDestId = id; triagemTrocarModoMsg('existe'); }
 function triagemCopiarMsg(){
   var t = document.getElementById('tmg-texto'); t.select();
   if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(t.value).catch(function(){ document.execCommand('copy'); }); }
@@ -3341,14 +3401,17 @@ function triagemEnviarMsg(){
   var db = loadDB();
   var e = db.edificacoes.find(function(x){return x.id===triagemMsgId;});
   if(!e) return;
+  var texto = document.getElementById('tmg-texto').value;
+  if(!texto.trim()){ alert('Escolha a edificação cadastrada primeiro.'); return; }
   var telWa = telefoneParaWhatsapp(e.responsavel && e.responsavel.tel);
   if(!telWa){ alert('Esta edificação não tem telefone cadastrado. Use "Completar dados" para informar, ou copie o texto.'); return; }
-  var texto = document.getElementById('tmg-texto').value;
   window.open('https://wa.me/'+telWa+'?text='+encodeURIComponent(texto), '_blank');
   e.msgCampoEnviadaEm = new Date().toISOString();
   e.atualizadoEm = e.msgCampoEnviadaEm;
   saveDB(db);
+  var juntar = triagemMsgModo==='existe' && triagemMsgDestId && document.getElementById('tmg-juntar').checked;
   document.getElementById('modalTriagemMsg').style.display = 'none';
+  if(juntar){ triagemOrigemId = e.id; triagemJuntar(triagemMsgDestId); }
   triagemAtualizar();
 }
 
@@ -3395,20 +3458,29 @@ function triagemRenderLista(){
       '<div class="elist-s">'+escHtmlCampo([e.endereco,e.bairro].filter(Boolean).join(' · '))+' · '+dist+'</div></div></div></div>';
   }).join('') : '<div class="sub">Nenhuma edificação encontrada.</div>';
 }
+// junta a edificação marcada em campo (triagemOrigemId) na já cadastrada; foto, localização e telefone passam se ela não tiver
+function triagemJuntar(destId){
+  var db = loadDB();
+  var a = db.edificacoes.find(function(x){return x.id===triagemOrigemId;});
+  var d = db.edificacoes.find(function(x){return x.id===destId;});
+  if(!a || !d) return false;
+  var aConferirAntes = d.aConferir || null;
+  var ok = mesclarEdificacoes(a.id, d.id, {nome:!d.nome, loc:!(d.lat&&d.lng), foto:!d.foto, resp:!(d.responsavel&&d.responsavel.tel), extras:true});
+  if(!ok){ alert('Não consegui juntar.'); return false; }
+  var db2 = loadDB();
+  var d2 = db2.edificacoes.find(function(x){return x.id===destId;});
+  if(d2){ d2.aConferir = aConferirAntes; saveDB(db2); } // a mesclagem marcava "alterada"; a triagem não precisa disso
+  triagemOrigemId = null;
+  return true;
+}
 function triagemConfirmarMescla(destId){
   var db = loadDB();
   var a = db.edificacoes.find(function(x){return x.id===triagemOrigemId;});
   var d = db.edificacoes.find(function(x){return x.id===destId;});
   if(!a || !d) return;
-  if(!confirm('Juntar "'+(a.nome||'Sem nome')+'" (marcada em campo) em "'+(d.nome||'Sem nome')+(d.re?' · '+d.re:'')+'"?\n\nA marcada em campo some; a foto e a localização passam para a antiga se ela não tiver.')) return;
-  var aConferirAntes = d.aConferir || null;
-  var ok = mesclarEdificacoes(a.id, d.id, {nome:!d.nome, loc:!(d.lat&&d.lng), foto:!d.foto, extras:true});
-  if(!ok){ alert('Não consegui juntar.'); return; }
-  var db2 = loadDB();
-  var d2 = db2.edificacoes.find(function(x){return x.id===destId;});
-  if(d2){ d2.aConferir = aConferirAntes; saveDB(db2); } // a mesclagem marcava "alterada"; a triagem não precisa disso
+  if(!confirm('Juntar "'+(a.nome||'Sem nome')+'" (marcada em campo) em "'+(d.nome||'Sem nome')+(d.re?' · '+d.re:'')+'"?\n\nA marcada em campo some; a foto, a localização e o telefone passam para a antiga se ela não tiver.')) return;
+  if(!triagemJuntar(destId)) return;
   document.getElementById('modalTriagemMescla').style.display = 'none';
-  triagemOrigemId = null;
   triagemAtualizar();
 }
 
@@ -3733,10 +3805,11 @@ function salvarModeloConversarAgendar(){
 function blocoAFsAbertasMsg(e, excluirIds){
   var afs = dosPend(e).afs.filter(function(m){ return !(excluirIds||[]).length || excluirIds.indexOf(m.id)<0; });
   if(!afs.length) return '';
+  var linkAF = carregarDadosObm().linkAF;
   return '*AFs em aberto desta edificação:*\n'+afs.map(function(m){
     var d = dosDescricao(m);
     return '- AF nº '+(String(m.numero||'').replace(/^AF\s*(n[ºo°.]*)?\s*/i,'')||'(sem número)')+(d?': '+d:'');
-  }).join('\n');
+  }).join('\n')+(linkAF?'\nTutorial de como consultar a AF: '+linkAF:'');
 }
 function inserirBlocoAFs(texto, bloco){
   if(!bloco) return texto;
@@ -6025,13 +6098,17 @@ function enviarAvisoFuncionamento(edifId){
 function montarMensagemAvisoMulta(e, m){
   var obm = carregarDadosObm();
   var modelo = m.tipo==='af' ? carregarModeloAvisoAF() : carregarModeloAvisoMulta();
-  return modelo
+  var texto = modelo
     .replace(/{OBM}/g, obm.nome||'')
     .replace(/{NOME}/g, e.nome||'')
     .replace(/(RE)?\{RE\}/g, reMsg(e.re))
     .replace(/{MULTA_NUMERO}/g, m.numero||'(em registro)')
     .replace(/{MULTA_MOTIVO}/g, m.motivo||'—')
-    .replace(/{MULTA_PRAZO}/g, m.prazo||'—');
+    .replace(/{MULTA_PRAZO}/g, m.prazo||'—')
+    .replace(/{LINK_AF}/g, obm.linkAF||'');
+  // AF: acrescenta o tutorial de como consultar a AF (a menos que o modelo editado já traga {LINK_AF})
+  if(m.tipo==='af' && obm.linkAF && modelo.indexOf('{LINK_AF}')<0) texto = inserirBlocoAFs(texto, 'Tutorial de como consultar a AF: '+obm.linkAF);
+  return texto;
 }
 function enviarAvisoMulta(edifId, multaId){
   var db = loadDB();
@@ -6055,12 +6132,22 @@ function salvarDadosObm(){
   localStorage.setItem('vistoria_obm_nome', document.getElementById('obmNome').value);
   localStorage.setItem('vistoria_obm_link_vistoria', document.getElementById('obmLinkVistoria').value);
   localStorage.setItem('vistoria_obm_link_renovacao', document.getElementById('obmLinkRenovacao').value);
+  localStorage.setItem('vistoria_obm_link_cadastro', document.getElementById('obmLinkCadastro').value);
+  localStorage.setItem('vistoria_obm_link_projeto', document.getElementById('obmLinkProjeto').value);
+  localStorage.setItem('vistoria_obm_link_habitese', document.getElementById('obmLinkHabiteSe').value);
 }
 function carregarDadosObm(){
   return {
     nome: localStorage.getItem('vistoria_obm_nome') || '',
     linkVistoria: localStorage.getItem('vistoria_obm_link_vistoria') || '',
-    linkRenovacao: localStorage.getItem('vistoria_obm_link_renovacao') || ''
+    linkRenovacao: localStorage.getItem('vistoria_obm_link_renovacao') || '',
+    // tutoriais do GBM de Alfredo Wagner (padrão; o que for digitado em Avisos vale mais)
+    linkCadastro: localStorage.getItem('vistoria_obm_link_cadastro') || 'https://drive.google.com/file/d/1Lb7tXA7PjVYenmbic_q3J-U9CcFrBgM6/view?usp=sharing',
+    linkRE: 'https://drive.google.com/file/d/1lBl-Drlp1BUfTbZTKzbH5F6fVzD-1yTN/view?usp=sharing',
+    linkProjeto: localStorage.getItem('vistoria_obm_link_projeto') || 'https://drive.google.com/file/d/1-VZyUb_s84WE01ueILXsWoYRXfh4VAtx/view?usp=sharing',
+    linkHabiteSe: localStorage.getItem('vistoria_obm_link_habitese') || 'https://drive.google.com/file/d/1oqkz6vSOSmJJXWtbwqGn5PnpUgDsF2xD/view?usp=sharing',
+    linkFuncBloco: 'https://drive.google.com/file/d/1vKqfdip7oNf1XqAoHdlvbwWcs9vgLPIs/view?usp=sharing',
+    linkAF: localStorage.getItem('vistoria_obm_link_af') || 'https://drive.google.com/file/d/15p4QRULcRw3a01RAbv5wQ0OJCp-_pWHk/view?usp=sharing'
   };
 }
 function salvarModeloAviso(){
@@ -6213,6 +6300,9 @@ function renderAvisos(){
   document.getElementById('obmNome').value = obm.nome;
   document.getElementById('obmLinkVistoria').value = obm.linkVistoria;
   document.getElementById('obmLinkRenovacao').value = obm.linkRenovacao;
+  document.getElementById('obmLinkCadastro').value = obm.linkCadastro;
+  document.getElementById('obmLinkProjeto').value = obm.linkProjeto;
+  document.getElementById('obmLinkHabiteSe').value = obm.linkHabiteSe;
 
   renderAvisosPausa();
   var r = calcularTarefasAvisos();
@@ -8405,7 +8495,7 @@ function baixarPacote(pacote, prefixoDrive){
 // ════════════════════════════════════════
 var CHAVES_CONFIG_AVISOS = [
   'vistoria_janelas_aviso','vistoria_dias_pos_vencimento','vistoria_modelo_aviso',
-  'vistoria_modelo_aviso_pos','vistoria_obm_nome','vistoria_obm_link_vistoria','vistoria_obm_link_renovacao'
+  'vistoria_modelo_aviso_pos','vistoria_obm_nome','vistoria_obm_link_vistoria','vistoria_obm_link_renovacao','vistoria_obm_link_cadastro','vistoria_obm_link_projeto','vistoria_obm_link_habitese'
 ];
 
 // ════════════════════════════════════════
