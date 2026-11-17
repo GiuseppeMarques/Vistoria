@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v114</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v115</div>
   </header>
 
   <main>
@@ -6027,8 +6027,8 @@ function receberDoDriveCampo(){
   gdriveBuscarUltimo('QUARTEL_PARA_CAMPO_').then(function(file){
     if(!file){ gdriveStatus('Nada do Quartel na pasta do Drive ainda. No computador, use "Exportar pacote (.vst)".', true); return; }
     gdriveStatus('☁️ Encontrado: '+file.name+' (enviado em '+gdriveQuando(file.criadoEm)+')');
-    if(!confirm('Importar '+file.name+' (enviado em '+gdriveQuando(file.criadoEm)+')?')) return;
-    importarArquivoCampo({files:[file], value:''});
+    gdriveStatus('☁️ Importando '+file.name+' (enviado em '+gdriveQuando(file.criadoEm)+')…'); // sem janela de confirmação: o navegador a ignora quando a aba está em segundo plano
+    importarArquivoCampo({files:[file], value:'', viaDrive:true});
   }).catch(function(e){ gdriveStatus('⚠️ Não consegui buscar no Drive ('+e.message+').', true); });
 }
 
@@ -6576,6 +6576,7 @@ function importarArquivoCampo(input){
 
     if(map){ renderMapEdificacoes(); renderMapPontos(); }
     input.value = '';
+    if(input.viaDrive) gdriveStatus('✅ Importado do Drive: '+file.name);
     });
   };
   reader.readAsText(file);

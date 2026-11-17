@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v154</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v155</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -3189,10 +3189,13 @@ function htmlCardEdifCampo(e){
       (end ? '🏠 '+escHtmlCampo(end)+'<br>' : '')+
       ((e.lat&&e.lng) ? '📌 '+Number(e.lat).toFixed(6)+', '+Number(e.lng).toFixed(6)+'<br>' : '<span style="color:var(--amar)">⚠️ sem localização</span><br>')+
     '</div>'+
+    (e.responsavel && (e.responsavel.nome||e.responsavel.tel) ? '<div class="meta">👤 '+escHtmlCampo(e.responsavel.nome||'')+(e.responsavel.tel?' · 📞 '+escHtmlCampo(e.responsavel.tel):'')+'</div>' : '')+
+    (e.msgCampoEnviadaEm ? '<div class="meta">✅ Mensagem aberta no WhatsApp em '+new Date(e.msgCampoEnviadaEm).toLocaleString('pt-BR')+'</div>' : '')+
     (e.obsCampo ? '<div class="obs">"'+escHtmlCampo(e.obsCampo)+'"</div>' : '')+
     (foto ? '<img src="'+foto+'">' : '<div class="sub">Sem foto registrada.</div>')+
     '<div class="actions">'+
       ((e.lat&&e.lng) ? '<button class="btn" onclick="triagemVerNoMapa(\''+e.id+'\')">🗺️ Ver no mapa</button>' : '')+
+      '<button class="btn" style="border:1px solid #25D366;color:#25D366" onclick="triagemAbrirMensagem(\''+e.id+'\')">📱 Mensagem pro responsável'+(e.msgCampoEnviadaEm?' ✅':'')+'</button>'+
       '<button class="btn primary" onclick="abrirFormEdif(\''+e.id+'\')">✏️ Completar dados</button>'+
       '<button class="btn" onclick="triagemAbrirMescla(\''+e.id+'\')" title="Já existe cadastrada com outro nome ou RE">🔗 É duplicada</button>'+
       '<button class="btn" onclick="triagemForaComp(\''+e.id+'\')" title="Fica registrada no mapa, fora da lista">🚫 Não vamos fiscalizar</button>'+
@@ -3249,6 +3252,103 @@ function triagemConfirmarForaComp(){
   saveDB(db);
   document.getElementById('modalTriagemFora').style.display = 'none';
   triagemForaId = null;
+  triagemAtualizar();
+}
+
+// ── Mensagem pro responsável (WhatsApp) a partir da triagem: precisa regularizar OU já está regularizada
+var triagemMsgId = null, triagemMsgModo = null;
+function triagemSituacaoFunc(e){
+  var v = e.vigenciaFuncionamento || {};
+  var venc = v.vencimento ? parseDataBR(v.vencimento) : null;
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  if(venc) return venc >= hoje ? 'vigente' : 'vencido';
+  if(v.situacao==='valido') return 'vigente';
+  if(v.situacao==='vencido') return 'vencido';
+  return 'sem';
+}
+function triagemMontarMensagem(e, modo){
+  var obm = carregarDadosObm();
+  var v = e.vigenciaFuncionamento || {};
+  var sit = triagemSituacaoFunc(e);
+  var end = [e.endereco, e.bairro, e.municipio].filter(Boolean).join(', ');
+  var dados = '*'+(e.nome||'Edificação')+'*'+(e.re?' - '+reMsg(e.re):'');
+  var L = ['*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*'];
+  if(obm.nome) L.push('*'+obm.nome+'*');
+  L.push('', 'Olá, boa tarde.');
+  var resp = e.responsavel && e.responsavel.nome ? ' ('+e.responsavel.nome+')' : '';
+  if(modo==='regularizada'){
+    L.push('I. Durante levantamento realizado pelo Corpo de Bombeiros, confirmamos o cadastro da edificação '+dados+resp+'.');
+    var d = ['Nome: '+(e.nome||'-')];
+    if(e.re) d.push('RE: '+reMsg(e.re));
+    if(end) d.push('Endereço: '+end);
+    if(e.area) d.push('Área: '+e.area+' m²');
+    if(e.grauRisco) d.push('Grau de risco: '+e.grauRisco);
+    L.push('', '*Dados da edificação:*'); d.forEach(function(x){ L.push('• '+x); });
+    var fx = ['Situação: '+(sit==='vigente'?'*vigente*':'—')];
+    if(v.vencimento) fx.push('Válido até: *'+v.vencimento+'*');
+    if(v.protocolo) fx.push('Protocolo: '+v.protocolo);
+    L.push('', '*Funcionamento:*'); fx.forEach(function(x){ L.push('• '+x); });
+    L.push('', 'II. Pedimos que confira os dados acima. Havendo divergência, responda esta mensagem.');
+    if(obm.linkRenovacao) L.push('', 'III. Para renovar antes do vencimento: '+obm.linkRenovacao);
+  } else {
+    L.push('I. Durante levantamento realizado pelo Corpo de Bombeiros, identificamos a edificação '+dados+resp+(end?', localizada em '+end:'')+'.');
+    if(sit==='vencido') L.push('', 'II. O Atestado de Funcionamento desta edificação consta *vencido'+(v.vencimento?' desde '+v.vencimento:'')+'*. É necessário regularizar a situação junto ao Corpo de Bombeiros, solicitando a Vistoria para Funcionamento no sistema e-SCI.');
+    else L.push('', 'II. Não localizamos Atestado de Funcionamento vigente para esta edificação. É necessário regularizar a situação junto ao Corpo de Bombeiros, solicitando a Vistoria para Funcionamento no sistema e-SCI.');
+    L.push('', 'III. Caso não seja dado prosseguimento, a edificação ficará sujeita às infrações administrativas previstas na legislação.');
+    if(obm.linkVistoria) L.push('', 'IV. Tutorial de como solicitar Vistoria para Funcionamento: '+obm.linkVistoria);
+    L.push('', '*Favor desconsiderar esta mensagem, caso a solicitação já esteja cadastrada no sistema e-SCI.*');
+  }
+  L.push('', 'Att.,', 'SSCI'+(obm.nome?' da '+obm.nome:''));
+  return L.join('\n');
+}
+function triagemAbrirMensagem(id){
+  var e = (loadDB().edificacoes||[]).find(function(x){return x.id===id;});
+  if(!e) return;
+  triagemMsgId = id;
+  triagemMsgModo = triagemSituacaoFunc(e)==='vigente' ? 'regularizada' : 'regularizar';
+  var ov = document.getElementById('modalTriagemMsg');
+  if(!ov){
+    ov = document.createElement('div'); ov.id = 'modalTriagemMsg'; ov.className = 'modal-overlay';
+    ov.innerHTML = '<div class="modal" style="max-width:680px"><h3>📱 Mensagem pro responsável</h3>'+
+      '<div class="sub" id="tmg-sub"></div>'+
+      '<div class="btnrow" style="margin:10px 0"><button class="btn" id="tmg-b-reg" onclick="triagemTrocarModoMsg(\'regularizar\')">Precisa regularizar</button>'+
+      '<button class="btn" id="tmg-b-ok" onclick="triagemTrocarModoMsg(\'regularizada\')">Já está regularizada</button></div>'+
+      '<textarea id="tmg-texto" rows="14" style="width:100%;box-sizing:border-box"></textarea>'+
+      '<div class="modal-actions"><button class="btn" onclick="document.getElementById(\'modalTriagemMsg\').style.display=\'none\'">Fechar</button>'+
+      '<button class="btn" onclick="triagemCopiarMsg()">📋 Copiar</button>'+
+      '<button class="btn primary" onclick="triagemEnviarMsg()">Abrir no WhatsApp</button></div></div>';
+    document.body.appendChild(ov);
+  }
+  var tel = e.responsavel && e.responsavel.tel;
+  document.getElementById('tmg-sub').textContent = (e.nome||'Sem nome')+' · '+(tel ? '📞 '+tel : '⚠️ sem telefone cadastrado (use "Completar dados" ou copie o texto)');
+  ov.style.display = 'flex';
+  triagemTrocarModoMsg(triagemMsgModo);
+}
+function triagemTrocarModoMsg(modo){
+  triagemMsgModo = modo;
+  var e = (loadDB().edificacoes||[]).find(function(x){return x.id===triagemMsgId;});
+  if(!e) return;
+  document.getElementById('tmg-texto').value = triagemMontarMensagem(e, modo);
+  document.getElementById('tmg-b-reg').style.outline = modo==='regularizar' ? '2px solid var(--red2)' : 'none';
+  document.getElementById('tmg-b-ok').style.outline = modo==='regularizada' ? '2px solid var(--red2)' : 'none';
+}
+function triagemCopiarMsg(){
+  var t = document.getElementById('tmg-texto'); t.select();
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(t.value).catch(function(){ document.execCommand('copy'); }); }
+  else { document.execCommand('copy'); }
+}
+function triagemEnviarMsg(){
+  var db = loadDB();
+  var e = db.edificacoes.find(function(x){return x.id===triagemMsgId;});
+  if(!e) return;
+  var telWa = telefoneParaWhatsapp(e.responsavel && e.responsavel.tel);
+  if(!telWa){ alert('Esta edificação não tem telefone cadastrado. Use "Completar dados" para informar, ou copie o texto.'); return; }
+  var texto = document.getElementById('tmg-texto').value;
+  window.open('https://wa.me/'+telWa+'?text='+encodeURIComponent(texto), '_blank');
+  e.msgCampoEnviadaEm = new Date().toISOString();
+  e.atualizadoEm = e.msgCampoEnviadaEm;
+  saveDB(db);
+  document.getElementById('modalTriagemMsg').style.display = 'none';
   triagemAtualizar();
 }
 
@@ -9572,8 +9672,8 @@ function receberDoDriveQuartel(){
   gdriveBuscarUltimo('CAMPO_PARA_QUARTEL_').then(function(file){
     if(!file){ gdriveStatus('Nada do Campo na pasta do Drive ainda. No celular, use "Enviar pro Quartel".', true); return; }
     gdriveStatus('☁️ Encontrado: '+file.name+' (enviado em '+gdriveQuando(file.criadoEm)+')');
-    if(!confirm('Importar '+file.name+' (enviado em '+gdriveQuando(file.criadoEm)+')?')) return;
-    importarArquivo({files:[file], value:''});
+    gdriveStatus('☁️ Importando '+file.name+' (enviado em '+gdriveQuando(file.criadoEm)+')…'); // sem janela de confirmação: o navegador a ignora quando a aba está em segundo plano
+    importarArquivo({files:[file], value:'', viaDrive:true});
   }).catch(function(e){ gdriveStatus('⚠️ Não consegui buscar no Drive ('+e.message+').', true); });
 }
 function importarArquivo(input){
@@ -9626,6 +9726,7 @@ function importarArquivo(input){
 
     renderEdificacoes(); renderVistorias(); renderRotas(); renderCampo();
     input.value = '';
+    if(input.viaDrive) gdriveStatus('✅ Importado do Drive: '+file.name);
     }catch(errImp){
       alert('A importação FALHOU e nada foi alterado: '+(errImp && errImp.name==='QuotaExceededError' ? 'o armazenamento do navegador está cheio. Faça um backup completo, limpe dados antigos e tente de novo.' : (errImp && errImp.message || errImp)));
       input.value = '';
