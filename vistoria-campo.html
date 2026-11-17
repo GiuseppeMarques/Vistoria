@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v113</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v114</div>
   </header>
 
   <main>
@@ -322,7 +322,7 @@
       </div>
 
       <div class="btnrow" id="tMarcarBox" style="display:none;margin-bottom:10px">
-        <button class="btn" style="background:var(--card2)" onclick="abrirMarcarPonto()">📍 Marcar Ponto</button>
+        <button class="btn" style="background:var(--card2)" onclick="abrirMarcarPonto()">🏢 Marcar edificação</button>
       </div>
 
       <div id="pontosSessaoBox" style="display:none;margin-bottom:14px">
@@ -359,7 +359,7 @@
     <div class="view" id="v-mais">
       <div class="card">
         <div style="font-weight:700;margin-bottom:6px;font-size:14px">⬆️ Enviar pro Quartel</div>
-        <div class="sub" style="margin-bottom:12px">Trajetórias, pontos, vistorias realizadas e edificações atualizadas neste celular.</div>
+        <div class="sub" style="margin-bottom:12px">Trajetórias, vistorias realizadas e edificações atualizadas neste celular.</div>
         <button class="btn primary" style="width:100%" onclick="exportarParaQuartel()">Exportar pacote (.vst)</button>
         <div class="sub gdrive-status" style="margin-top:8px;font-weight:600"></div>
         <div class="sub" style="margin-top:6px">Também sobe sozinho para o Drive quando houver internet.</div>
@@ -392,7 +392,6 @@
         <div class="sheet-title">Camadas do mapa</div>
         <div class="layer-row"><span>🏢 Edificações</span><label class="sw"><input type="checkbox" id="lyEdif" checked onchange="atualizarCamadas()"><span class="sl"></span></label></div>
         <div class="layer-row"><span>🚫 Fora de competência</span><label class="sw"><input type="checkbox" id="lyForaComp" checked onchange="atualizarCamadas()"><span class="sl"></span></label></div>
-        <div class="layer-row"><span>📍 Pontos marcados</span><label class="sw"><input type="checkbox" id="lyPontos" checked onchange="atualizarCamadas()"><span class="sl"></span></label></div>
         <div class="layer-row"><span>🧭 Trajetória atual</span><label class="sw"><input type="checkbox" id="lyTrajAtual" checked onchange="atualizarCamadas()"><span class="sl"></span></label></div>
         <div class="layer-row"><span>〰️ Trajetórias anteriores</span><label class="sw"><input type="checkbox" id="lyTrajAnt" onchange="atualizarCamadas()"><span class="sl"></span></label></div>
         <button class="btn stop" style="margin-top:10px" onclick="document.getElementById('modalCamadas').style.display='none'">Fechar</button>
@@ -512,14 +511,6 @@
 
         <div class="sec-title" style="margin-top:0">Mapas baixados</div>
         <div id="mofLista"></div>
-      </div>
-    </div>
-    <div id="modalCat" class="modal-overlay" style="display:none" onclick="if(event.target===this)fecharModalCat()">
-      <div class="sheet">
-        <div class="sheet-handle"></div>
-        <div class="sheet-title">Marcar ponto</div>
-        <div class="cat-grid" id="catGrid"></div>
-        <button class="btn stop" style="margin-top:6px" onclick="fecharModalCat()">Cancelar</button>
       </div>
     </div>
 
@@ -3176,6 +3167,33 @@ function navTo(v){
 var DB_KEY = 'vistoria_unificado';
 var TRAJ_ATIVA_KEY = 'vistoria_campo_trajetoria_ativa';
 
+// O app agora marca só EDIFICAÇÕES. Pontos antigos (de qualquer tipo) viram edificação "a conferir" quando eram
+// "edificação desconhecida" (a foto do ponto passa para a edificação) e são descartados. Ids fixos (edif_<id do
+// ponto>) para que os dois aplicativos cheguem ao mesmo resultado sem duplicar. Idempotente.
+function pontosParaEdificacoes(db){
+  var pts = db.pontos || [];
+  if(!pts.length) return false;
+  db.edificacoes = db.edificacoes || [];
+  var por = {}; db.edificacoes.forEach(function(e){ por[e.id] = e; });
+  var agora = new Date().toISOString();
+  pts.forEach(function(p){
+    if(!p || p.tipo!=='edificacao_desconhecida') return;
+    var e = (p.edificacaoGeradaId && por[p.edificacaoGeradaId]) || por['edif_'+p.id];
+    if(!e){
+      e = {id:'edif_'+p.id, origem:'campo', re:p.numeroProvisorio||'', nome:p.nome||'', lat:p.lat, lng:p.lng, locOrigem:'local',
+           blocos:[], projetos:[], inquilinos:[], preventivos:{}, foto:p.foto||null, obsCampo:p.descricao||'',
+           criadoEm:p.dataHora||agora, atualizadoEm:agora, aConferir:{em:p.dataHora||agora, motivo:'nova'}};
+      db.edificacoes.push(e); por[e.id] = e;
+    } else {
+      if(!e.foto && p.foto){ e.foto = p.foto; }
+      if(!e.obsCampo && p.descricao){ e.obsCampo = p.descricao; }
+      if(e.origem==='campo' && !e.aConferir && !e.competencia){ e.aConferir = {em:p.dataHora||agora, motivo:'nova'}; }
+    }
+  });
+  db.pontos = [];
+  return true;
+}
+
 function loadDB(){
   var db;
   try{ db = JSON.parse(localStorage.getItem(DB_KEY)) || {edificacoes:[],vistorias:[],trajetorias:[],pontos:[],rotas:[]}; }
@@ -3183,6 +3201,7 @@ function loadDB(){
   // vistorias criadas fora do app podem vir sem checklist: normaliza para não quebrar a execução
   (db.vistorias||[]).forEach(function(v){ if(!v.checklist || typeof v.checklist!=='object') v.checklist = {}; if(v.situacaoHS==null) v.situacaoHS=''; if(v.obs==null) v.obs=''; });
   if(db.edificacoes) db.edificacoes = db.edificacoes.filter(function(e){ return !!e.id; });
+  pontosParaEdificacoes(db);
   return db;
 }
 
@@ -4470,6 +4489,21 @@ function renderTrajUI(){
   }
 }
 
+var trajDestacadaId = null;
+// mostra um trajeto já gravado no mapa (em vermelho, enquadrado) para poder repeti-lo
+function verTrajNoMapa(id){
+  trajDestacadaId = id;
+  navTo('mapa');
+  setTimeout(function(){
+    if(!map) return;
+    var ck = document.getElementById('lyTrajAnt'); if(ck) ck.checked = true;
+    atualizarCamadas();
+    var t = (loadDB().trajetorias||[]).find(function(x){return x.id===id;});
+    if(t && t.pontosGPS && t.pontosGPS.length>1){
+      try{ map.fitBounds(t.pontosGPS.map(function(p){return [p.lat,p.lng];}), {padding:[30,30]}); }catch(_){}
+    }
+  }, 250);
+}
 function renderHistorico(){
   var db = loadDB();
   var lista = (db.trajetorias||[]).slice().sort(function(a,b){
@@ -4486,7 +4520,8 @@ function renderHistorico(){
     var data = new Date(t.horaInicio).toLocaleDateString('pt-BR');
     return '<div class="hist-item">'+
       '<div><div class="nome">'+t.nome+'</div><div class="meta">'+data+' · '+dur+' · '+t.pontosGPS.length+' pontos GPS</div></div>'+
-      '<div class="dist">'+t.distanciaKm.toFixed(2)+' km</div>'+
+      '<div style="text-align:right"><div class="dist">'+t.distanciaKm.toFixed(2)+' km</div>'+
+      '<button class="btn" style="margin-top:6px;padding:6px 10px;font-size:12px" onclick="verTrajNoMapa(\''+t.id+'\')">🗺️ Ver no mapa</button></div>'+
     '</div>';
   }).join('');
 }
@@ -4494,37 +4529,17 @@ function renderHistorico(){
 // ════════════════════════════════════════
 // MARCAR PONTO (Fase 4)
 // ════════════════════════════════════════
-var CATEGORIAS_PONTO = [
-  {tipo:'edificacao_desconhecida', ic:'🏢', l:'Edificação desconhecida'},
-  {tipo:'bifurcacao',              ic:'🔀', l:'Bifurcação'},
-  {tipo:'acesso',                  ic:'🛣️', l:'Acesso'},
-  {tipo:'referencia',              ic:'📍', l:'Referência'},
-  {tipo:'ponto_risco',             ic:'⚠️', l:'Ponto de risco'},
-  {tipo:'hidrante',                ic:'🚒', l:'Hidrante'},
-  {tipo:'manancial',               ic:'🌊', l:'Manancial'},
-  {tipo:'ponte',                   ic:'🌉', l:'Ponte'},
-  {tipo:'igreja',                  ic:'⛪', l:'Igreja'},
-  {tipo:'outro',                   ic:'❓', l:'Outro'}
-];
+var pontoEmEdicaoId = null; // id da edificação recém-marcada, aguardando detalhes opcionais
 
-var pontoEmEdicaoId = null; // id do ponto recém-criado, aguardando detalhes opcionais
-
+// O app só marca EDIFICAÇÕES (nada de ponte, hidrante etc.): um toque captura o GPS e abre os detalhes.
 function abrirMarcarPonto(){
   if(!traj){ return; }
-  var grid = document.getElementById('catGrid');
-  grid.innerHTML = CATEGORIAS_PONTO.map(function(c){
-    return '<button class="cat-btn" onclick="marcarPontoCategoria(\''+c.tipo+'\')">'+
-      '<span class="ic">'+c.ic+'</span><span class="l">'+c.l+'</span></button>';
-  }).join('');
-  document.getElementById('modalCat').style.display='flex';
+  marcarPontoCategoria('edificacao_desconhecida');
 }
-function fecharModalCat(){ document.getElementById('modalCat').style.display='none'; }
 
 function marcarPontoCategoria(tipo){
-  fecharModalCat();
-  if(!navigator.geolocation){ mostrarAvisoGPS('❌ GPS não disponível para marcar ponto.'); return; }
-
-  mostrarAvisoGPS('⏳ Capturando localização do ponto...');
+  if(!navigator.geolocation){ mostrarAvisoGPS('❌ GPS não disponível para marcar a edificação.'); return; }
+  mostrarAvisoGPS('⏳ Capturando localização da edificação...');
   navigator.geolocation.getCurrentPosition(function(pos){
     esconderAvisoGPS();
     criarPonto(tipo, pos.coords.latitude, pos.coords.longitude);
@@ -4534,67 +4549,57 @@ function marcarPontoCategoria(tipo){
 }
 
 function criarPonto(tipo, lat, lng){
-  var ponto = {
-    id: novoId('pt'),
-    tipo: tipo,
-    lat: lat, lng: lng,
-    dataHora: new Date().toISOString(),
-    atualizadoEm: new Date().toISOString(),
-    trajetoriaId: traj.id,
-    nome: '', descricao: '', foto: null,
-    status: tipo==='edificacao_desconhecida' ? 'pendente' : 'definitivo',
-    edificacaoGeradaId: null
+  var agora = new Date().toISOString();
+  var e = {
+    id: novoId('edif'), origem:'campo', re:'', nome:'', lat:lat, lng:lng, locOrigem:'local',
+    blocos:[], projetos:[], inquilinos:[], preventivos:{},
+    trajetoriaId: traj.id, foto:null,
+    criadoEm: agora, atualizadoEm: agora,
+    aConferir: {em:agora, motivo:'nova'}
   };
   var db = loadDB();
-  db.pontos.push(ponto);
+  db.edificacoes.push(e);
   saveDB(db);
 
-  traj.pontosMarcados.push(ponto.id);
+  traj.pontosMarcados.push(e.id);
   persistirTrajAtiva();
 
   renderPontosSessao();
-  renderMapPontos();
-  abrirModalDetalhes(ponto);
+  if(map){ try{ renderMapEdificacoes(); }catch(_){} }
+  abrirModalDetalhes(e);
 }
 
-function abrirModalDetalhes(ponto){
-  pontoEmEdicaoId = ponto.id;
-  var cat = CATEGORIAS_PONTO.find(function(c){return c.tipo===ponto.tipo;});
-  document.getElementById('detTitulo').textContent = (cat?cat.ic+' ':'')+'Ponto marcado ✅';
-  document.getElementById('detCoord').textContent = ponto.lat.toFixed(6)+', '+ponto.lng.toFixed(6);
+function abrirModalDetalhes(e){
+  pontoEmEdicaoId = e.id;
+  document.getElementById('detTitulo').textContent = '🏢 Edificação marcada ✅';
+  document.getElementById('detCoord').textContent = e.lat.toFixed(6)+', '+e.lng.toFixed(6);
   document.getElementById('detNome').value='';
   document.getElementById('detObs').value='';
   document.getElementById('detFoto').value='';
   document.getElementById('detFotoPrev').style.display='none';
 
-  var extra = document.getElementById('detCamposExtra');
-  if(ponto.tipo==='edificacao_desconhecida'){
-    extra.innerHTML =
-      '<div class="frow">'+
-        '<div class="fcol"><label class="lbl">RE / Número (se souber)</label><input type="text" id="detNumero" placeholder="—"></div>'+
-        '<div class="fcol"><label class="lbl">Grau de Risco</label><select id="detRisco"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>'+
-      '</div>'+
-      '<label class="lbl">Endereço</label>'+
-      '<input type="text" id="detEndereco" placeholder="Rua, número">'+
-      '<div class="frow">'+
-        '<div class="fcol"><label class="lbl">Bairro</label><input type="text" id="detBairro"></div>'+
-        '<div class="fcol"><label class="lbl">Município</label><input type="text" id="detMunicipio"></div>'+
-      '</div>'+
-      '<div class="frow">'+
-        '<div class="fcol"><label class="lbl">Responsável</label><input type="text" id="detResponsavel"></div>'+
-        '<div class="fcol"><label class="lbl">Telefone</label><input type="text" id="detTelefone"></div>'+
-      '</div>'+
-      '<div class="frow">'+
-        '<div class="fcol"><label class="lbl">Área (m²)</label><input type="text" id="detArea"></div>'+
-        '<div class="fcol"><label class="lbl">Situação funcionamento</label><select id="detFuncSituacao"><option value="">—</option><option value="valido">Válido</option><option value="vencido">Vencido</option><option value="nao_possui">Não possui</option></select></div>'+
-      '</div>'+
-      '<div class="gps-warn" style="background:rgba(28,28,30,.4);border-color:var(--border);color:var(--sub)">'+
-      'Preencha o que tiver à mão. O que ficar em branco dá pra completar depois, no Vistoria Quartel.</div>';
-  } else {
-    extra.innerHTML = '';
-  }
-  document.getElementById('detBtnForaComp').style.display = ponto.tipo==='edificacao_desconhecida' ? 'block' : 'none';
-
+  document.getElementById('detCamposExtra').innerHTML =
+    '<div class="frow">'+
+      '<div class="fcol"><label class="lbl">RE / Número (se souber)</label><input type="text" id="detNumero" placeholder="—"></div>'+
+      '<div class="fcol"><label class="lbl">Grau de Risco</label><select id="detRisco"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>'+
+    '</div>'+
+    '<label class="lbl">Endereço</label>'+
+    '<input type="text" id="detEndereco" placeholder="Rua, número">'+
+    '<div class="frow">'+
+      '<div class="fcol"><label class="lbl">Bairro</label><input type="text" id="detBairro"></div>'+
+      '<div class="fcol"><label class="lbl">Município</label><input type="text" id="detMunicipio"></div>'+
+    '</div>'+
+    '<div class="frow">'+
+      '<div class="fcol"><label class="lbl">Responsável</label><input type="text" id="detResponsavel"></div>'+
+      '<div class="fcol"><label class="lbl">Telefone</label><input type="text" id="detTelefone"></div>'+
+    '</div>'+
+    '<div class="frow">'+
+      '<div class="fcol"><label class="lbl">Área (m²)</label><input type="text" id="detArea"></div>'+
+      '<div class="fcol"><label class="lbl">Situação funcionamento</label><select id="detFuncSituacao"><option value="">—</option><option value="valido">Válido</option><option value="vencido">Vencido</option><option value="nao_possui">Não possui</option></select></div>'+
+    '</div>'+
+    '<div class="gps-warn" style="background:rgba(28,28,30,.4);border-color:var(--border);color:var(--sub)">'+
+    'Preencha o que tiver à mão. O que ficar em branco dá pra completar depois, no Vistoria Quartel.</div>';
+  document.getElementById('detBtnForaComp').style.display = 'block';
   document.getElementById('modalDet').style.display='flex';
 }
 
@@ -4612,99 +4617,62 @@ function aplicarFotoDet(dataUrl){
   img.style.display='block';
 }
 
+// lê os campos do modal e grava na edificação marcada
+function detGravarNaEdif(e){
+  var g = function(id){ var el = document.getElementById(id); return el ? String(el.value||'').trim() : ''; };
+  var nome = g('detNome');
+  if(nome) e.nome = nome;
+  var obs = g('detObs'); if(obs) e.obsCampo = obs;
+  if(fotoBase64Atual) e.foto = fotoGuardar(fotoBase64Atual);
+  var re = g('detNumero'); if(re) e.re = re;
+  var risco = g('detRisco'); if(risco) e.grauRisco = risco;
+  if(g('detEndereco')) e.endereco = g('detEndereco');
+  if(g('detBairro')) e.bairro = g('detBairro');
+  if(g('detMunicipio')) e.municipio = g('detMunicipio');
+  if(g('detResponsavel') || g('detTelefone')) e.responsavel = {nome: g('detResponsavel'), tel: g('detTelefone')};
+  if(g('detArea')) e.area = g('detArea');
+  var fs = g('detFuncSituacao');
+  if(fs){ e.vigenciaFuncionamento = e.vigenciaFuncionamento || {}; e.vigenciaFuncionamento.situacao = fs; }
+  e.atualizadoEm = new Date().toISOString();
+}
+
 function marcarPontoForaCompetencia(){
   if(!pontoEmEdicaoId) return;
   var db = loadDB();
-  var idx = db.pontos.findIndex(function(p){return p.id===pontoEmEdicaoId;});
-  if(idx<0) return;
-  var ponto = db.pontos[idx];
-
+  var e = db.edificacoes.find(function(x){return x.id===pontoEmEdicaoId;});
+  if(!e) return;
   var motivo = prompt('Motivo (opcional) — por que não é caso do Corpo de Bombeiros:', '') || '';
-  var nomeEl = document.getElementById('detNome');
-  var numEl = document.getElementById('detNumero');
-  if(nomeEl) ponto.nome = nomeEl.value.trim();
-  if(numEl) ponto.numeroProvisorio = numEl.value.trim();
-  ponto.atualizadoEm = new Date().toISOString();
-
-  var edifId = ponto.edificacaoGeradaId;
-  var e = edifId ? db.edificacoes.find(function(x){return x.id===edifId;}) : null;
-  if(!e){
-    e = {id: novoId('edif'), origem:'campo', lat:ponto.lat, lng:ponto.lng};
-    db.edificacoes.push(e);
-    ponto.edificacaoGeradaId = e.id;
-  }
-  e.re = ponto.numeroProvisorio||e.re||'';
-  e.nome = ponto.nome || e.nome || 'Sem nome';
+  detGravarNaEdif(e);
+  if(!e.nome) e.nome = 'Sem nome';
   e.competencia = 'fora';
   e.competenciaMotivo = motivo.trim();
   e.competenciaData = new Date().toISOString();
-  e.atualizadoEm = new Date().toISOString();
-  ponto.status = 'convertido';
-
   saveDB(db);
   document.getElementById('modalDet').style.display='none';
   pontoEmEdicaoId = null;
   fotoBase64Atual = null;
   renderPontosSessao();
-  renderMapPontos();
-  if(map) renderMapEdif();
+  if(map){ try{ renderMapEdificacoes(); }catch(_){} }
 }
 
 function fecharModalDet(salvar){
   document.getElementById('modalDet').style.display='none';
   if(!pontoEmEdicaoId) return;
-
   if(salvar){
     var db = loadDB();
-    var idx = db.pontos.findIndex(function(p){return p.id===pontoEmEdicaoId;});
-    if(idx>=0){
-      var ponto = db.pontos[idx];
-      ponto.nome = document.getElementById('detNome').value.trim();
-      ponto.descricao = document.getElementById('detObs').value.trim();
-      if(fotoBase64Atual) ponto.foto = fotoGuardar(fotoBase64Atual);
-      var numEl = document.getElementById('detNumero');
-      if(numEl) ponto.numeroProvisorio = numEl.value.trim();
-      ponto.atualizadoEm = new Date().toISOString();
-
-      if(ponto.tipo==='edificacao_desconhecida'){
-        var re = (document.getElementById('detNumero').value||'').trim();
-        var risco = document.getElementById('detRisco').value;
-        var endereco = document.getElementById('detEndereco').value.trim();
-        var bairro = document.getElementById('detBairro').value.trim();
-        var municipio = document.getElementById('detMunicipio').value.trim();
-        var responsavel = document.getElementById('detResponsavel').value.trim();
-        var telefone = document.getElementById('detTelefone').value.trim();
-        var area = document.getElementById('detArea').value.trim();
-        var funcSituacao = document.getElementById('detFuncSituacao').value;
-        var temInfo = re||risco||endereco||bairro||municipio||responsavel||telefone||area||funcSituacao||ponto.nome;
-
-        if(temInfo){
-          var edifId = ponto.edificacaoGeradaId;
-          var e = edifId ? db.edificacoes.find(function(x){return x.id===edifId;}) : null;
-          if(!e){
-            e = {id: novoId('edif'), origem:'campo', lat:ponto.lat, lng:ponto.lng};
-            db.edificacoes.push(e);
-            ponto.edificacaoGeradaId = e.id;
-          }
-          e.re = re; e.nome = ponto.nome || e.nome || '';
-          e.grauRisco = risco || null;
-          e.endereco = endereco; e.bairro = bairro; e.municipio = municipio;
-          e.responsavel = {nome: responsavel, tel: telefone};
-          e.area = area;
-          e.vigenciaFuncionamento = e.vigenciaFuncionamento || {};
-          e.vigenciaFuncionamento.situacao = funcSituacao || null;
-          e.atualizadoEm = new Date().toISOString();
-          ponto.status = 'convertido';
-        }
-      }
+    var e = db.edificacoes.find(function(x){return x.id===pontoEmEdicaoId;});
+    if(e){
+      detGravarNaEdif(e);
       saveDB(db);
       renderPontosSessao();
+      if(map){ try{ renderMapEdificacoes(); }catch(_){} }
     }
   }
   fotoBase64Atual = null;
   pontoEmEdicaoId = null;
 }
 
+// chips das edificações marcadas nesta trajetória
 function renderPontosSessao(){
   var box = document.getElementById('pontosSessaoBox');
   var list = document.getElementById('pontosSessaoList');
@@ -4712,14 +4680,15 @@ function renderPontosSessao(){
     box.style.display='none';
     return;
   }
-  box.style.display='block';
   var db = loadDB();
-  list.innerHTML = traj.pontosMarcados.map(function(pid){
-    var p = db.pontos.find(function(x){return x.id===pid;});
-    if(!p) return '';
-    var cat = CATEGORIAS_PONTO.find(function(c){return c.tipo===p.tipo;});
-    return '<span class="chip">'+(cat?cat.ic:'📍')+' '+(p.nome||cat.l)+'</span>';
-  }).join('');
+  var chips = traj.pontosMarcados.map(function(pid){
+    var e = db.edificacoes.find(function(x){return x.id===pid;});
+    if(!e) return '';
+    return '<span class="chip">🏢 '+(e.nome||e.re||'Sem nome')+'</span>';
+  }).filter(Boolean);
+  if(!chips.length){ box.style.display='none'; return; }
+  box.style.display='block';
+  list.innerHTML = chips.join('');
 }
 
 // ════════════════════════════════════════
@@ -5408,12 +5377,10 @@ function atualizarCamadas(){
   if(!map) return;
   var edif=document.getElementById('lyEdif').checked;
   var fora=document.getElementById('lyForaComp').checked;
-  var pts=document.getElementById('lyPontos').checked;
   var ta=document.getElementById('lyTrajAtual').checked;
   var tant=document.getElementById('lyTrajAnt').checked;
   if(edif) map.addLayer(lyrEdif); else map.removeLayer(lyrEdif);
   if(fora) map.addLayer(lyrForaComp); else map.removeLayer(lyrForaComp);
-  if(pts) map.addLayer(lyrPontos); else map.removeLayer(lyrPontos);
   if(ta) map.addLayer(lyrTrajAtual); else map.removeLayer(lyrTrajAtual);
   if(tant){ map.addLayer(lyrTrajAnt); renderMapTrajAnteriores(); } else map.removeLayer(lyrTrajAnt);
 }
@@ -5694,23 +5661,8 @@ function renderMapEdificacoes(){
 }
 
 function renderMapPontos(){
-  if(!map) return;
-  lyrPontos.clearLayers();
-  var db = loadDB();
-  (db.pontos||[]).forEach(function(p){
-    if(p.tipo==='edificacao_desconhecida' && p.status==='convertido') return;
-    var cat = CATEGORIAS_PONTO.find(function(c){ return c.tipo===p.tipo; }) || {ic:'📍', l:'Ponto'};
-    var html;
-    if(p.tipo==='edificacao_desconhecida'){
-      // edificação encontrada que ainda não foi cadastrada: triângulo âmbar
-      html = '<svg width="28" height="26" viewBox="0 0 28 26" style="filter:drop-shadow(0 1px 3px rgba(0,0,0,.6))"><polygon points="14,2 26,24 2,24" fill="#FFB800" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/><text x="14" y="21" text-anchor="middle" font-size="13" font-weight="900" fill="#1c1c1e">!</text></svg>';
-    } else {
-      html = '<div style="width:24px;height:24px;border-radius:6px;background:#fff;border:2px solid #1c1c1e;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.6)">'+cat.ic+'</div>';
-    }
-    var icon = L.divIcon({html:html, className:'', iconSize:[28,26], iconAnchor:[14,13]});
-    L.marker([p.lat, p.lng], {icon:icon}).addTo(lyrPontos)
-      .bindTooltip(p.nome || cat.l || p.tipo, {direction:'top'});
-  });
+  // o app não marca mais pontos: só edificações (desenhadas por renderMapEdificacoes)
+  if(map && lyrPontos) lyrPontos.clearLayers();
 }
 
 function renderMapLive(){
@@ -5728,7 +5680,8 @@ function renderMapTrajAnteriores(){
   (db.trajetorias||[]).forEach(function(t){
     if(t.pontosGPS.length<2) return;
     var latlngs = t.pontosGPS.map(function(p){return [p.lat,p.lng];});
-    L.polyline(latlngs, {color:'#8E8E93', weight:3, opacity:.6, dashArray:'4,6'}).addTo(lyrTrajAnt);
+    if(t.id===trajDestacadaId) L.polyline(latlngs, {color:'#E0393F', weight:5, opacity:.95}).addTo(lyrTrajAnt).bindTooltip(t.nome||'Trajeto', {sticky:true});
+    else L.polyline(latlngs, {color:'#8E8E93', weight:3, opacity:.6, dashArray:'4,6'}).addTo(lyrTrajAnt).bindTooltip((t.nome||'Trajeto')+' · '+new Date(t.horaInicio).toLocaleDateString('pt-BR'), {sticky:true});
   });
 }
 
@@ -6088,7 +6041,7 @@ function exportarParaQuartel2(){
   var pacote = {
     versao: 1, geradoEm: new Date().toISOString(), direcao: 'campo→quartel',
     trajetorias: db.trajetorias||[],
-    pontos: fotoResolver(db.pontos),
+    pontos: [],
     vistorias: db.vistorias||[],
     edificacoes: fotoResolver(db.edificacoes), // todas — o Quartel já sabe mesclar por id/atualizadoEm sem duplicar
     rotas: []
@@ -6589,12 +6542,13 @@ function importarArquivoCampo(input){
     migrarFotosLista([].concat(pacote.edificacoes||[], pacote.pontos||[]), function(){
     var db = loadDB();
     var resumo = {};
-    ['edificacoes','vistorias','trajetorias','pontos','rotas'].forEach(function(tipo){
+    ['edificacoes','vistorias','trajetorias','rotas'].forEach(function(tipo){
       if(!pacote[tipo] || !pacote[tipo].length) return;
       var c = {novos:0, atualizados:0, conflitos:0};
       db[tipo] = mergeArray(db[tipo], pacote[tipo], c);
       resumo[tipo]=c;
     });
+    if(pacote.pontos && pacote.pontos.length){ db.pontos = (db.pontos||[]).concat(pacote.pontos); pontosParaEdificacoes(db); } // pacote de versão antiga
     // o que foi excluído no Quartel (rota apagada e suas paradas ainda não executadas) some daqui também;
     // vistoria já concluída nunca é apagada, só deixa de apontar pra rota que não existe mais
     var rotasEx = pacote.rotasExcluidas || [], vistEx = pacote.vistoriasExcluidas || [], removidas = 0;
@@ -6638,6 +6592,8 @@ if('serviceWorker' in navigator){
 // INIT
 // ════════════════════════════════════════
 tentarRecuperarTrajAtiva();
+// pontos antigos viram edificações e somem (grava uma vez)
+try{ var _d0 = loadDB(), _raw = JSON.parse(localStorage.getItem(DB_KEY)||'{}'); if(_raw.pontos && _raw.pontos.length){ saveDB(_d0); } }catch(_){}
 renderHistorico();
 </script>
 </body>
