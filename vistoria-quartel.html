@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v156</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v157</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -9158,9 +9158,22 @@ function exportarParaCampo2(){
 var GDRIVE_CLIENT_ID = '659798983978-pfasthvc84fgeltrke8mm8idfgv8cn1l.apps.googleusercontent.com';
 var GDRIVE_PASTA = 'Vistoria Claude';
 var gdriveTok = {t:'', ate:0};
+var gdriveAlvo = null;
+// o aviso aparece só no cartão onde o botão foi tocado (importar/exportar), não em todos os cartões
+document.addEventListener('click', function(ev){
+  var b = ev.target && ev.target.closest ? ev.target.closest('button, label, input[type=file]') : null;
+  if(!b) return;
+  var card = b.closest('.card2-box, .card');
+  var st = card ? card.querySelector('.gdrive-status') : null;
+  if(st) gdriveAlvo = st;
+}, true);
 function gdriveStatus(msg, erro){
   var els = document.querySelectorAll('.gdrive-status');
-  for(var i=0;i<els.length;i++){ els[i].textContent = msg; els[i].style.color = erro ? 'var(--amar)' : 'var(--verde)'; }
+  for(var i=0;i<els.length;i++){
+    var alvo = (!gdriveAlvo || els[i]===gdriveAlvo);
+    els[i].textContent = alvo ? msg : '';
+    if(alvo) els[i].style.color = erro ? 'var(--amar)' : 'var(--verde)';
+  }
 }
 function gdriveCarregarGIS(){
   return new Promise(function(ok, falha){
