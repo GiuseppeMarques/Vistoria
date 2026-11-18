@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v116</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v118</div>
   </header>
 
   <main>
@@ -992,6 +992,7 @@ function renderVistoriasCampo(){
   if(vistFiltroRota===''){ el.innerHTML = htmlVistoriasAgrupadasCampo(db, lista); return; }
   el.innerHTML = htmlBotaoRotaToda + lista.map(function(v){ return vistCardHtmlCampo(v, db); }).join('');
 }
+function multaAbertaCampo(e){ try{ return e ? dosPend(e).multas.length : 0; }catch(_){ return 0; } }
 function vistCardHtmlCampo(v, db){
     var e = db.edificacoes.find(function(x){return x.id===v.edificacaoId;});
     var cl = getCL(v.tipo);
@@ -1013,7 +1014,7 @@ function vistCardHtmlCampo(v, db){
     return '<div class="vist-card" onclick="abrirExecucao(\''+v.edificacaoId+'\',\''+v.id+'\')">'+
       '<div class="vtop">'+
         '<div><div class="vnome">'+(e?e.nome:'Edificação removida')+'</div>'+
-        '<div class="vsub">'+(e?e.re:'')+' · '+(v.tipo ? rotuloVistoria(v) : 'Sem tipo escolhido')+(v.motivo?' · '+v.motivo:'')+rotaTag+(e&&e.endereco?'<br>'+e.endereco+(e.bairro?' — '+e.bairro:''):'')+'</div></div>'+
+        '<div class="vsub">'+(multaAbertaCampo(e)?'<span style="display:inline-block;background:var(--red2);color:#fff;font-weight:700;font-size:11px;padding:2px 8px;border-radius:8px;margin-right:6px">💰 MULTA EM ABERTO ('+multaAbertaCampo(e)+')</span>':'')+(e?e.re:'')+' · '+(v.tipo ? rotuloVistoria(v) : 'Sem tipo escolhido')+(v.motivo?' · '+v.motivo:'')+rotaTag+(e&&e.endereco?'<br>'+e.endereco+(e.bairro?' — '+e.bairro:''):'')+'</div></div>'+
         '<span class="vist-status '+statusCls+'">'+statusTxt+'</span>'+badgeEsci(v)+
       '</div>'+
       ocupLinhaCard(ocupListaVist(v,e))+
@@ -1161,13 +1162,47 @@ function htmlVistoriasAgrupadasCampo(db, lista){
     }
     h += htmlGrupoVistCampo(chave, M[1], rs.length+' rota(s)', corpo, 0);
   });
-  if(semRota.length){
-    var porBairro = {};
-    semRota.forEach(function(v){ var e = (db.edificacoes||[]).find(function(x){return x.id===v.edificacaoId;}); var b = (e && e.bairro) || 'Sem bairro'; (porBairro[b] = porBairro[b]||[]).push(v); });
-    var corpoSem = Object.keys(porBairro).sort(function(a,b){ return a.localeCompare(b,'pt-BR',{sensitivity:'base'}); }).map(function(b){
-      return htmlGrupoVistCampo('semrota|'+b, '📍 '+b, porBairro[b].length+' vistoria(s)', porBairro[b].map(function(v){ return vistCardHtmlCampo(v, db); }).join(''), 1);
+  // Sem rota: só as pendentes, agrupadas por mês de vencimento do funcionamento > município > bairro
+  var pendTodas = semRota.filter(function(v){ return !v.concluida; });
+  var edDe = function(v){ return (db.edificacoes||[]).find(function(x){return x.id===v.edificacaoId;}); };
+  var comMulta = pendTodas.filter(function(v){ return multaAbertaCampo(edDe(v)); });
+  var pendSem = pendTodas.filter(function(v){ return !multaAbertaCampo(edDe(v)); });
+  if(comMulta.length){
+    h += htmlGrupoVistCampo('semrota-multa', '💰 Multa em aberto (fora das pendências)', comMulta.length+' edificação(ões): não entram na lista de vistoria até a multa ser resolvida', comMulta.map(function(v){ return vistCardHtmlCampo(v, db); }).join(''), 0);
+  }
+  if(pendSem.length){
+    var hojeSR = new Date(); hojeSR.setHours(0,0,0,0);
+    var porMes = {};
+    pendSem.forEach(function(v){
+      var e = (db.edificacoes||[]).find(function(x){return x.id===v.edificacaoId;});
+      var d = e && dataBRCampo(e.vigenciaFuncionamento && e.vigenciaFuncionamento.vencimento);
+      var dm = d ? new Date(d.getFullYear(), d.getMonth(), 1) : null, mesAtual = new Date(hojeSR.getFullYear(), hojeSR.getMonth(), 1);
+      var vencidoAntes = dm && dm < mesAtual;
+      if(vencidoAntes) dm = mesAtual; // o que já venceu cai no mês atual (e vai passando de mês junto)
+      var km = dm ? dm.getFullYear()+'-'+(dm.getMonth()<9?'0':'')+(dm.getMonth()+1) : 'zzz';
+      var mun = (e && e.municipio) || 'Sem município', bai = (e && e.bairro) || 'Sem bairro';
+      var M = porMes[km] = porMes[km] || {d:dm, muns:{}, venc:0}; if(vencidoAntes) M.venc++;
+      var Mu = M.muns[mun] = M.muns[mun] || {};
+      (Mu[bai] = Mu[bai] || []).push(v);
+    });
+    var kk = function(t){ return encodeURIComponent(t).replace(/'/g,'%27'); };
+    var cmp = function(a,b){ return a.localeCompare(b,'pt-BR',{sensitivity:'base'}); };
+    var corpoSem = Object.keys(porMes).sort().map(function(km){
+      var M = porMes[km], qtdMes = 0, tit, vencido = false;
+      if(M.d){ tit = '📅 '+MESES_CAMPO[M.d.getMonth()]+' de '+M.d.getFullYear()+(M.venc?' · inclui '+M.venc+' já vencido(s)':''); }
+      else tit = '❔ Sem vencimento de funcionamento';
+      var corpoMes = Object.keys(M.muns).sort(cmp).map(function(mun){
+        var qtdMun = 0;
+        var corpoMun = Object.keys(M.muns[mun]).sort(cmp).map(function(bai){
+          var vs = M.muns[mun][bai]; qtdMun += vs.length;
+          return htmlGrupoVistCampo('sr|'+km+'|'+kk(mun)+'|'+kk(bai), '🏘️ '+bai, vs.length+' pendente(s)', vs.map(function(v){ return vistCardHtmlCampo(v, db); }).join(''), 3);
+        }).join('');
+        qtdMes += qtdMun;
+        return htmlGrupoVistCampo('sr|'+km+'|'+kk(mun), '📍 '+mun, qtdMun+' pendente(s)', corpoMun, 2);
+      }).join('');
+      return htmlGrupoVistCampo('sr|'+km, tit, qtdMes+' pendente(s)', corpoMes, 1);
     }).join('');
-    h += htmlGrupoVistCampo('semrota', '📋 Sem rota', semRota.length+' vistoria(s)', corpoSem, 0);
+    h += htmlGrupoVistCampo('semrota', '📋 Sem rota (pendentes, por vencimento)', pendSem.length+' pendente(s)', corpoSem, 0);
   }
   return h;
 }
@@ -3587,7 +3622,7 @@ function renderEdifsCampo(){
         '<div style="flex:1;min-width:0">'+
           '<div style="font-weight:700;font-size:14px">'+(e.nome||'Sem nome')+tagConferir(e)+'</div>'+
           '<div style="font-size:11px;color:var(--sub);order:9">🕑 '+textoUltimaVistoria(db, e.id, false)+'</div>'+
-          '<div style="font-size:12px;color:var(--sub)">'+(e.re||'Sem RE')+(e.endereco?' · '+e.endereco:'')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(semGPS?' · ⚠️ sem localização':'')+'</div>'+ocupLinhaCard(ocupLista(e))+tagFaltando(e)+
+          '<div style="font-size:12px;color:var(--sub)">'+(e.re||'Sem RE')+(e.endereco?' · '+e.endereco:'')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(semGPS?' · ⚠️ sem localização':'')+'</div>'+ocupLinhaCard(ocupLista(e))+tagTriagem(e)+tagFaltando(e)+
         '</div>'+
       '</div>'+
       (textoProgramadaCampo(db, e.id) ? '<div style="font-size:12px;color:var(--sub);margin-top:8px">'+textoProgramadaCampo(db, e.id)+'</div>' : '')+
@@ -3648,7 +3683,7 @@ function renderEdifsPorLocalCampo(db, el){
                 '<div style="width:24px;height:24px;border-radius:50%;background:'+cor+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex:0 0 auto">'+(risco||'—')+'</div>'+
                 '<div style="flex:1;min-width:0">'+
                   '<div style="font-weight:700;font-size:13px">'+(e.endereco||'Sem endereço')+'</div>'+
-                  '<div style="font-size:11px;color:var(--sub)">'+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+(semGPS?' · ⚠️ sem localização':'')+'</div>'+
+                  '<div style="font-size:11px;color:var(--sub)">'+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+(semGPS?' · ⚠️ sem localização':'')+'</div>'+tagTriagem(e)+
                 '</div>'+
               '</div>'+
             '</div>';
@@ -3803,6 +3838,12 @@ function htmlAvisoFaltando(e, fnPre, fnOk){
       '<div style="margin-top:8px"><button type="button" class="btn" style="width:auto;padding:6px 12px" onclick="'+fnOk+'()">✔ Conferi, está certo</button></div></div>';
   }
   return h;
+}
+function edifACampoTriar(e){ return !!(e && e.origem==='campo' && e.aConferir && e.aConferir.motivo==='nova' && e.competencia!=='fora'); }
+function tagTriagem(e){
+  if(e && e.competencia==='fora') return '<div class="elist-s" style="margin-top:3px"><span style="display:inline-block;background:#4a4a52;color:#fff;font-weight:700;font-size:11px;padding:2px 8px;border-radius:8px">🚫 Fora de competência</span></div>';
+  if(!edifACampoTriar(e)) return '';
+  return '<div class="elist-s" style="margin-top:3px"><span style="display:inline-block;background:#7B61FF;color:#fff;font-weight:700;font-size:11px;padding:2px 8px;border-radius:8px;margin-right:4px">🆕 Marcada em campo: a triar</span><span style="display:inline-block;background:#ff3b30;color:#fff;font-weight:700;font-size:11px;padding:2px 8px;border-radius:8px">❌ Sem funcionamento</span></div>';
 }
 function tagFaltando(e){
   var f = dadosFaltando(e);
@@ -5635,8 +5676,11 @@ function renderMapEdificacoes(){
     var num = riscoM || '?';
     var badgeDesocupada = e.desocupada ? '<div style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;background:#6b6b70;border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px">🏚️</div>' : '';
     var fF = dosFunc(e), fVenc = !!fF.estado, fEst = fF.estado, fAnd = (fEst==='ciencia'||fEst==='ok');
+    var triarM = edifACampoTriar(e);
+    if(triarM){ fVenc = true; fEst = 'agir'; } // marcada em campo, ainda sem funcionamento
     var feita = !!feitasMapa[e.id], ehProxima = !!(alvoMapaId && alvoMapaId===e.id);
     var fundo = feita ? '#1f9d4d' : cor, miolo = feita ? '✓' : num, borda = ehProxima ? '3px solid #0A84FF' : '2px solid #fff';
+    if(triarM && !feita){ fundo = '#7B61FF'; miolo = '?'; if(!ehProxima) borda = '3px dashed #fff'; }
     var tam = ehProxima ? 30 : 24, brilho = '';
     if(edifIdsDaRota && !foraDaRota && !ehProxima){ tam = 28; if(!feita){ borda = '3px solid #FFD60A'; brilho = '0 0 0 3px rgba(255,214,10,.4),'; } }
     if(foraDaRota) tam = fVenc ? 22 : 18;
@@ -5648,7 +5692,7 @@ function renderMapEdificacoes(){
       className:'', iconSize:[tam,tam], iconAnchor:[tam/2,tam/2]
     });
     var mk = L.marker([e.lat, e.lng], {icon:icon, zIndexOffset: ehProxima ? 1000 : (foraDaRota ? -500 : (edifIdsDaRota ? 300 : 0))}).addTo(lyrEdif);
-    if(e.desocupada || foraDaRota || fVenc || multasAb.length) mk.bindTooltip((e.re||'Sem RE')+' — '+(e.nome||'')+(e.desocupada?' (🏚️ DESOCUPADA: funcionamento não se aplica)':'')+(foraDaRota?' (fora da rota)':'')+(multasAb.length?' · ⚠️ MULTA em aberto nº '+multasAb.map(function(m){return m.numero||'s/n';}).join(', '):'')+(fEst==='ok'?' · ⚪ sem funcionamento em dia, já notificado e com ciência: nada a fazer':(fEst==='ciencia'?' · 🟠 colher ciência (AF/multa)':(fEst==='agir'?' · 🔴 sem funcionamento em dia: notificar (criar AF)':''))), {direction:'top'});
+    if(e.desocupada || foraDaRota || fVenc || multasAb.length) mk.bindTooltip((e.re||'Sem RE')+' — '+(e.nome||'')+(triarM?' (🆕 marcada em campo, a triar)':'')+(e.desocupada?' (🏚️ DESOCUPADA: funcionamento não se aplica)':'')+(foraDaRota?' (fora da rota)':'')+(multasAb.length?' · ⚠️ MULTA em aberto nº '+multasAb.map(function(m){return m.numero||'s/n';}).join(', '):'')+(fEst==='ok'?' · ⚪ sem funcionamento em dia, já notificado e com ciência: nada a fazer':(fEst==='ciencia'?' · 🟠 colher ciência (AF/multa)':(fEst==='agir'?' · 🔴 sem funcionamento em dia: notificar (criar AF)':''))), {direction:'top'});
     mk.on('click', function(){ abrirCartaoEdificacao(e); });
     // trajeto salvo (pontos de passagem) das paradas da rota, discreto, para ver o caminho combinado
     if(edifIdsDaRota && !foraDaRota && !feita && e.vias && e.vias.length){
