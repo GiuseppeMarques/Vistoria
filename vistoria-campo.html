@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v118</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v122</div>
   </header>
 
   <main>
@@ -2160,6 +2160,32 @@ function togglePrevSistema(sid){
   renderExecucao();
 }
 
+
+// Marca na vistoria que faltou a solicitação do Funcionamento de bloco: entra na mensagem pro responsável
+// e vira um passo pendente em "Lançar no e-SCI".
+function faltaFuncBlocoSet(vistId, on){
+  var db = loadDB(), v = (db.vistorias||[]).find(function(x){return x.id===vistId;}); if(!v) return;
+  if(on) v.faltaFuncBloco = {em:new Date().toISOString(), obs:(v.faltaFuncBloco&&v.faltaFuncBloco.obs)||''};
+  else delete v.faltaFuncBloco;
+  v.atualizadoEm = new Date().toISOString();
+  saveDB(db);
+  try{ if(typeof renderExecucao==='function' && document.getElementById('execBody') && document.getElementById('execBody').innerHTML) renderExecucao(); }catch(_){}
+  try{ if(typeof renderExecucaoQuartel==='function' && typeof quExecVistId!=='undefined' && quExecVistId===vistId && document.getElementById('modalExecucao') && document.getElementById('modalExecucao').style.display!=='none') renderExecucaoQuartel(); }catch(_){}
+  try{ if(typeof renderESCI==='function' && document.getElementById('esciLista') && document.getElementById('v-esci') && document.getElementById('v-esci').classList.contains('on')) renderESCI(); }catch(_){}
+  try{ if(typeof atualizarBadgeESCI==='function') atualizarBadgeESCI(db); }catch(_){}
+}
+function faltaFuncBlocoObs(vistId, txt){
+  var db = loadDB(), v = (db.vistorias||[]).find(function(x){return x.id===vistId;}); if(!v || !v.faltaFuncBloco) return;
+  v.faltaFuncBloco.obs = txt; saveDB(db);
+}
+function htmlFaltaFuncBloco(v){
+  if(!v || !v.id) return '';
+  var on = !!v.faltaFuncBloco;
+  return '<div style="margin:10px 0;border-radius:10px;padding:9px 11px;border:1px solid '+(on?'#ff3b30':'var(--border)')+';background:'+(on?'rgba(255,59,48,.16)':'var(--card2)')+'">'+
+    '<label style="display:flex;gap:9px;align-items:flex-start;font-size:14px;font-weight:700"><input type="checkbox" style="width:auto;margin-top:3px" '+(on?'checked':'')+' onchange="faltaFuncBlocoSet(\''+v.id+'\',this.checked)"> <span>🏢 Faltou solicitar o Funcionamento de bloco<span style="display:block;font-weight:400;font-size:12px;color:var(--sub)">Entra na mensagem pro responsável e fica pendente em Lançar no e-SCI.</span></span></label>'+
+    (on ? '<input type="text" placeholder="Observação (opcional): ex. só o funcionamento de área específica foi pedido" value="'+String((v.faltaFuncBloco.obs||'')).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" onchange="faltaFuncBlocoObs(\''+v.id+'\',this.value)" style="margin-top:8px">' : '')+
+  '</div>';
+}
 function vistoriaConcluida(){
   if(!execVistoriaId) return false;
   var db = loadDB();
@@ -2399,6 +2425,7 @@ function renderExecucao(){
   // escrito, já vem preenchido com a última ocupação registrada pra essa edificação.
   var vOcup = db.vistorias.find(function(x){return x.id===execVistoriaId;});
   html += '<label class="lbl">Ocupação do local (confira; pode ter mais de uma)</label>'+ocupEditorHtml('vo-ocup', ocupListaVist(vOcup, e), 'ocupAddVistoria', 'ocupDelVistoria');
+  html += htmlFaltaFuncBloco(vOcup);
 
   // Sistemas preventivos ativos — chips controlam quais grupos do checklist aparecem
   html += '<div style="font-size:12px;color:var(--sub);margin-bottom:6px">Sistemas preventivos ativos nesta edificação:</div>';
@@ -2631,7 +2658,7 @@ function renderExecucao(){
   if(finalRes==='indeferido'){
     html += '<div class="resultado-banner indef">'+(v.concluida?'':'(parcial) ')+'⚠️ Indeferido'+(v.decisaoResultado?' (decisão manual)':(qtvForcaIndeferido?motivoQtv:' — '+nao+' não conformidade(s)'))+'</div>';
   } else if(finalRes==='deferido_af'){
-    html += '<div class="resultado-banner def">'+(v.concluida?'':'(parcial) ')+'✅ Deferido com Auto de Infração (AF)'+(v.decisaoResultado?' (decisão manual)':' — construção anterior a 2013')+'</div>';
+    html += '<div class="resultado-banner def">'+(v.concluida?'':'(parcial) ')+'✅ Deferido com Auto de Fiscalização (AF)'+(v.decisaoResultado?' (decisão manual)':' — construção anterior a 2013')+'</div>';
   } else {
     html += '<div class="resultado-banner def">'+(v.concluida?'':'(parcial) ')+'✅ Deferido'+(v.decisaoResultado?' (decisão manual)':'')+'</div>';
   }
@@ -3036,7 +3063,7 @@ function montarMensagemLocal(e, v, db){
       if((v.cienciaRecebeuTel||'').trim()) recN.push('Telefone: '+v.cienciaRecebeuTel.trim());
       if(recN.length) tN += '\nRecebida por:\n'+recN.join('\n');
       blocos.push(tN);
-      blocos.push('Próximo passo: será lavrado o Auto de Infração (AF) com a exigência de regularização do funcionamento, que ficará disponível no sistema e-SCI (esci.cbm.sc.gov.br).');
+      blocos.push('Próximo passo: será lavrado o Auto de Fiscalização (AF) com a exigência de regularização do funcionamento, que ficará disponível no sistema e-SCI (esci.cbm.sc.gov.br).');
       if((v.cartorioPrazo||'').trim()) prazo = v.cartorioPrazo.trim();
       apenasCiencia = true;
     } else if(sub==='ciencia'){
@@ -3053,7 +3080,7 @@ function montarMensagemLocal(e, v, db){
       apenasCiencia = true;   // sem prazo: já consta no documento
     } else if(sub==='af' || sub==='multa'){
       var nomes = (v.afSistemas||[]).map(function(id){ var x = SISTEMAS_AF.find(function(y){return y.id===id;}); return x?x.l:id; });
-      var t3 = 'Em '+hoje+' foi '+(sub==='af' ? 'lavrado Auto de Infração (AF)' : 'registrada multa')+((v.cartorioNumero||'').trim()?' nº *'+v.cartorioNumero.trim()+'*':'')+' na edificação '+nomeRe+'.';
+      var t3 = 'Em '+hoje+' foi '+(sub==='af' ? 'lavrado Auto de Fiscalização (AF)' : 'registrada multa')+((v.cartorioNumero||'').trim()?' nº *'+v.cartorioNumero.trim()+'*':'')+' na edificação '+nomeRe+'.';
       if(nomes.length) t3 += '\nSistemas a regularizar:\n'+listaMsgLocal(nomes).join('\n');
       if((v.cartorioMotivo||'').trim()) t3 += '\n'+(sub==='af'?'Detalhe: ':'Motivo: ')+v.cartorioMotivo.trim();
       blocos.push(t3);
@@ -3064,7 +3091,7 @@ function montarMensagemLocal(e, v, db){
     var res = m ? m.res : (v.decisaoResultado||'');
     var t4 = 'Em '+hoje+' realizamos a vistoria de *'+rotuloVistoria(v)+'* na edificação '+nomeRe+'.';
     if(res==='indeferido') t4 += '\nResultado: *INDEFERIDA* (há pendências a regularizar).';
-    else if(res==='deferido_af') t4 += '\nResultado: *DEFERIDA, com Auto de Infração (AF)*.';
+    else if(res==='deferido_af') t4 += '\nResultado: *DEFERIDA, com Auto de Fiscalização (AF)*.';
     else if(res==='deferido') t4 += '\nResultado: *DEFERIDA*.';
     var _ocs = ocupListaVist(v, e); if(_ocs.length) t4 += '\nOcupação: '+ocupTexto(_ocs);
     blocos.push(t4);
@@ -3622,7 +3649,7 @@ function renderEdifsCampo(){
         '<div style="flex:1;min-width:0">'+
           '<div style="font-weight:700;font-size:14px">'+(e.nome||'Sem nome')+tagConferir(e)+'</div>'+
           '<div style="font-size:11px;color:var(--sub);order:9">🕑 '+textoUltimaVistoria(db, e.id, false)+'</div>'+
-          '<div style="font-size:12px;color:var(--sub)">'+(e.re||'Sem RE')+(e.endereco?' · '+e.endereco:'')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(semGPS?' · ⚠️ sem localização':'')+'</div>'+ocupLinhaCard(ocupLista(e))+tagTriagem(e)+tagFaltando(e)+
+          '<div style="font-size:12px;color:var(--sub)">'+(e.re||'Sem RE')+(e.endereco?' · '+e.endereco:'')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(semGPS?' · ⚠️ sem localização':'')+'</div>'+ocupLinhaCard(ocupLista(e))+tagTriagem(e)+tagNaoCumprida(e)+tagFaltando(e)+
         '</div>'+
       '</div>'+
       (textoProgramadaCampo(db, e.id) ? '<div style="font-size:12px;color:var(--sub);margin-top:8px">'+textoProgramadaCampo(db, e.id)+'</div>' : '')+
@@ -3683,7 +3710,7 @@ function renderEdifsPorLocalCampo(db, el){
                 '<div style="width:24px;height:24px;border-radius:50%;background:'+cor+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex:0 0 auto">'+(risco||'—')+'</div>'+
                 '<div style="flex:1;min-width:0">'+
                   '<div style="font-weight:700;font-size:13px">'+(e.endereco||'Sem endereço')+'</div>'+
-                  '<div style="font-size:11px;color:var(--sub)">'+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+(semGPS?' · ⚠️ sem localização':'')+'</div>'+tagTriagem(e)+
+                  '<div style="font-size:11px;color:var(--sub)">'+(e.re||'Sem RE')+' — '+(e.nome||'Sem nome')+(semGPS?' · ⚠️ sem localização':'')+'</div>'+tagTriagem(e)+tagNaoCumprida(e)+
                 '</div>'+
               '</div>'+
             '</div>';
@@ -6315,10 +6342,11 @@ function dosBotaoTexto(e){
   if(r.multa) partes.push(r.multa+' multa(s)');
   if(r.ciencia) partes.push(r.ciencia+' sem ciência');
   if(r.vencidos) partes.push('⚠️ prazo vencido');
+  var nc = dosQtdNaoCumpridas(e); if(nc) partes.push('🚫 '+nc+' NÃO cumprida(s)');
   return '📋 Dossiê · '+partes.join(' · ');
 }
 function dosBotaoHtml(e, extraStyle){
-  var r = dosResumo(e), alerta = r.vencidos || r.func.estado==='agir' || r.func.estado==='ciencia';
+  var r = dosResumo(e), alerta = r.vencidos || dosQtdNaoCumpridas(e) || r.func.estado==='agir' || r.func.estado==='ciencia';
   return '<button class="btn" style="width:100%;margin-bottom:8px;text-align:left;font-weight:700;'+(alerta?'border:1px solid #ff6b6b;':'border:1px solid #0A84FF;')+(extraStyle||'')+'" onclick="event.stopPropagation();abrirDossie(\''+e.id+'\')">'+dosEsc(dosBotaoTexto(e))+'</button>';
 }
 function dossieBannerHtml(e){ return e ? dosBotaoHtml(e) : ''; }
@@ -6340,6 +6368,55 @@ function dosModalEl(){
   }
   return ov;
 }
+// Liga AF/multa ao protocolo que cumpre a exigência: A = projeto, H = habite-se, F = funcionamento.
+// Lê o motivo/exigências do item; se exige um tipo e não há protocolo aprovado daquele tipo, NÃO está cumprida.
+function dosReqDefs(){ return [
+  {t:'A', nome:'Projeto (PPCI)', re:/projeto|ppci|pscip|an[aá]lise de projeto/i},
+  {t:'H', nome:'Habite-se', re:/habite/i},
+  {t:'F', nome:'Funcionamento', re:/funcionamento|renova[cç][aã]o/i}
+]; }
+function dosTextoItem(m){
+  return [m.motivo, m.origemAF, m.infracao, m.origem].concat(dosExigencias(m).map(function(x){return x.texto;})).join(' ');
+}
+function dosRequisitos(e, m){
+  var txt = dosTextoItem(m), ps = dosProtocolos(e), f = dosFunc(e);
+  var pendRe = /pendente|an[aá]lise|andamento|aguard|indefer|cancel|arquiv/i;
+  return dosReqDefs().filter(function(r){ return r.re.test(txt); }).map(function(r){
+    var todos = ps.filter(function(p){ return p.t===r.t; });
+    var aprov = todos.filter(function(p){ return !pendRe.test(p.sit||''); });
+    var ok, det;
+    if(r.t==='F'){
+      ok = !!f.venc && !f.vencido && !f.semFunc;
+      det = ok ? 'funcionamento vigente até '+f.venc : (f.emAndamento ? 'F já protocolado ('+(f.protAndamento||'em análise')+'), ainda não aprovado' : (f.semFunc ? 'a edificação não possui funcionamento' : 'funcionamento vencido'+(f.venc?' em '+f.venc:'')));
+    } else {
+      ok = aprov.length>0;
+      det = ok ? 'protocolo '+aprov.map(function(p){return p.p;}).join(', ')+' aprovado' : (todos.length ? 'protocolo '+todos.map(function(p){return p.p;}).join(', ')+' ainda não aprovado' : 'nenhum protocolo '+r.t+' aprovado');
+    }
+    return {t:r.t, nome:r.nome, ok:ok, det:det};
+  });
+}
+function dosNaoCumprida(e, m){ return !m.resolvidaEm && dosRequisitos(e,m).some(function(r){ return !r.ok; }); }
+function dosQtdNaoCumpridas(e){ return dosItens(e).filter(function(m){ return dosNaoCumprida(e,m); }).length; }
+function dosReqHtml(e, m){
+  if(m.resolvidaEm) return '';
+  var rq = dosRequisitos(e, m);
+  if(!rq.length) return String(dosTextoItem(m)).trim() ? '' : '<div style="font-size:11px;color:var(--sub);margin:4px 0">🔎 Sem motivo registrado: não dá para ligar aos protocolos A, H ou F. Confira no e-SCI.</div>';
+  return rq.map(function(r){
+    return r.ok
+      ? '<div style="margin:6px 0;border-radius:8px;padding:6px 9px;font-size:12px;background:rgba(52,199,89,.16)">✅ Exige '+dosEsc(r.nome)+' ('+r.t+'): '+dosEsc(r.det)+'. Confira se cobre o que foi exigido.</div>'
+      : '<div style="margin:6px 0;border-radius:8px;padding:7px 10px;font-size:13px;font-weight:800;background:rgba(255,59,48,.22);border:1px solid #ff3b30">🚫 NÃO CUMPRIDA: exige '+dosEsc(r.nome)+' ('+r.t+') e '+dosEsc(r.det)+'.</div>';
+  }).join('');
+}
+// selo para o card da edificação: chama a atenção para multa em aberto e AF/multa não cumprida
+function tagNaoCumprida(e){
+  var nc = 0, mu = 0;
+  try{ nc = dosQtdNaoCumpridas(e); mu = dosPend(e).multas.length; }catch(_){}
+  if(!nc && !mu) return '';
+  return '<div class="elist-s" style="margin-top:4px">'+
+    (nc ? '<span style="display:inline-block;background:#ff3b30;color:#fff;font-weight:800;font-size:11px;padding:3px 9px;border-radius:8px;margin-right:4px">🚫 '+nc+' AF/multa NÃO cumprida(s): confira o dossiê</span>' : '')+
+    (mu ? '<span style="display:inline-block;background:#B00020;color:#fff;font-weight:800;font-size:11px;padding:3px 9px;border-radius:8px">💰 MULTA EM ABERTO ('+mu+')</span>' : '')+
+  '</div>';
+}
 function dosItemHtml(e, m){
   var rot = m.tipo==='af' ? 'AF' : 'Multa';
   var ex = dosExigencias(m);
@@ -6347,6 +6424,7 @@ function dosItemHtml(e, m){
     '<div style="font-weight:800;font-size:14px">'+rot+' nº '+dosEsc(m.numero||'(sem número)')+
       (m.valor?' <span style="font-weight:400;color:var(--sub)">· '+dosEsc(m.valor)+'</span>':'')+
       (m.protocoloAF?' <span style="font-weight:400;color:var(--sub)">· '+dosEsc(m.protocoloAF)+'</span>':'')+'</div>';
+  h += dosReqHtml(e, m);
   if(m.tipo==='af') h += '<div style="font-size:12px;margin:4px 0">Cumprimento até: '+dosPrazoHtml(m.prazo)+(m.prazoN?' ('+dosEsc(m.prazoN)+')':'')+'</div>';
   else {
     if(m.motivo) h += '<div style="font-size:12px;line-height:1.5;margin:4px 0">'+dosEsc(m.motivo)+'</div>';

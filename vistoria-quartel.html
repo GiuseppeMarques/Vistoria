@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v157</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v162</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -612,7 +612,7 @@
     </div>
     <div class="view" id="v-multas">
       <h2>Cartório</h2>
-      <div class="lead">Controle de AF (Auto de Infração) e Multas — uma edificação pode ter vários registros ao mesmo tempo, de qualquer tipo.</div>
+      <div class="lead">Controle de AF (Auto de Fiscalização) e Multas — uma edificação pode ter vários registros ao mesmo tempo, de qualquer tipo.</div>
 
       <div class="card2-box" style="margin-bottom:16px">
         <div class="sec-title" style="margin-top:0">+ Novo registro</div>
@@ -621,12 +621,16 @@
         <div id="mt-form-detalhe" style="display:none">
           <div class="sub" id="mt-edif-selecionada" style="margin-bottom:8px;font-weight:700"></div>
           <div class="btnrow" style="gap:8px;margin-bottom:10px">
-            <button class="btn on" id="mt-tipo-af" style="flex:1" onclick="setMtTipo('af')">📋 AF (Auto de Infração)</button>
+            <button class="btn on" id="mt-tipo-af" style="flex:1" onclick="setMtTipo('af')">📋 AF (Auto de Fiscalização)</button>
             <button class="btn" id="mt-tipo-multa" style="flex:1" onclick="setMtTipo('multa')">💰 Multa</button>
           </div>
           <div class="frow">
             <div class="fcol"><label class="lbl" id="mt-lbl-numero">Número da AF</label><input type="text" id="mt-numero" placeholder="Ex: 2026/00123"></div>
             <div class="fcol" id="mt-prazo-box"><label class="lbl" id="mt-lbl-prazo">Prazo pra regularizar</label><input type="text" id="mt-prazo" placeholder="DD/MM/AAAA"></div>
+          </div>
+          <div style="margin-bottom:10px;border:1px solid var(--border);border-radius:10px;padding:8px 10px">
+            <label style="display:flex;gap:8px;align-items:center;font-size:14px;font-weight:700"><input type="checkbox" id="mt-ciencia-ok" style="width:auto" onchange="document.getElementById('mt-ciencia-data-box').style.display=this.checked?'block':'none'"> ✍️ Ciência já foi dada</label>
+            <div id="mt-ciencia-data-box" style="display:none;margin-top:8px"><label class="lbl">Data da ciência</label><input type="text" id="mt-ciencia-data" placeholder="DD/MM/AAAA (vazio = hoje)"></div>
           </div>
           <div id="mt-af-itens" style="margin-bottom:10px">
             <label class="lbl">Exigências da AF (cada uma com o seu prazo)</label>
@@ -1787,7 +1791,7 @@ function renderEdificacoes(){
         '<div style="flex:1;min-width:0">'+
           '<div class="elist-t">'+(e.nome||'Sem nome')+tagConferir(e)+paradaTag+origemTag+foraCompTag+desocupadaTag+'</div>'+
           '<div class="elist-s">'+(e.competencia==='fora' ? (e.competenciaMotivo||'Sem motivo informado') : (e.re||'Sem RE')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(venc?' · vence '+venc:'')+' · '+hsInfo[0]+' '+hsInfo[1])+'</div>'+
-          ultTxt+ocupLinhaCard(ocupLista(e))+tagFaltando(e)+
+          ultTxt+ocupLinhaCard(ocupLista(e))+tagNaoCumprida(e)+tagFaltando(e)+
         '</div>'+
       '</div>'+
       (telWaEdif ? '<button class="btn" style="width:100%;margin-top:8px;background:#25D366;color:#fff" onclick="event.stopPropagation();enviarMensagemGenericaEdificacao(\''+e.id+'\')">💬 Mensagem para o responsável</button>' : '')+
@@ -3316,11 +3320,12 @@ function triagemMontarMensagem(a, modo, d){
     L.push('I. Durante levantamento realizado pelo Corpo de Bombeiros, identificamos a edificação *'+(a.nome||'sem nome')+'*'+resp+(end2?', localizada em '+end2:'')+', que não consta regularizada junto ao Corpo de Bombeiros.');
     L.push('', 'II. Para regularizar, seguem os tutoriais das etapas:');
     var etapa = function(n, titulo, link){ L.push('', n+') '+titulo+(link?': '+link:'')); };
-    etapa(1, 'Cadastro da edificação no e-SCI', obm.linkCadastro);
-    if(obm.linkRE) L.push('Como localizar o RE: '+obm.linkRE);
-    etapa(2, 'Solicitação de análise do Projeto (PPCI)', obm.linkProjeto);
-    etapa(3, 'Solicitação do Habite-se', obm.linkHabiteSe);
-    etapa(4, 'Solicitação de Funcionamento (bloco, área total)', obm.linkFuncBloco || obm.linkVistoria);
+    etapa(1, 'Faça o seu cadastro no sistema e-SCI', obm.linkCadastro);
+    etapa(2, 'Localize o RE da edificação ou crie um RE novo', obm.linkRE);
+    etapa(3, 'Solicite a análise do Projeto (PPCI)', obm.linkProjeto);
+    etapa(4, 'Solicite o Habite-se', obm.linkHabiteSe);
+    etapa(5, 'Solicite a Vistoria para Funcionamento', obm.linkFuncBloco || obm.linkVistoria);
+    L.push('', '*Observação:* edificações de até 200 m² podem ser regularizadas pelo próprio proprietário. Acima de 200 m², é necessário um responsável técnico (engenheiro ou arquiteto).');
     L.push('', 'III. Enquanto não regularizada, a edificação fica sujeita às infrações administrativas previstas na legislação.');
     L.push('', '*Favor desconsiderar esta mensagem, caso a edificação já esteja regularizada.*');
   }
@@ -3663,7 +3668,7 @@ function renderVistoriaCard(v, db){
   }
   else if(v.concluida){
     if(qtvIndef || nc>0){ statusCls='indef'; statusTxt='⚠️ '+(nc>0?nc+' não conf.':(pendBloco>0?pendBloco+' preventivo(s) c/ pendência':'Indeferido (quantitativo)')); }
-    else if(qtvInfr || (resCard && resCard.deferidoComAF)){ statusCls='def'; statusTxt='✅ Deferido c/ Auto de Infração'; }
+    else if(qtvInfr || (resCard && resCard.deferidoComAF)){ statusCls='def'; statusTxt='✅ Deferido c/ Auto de Fiscalização'; }
     else { statusCls='def'; statusTxt='✅ Deferido'; }
   } else if(v.rotaId){ statusCls='rota'; statusTxt='🧭 Em rota'; }
   else { statusCls='pend'; statusTxt='⏳ Pendente'; }
@@ -4509,7 +4514,7 @@ function gerarRelatorioTexto(e, v, pendGerais, duvidasGerais, porBloco, aprovado
       });
     }
     linhas.push('');
-    linhas.push('⚠️ Diante das pendências acima, será lavrado Auto de Infração (AF) com prazo pra regularização. '+
+    linhas.push('⚠️ Diante das pendências acima, será lavrado Auto de Fiscalização (AF) com prazo pra regularização. '+
       'Pra darmos andamento, envie: nome completo, CPF, e a ciência deste AF.');
   }
   var cobrarC = dossieCienciasMarcadas(e);
@@ -5182,6 +5187,7 @@ function renderExecucaoQuartel(){
   // Ocupação do local — texto livre, vai pro relatório. Se esta vistoria ainda não tem nada
   // escrito, já vem preenchido com a última ocupação registrada pra essa edificação.
   html += '<label class="lbl" style="margin-top:4px">Ocupação do local (confira; pode ter mais de uma)</label>'+ocupEditorHtml('qu-ocup', ocupListaVist(v,e), 'quOcupAdd', 'quOcupDel');
+  html += htmlFaltaFuncBloco(v);
 
   html += '<div style="font-size:12px;color:var(--sub);margin-bottom:6px">Sistemas preventivos ativos nesta edificação:</div>';
   html += '<div class="prev-chips">'+SIST.map(function(s){
@@ -5335,7 +5341,7 @@ function renderExecucaoQuartel(){
   if(finalRes==='indeferido'){
     html += '<div class="resultado-banner indef">'+(v.concluida?'':'(parcial) ')+'⚠️ Indeferido'+(v.decisaoResultado?' (decisão manual)':(qtvForcaIndeferido?motivoQtv:' — '+nao+' não conformidade(s)'))+'</div>';
   } else if(finalRes==='deferido_af'){
-    html += '<div class="resultado-banner def">'+(v.concluida?'':'(parcial) ')+'✅ Deferido com Auto de Infração (AF)'+(v.decisaoResultado?' (decisão manual)':' — construção anterior a 2013')+'</div>';
+    html += '<div class="resultado-banner def">'+(v.concluida?'':'(parcial) ')+'✅ Deferido com Auto de Fiscalização (AF)'+(v.decisaoResultado?' (decisão manual)':' — construção anterior a 2013')+'</div>';
   } else {
     html += '<div class="resultado-banner def">'+(v.concluida?'':'(parcial) ')+'✅ Deferido'+(v.decisaoResultado?' (decisão manual)':'')+'</div>';
   }
@@ -5910,7 +5916,7 @@ var MODELO_AVISO_MULTA_PADRAO =
 var MODELO_AVISO_AF_PADRAO =
 '*CORPO DE BOMBEIROS MILITAR DE SANTA CATARINA*\n*{OBM}*\n\n'+
 'Olá, boa tarde.\n'+
-'I. Informamos que a edificação *{NOME} - {RE}* recebeu um Auto de Infração (AF) nº *{MULTA_NUMERO}*.\n\n'+
+'I. Informamos que a edificação *{NOME} - {RE}* recebeu um Auto de Fiscalização (AF) nº *{MULTA_NUMERO}*.\n\n'+
 'II. Motivo: {MULTA_MOTIVO}\n\n'+
 'III. Prazo para regularização: *{MULTA_PRAZO}*. Se não for cumprido dentro do prazo, poderá ser gerada multa.\n\n'+
 'IV. Pra darmos andamento, precisamos que você nos envie: *nome completo*, *CPF*, e a *ciência deste AF* (uma mensagem confirmando que recebeu e está ciente já serve).\n\n'+
@@ -5984,12 +5990,15 @@ function salvarModeloResultadoVistoria(){
 function montarMensagemResultadoVistoria(e, v){
   var obm = carregarDadosObm();
   var res = calcularResumoPendenciasVistoria(e, v);
-  var resultado = res.indeferido ? 'INDEFERIDO' : (res.deferidoComAF ? 'DEFERIDO (com Auto de Infração)' : 'DEFERIDO');
+  var resultado = res.indeferido ? 'INDEFERIDO' : (res.deferidoComAF ? 'DEFERIDO (com Auto de Fiscalização)' : 'DEFERIDO');
   var detalhe = res.totalErrados>0
     ? 'Foram identificados os seguintes itens que precisam de regularização:\n'+
       res.alteracoes.map(function(a){return '- '+a;}).join('\n')+'\n\n'+
-      'Diante disso, será lavrado Auto de Infração (AF) com prazo pra regularização. Pra darmos andamento, envie: nome completo, CPF, e a ciência deste AF.\n\n'
+      'Diante disso, será lavrado Auto de Fiscalização (AF) com prazo pra regularização. Pra darmos andamento, envie: nome completo, CPF, e a ciência deste AF.\n\n'
     : '';
+  if(v.faltaFuncBloco){
+    detalhe += 'Também verificamos que *não foi solicitado o Funcionamento de bloco* da edificação'+((v.faltaFuncBloco.obs||'').trim()?' ('+v.faltaFuncBloco.obs.trim()+')':'')+'. É necessário solicitar a Vistoria para Funcionamento no sistema e-SCI.'+(obm.linkFuncBloco?'\nTutorial: '+obm.linkFuncBloco:'')+'\n\n';
+  }
   return carregarModeloResultadoVistoria()
     .replace(/{OBM}/g, obm.nome||'')
     .replace(/{NOME}/g, e.nome||'')
@@ -6687,7 +6696,7 @@ function calcularResumoPendenciasVistoria(e, v){
     });
   }
   // Regra da amostragem: construção anterior a 2013 com pelo menos 50% atendido e todos os sistemas
-  // contados é DEFERIDO com Auto de Infração (as faltas de ext/ilu/sal/ala viram AF, não indeferem)
+  // contados é DEFERIDO com Auto de Fiscalização (as faltas de ext/ilu/sal/ala viram AF, não indeferem)
   var tqs = Object.keys(totQtv).map(function(k){return totQtv[k];});
   var tqAbaixo50 = tqs.some(function(t){return t.contado && t.apr < t.esp*0.5;});
   var tqTodos = tqs.every(function(t){return t.contado;});
@@ -6909,7 +6918,7 @@ function copiarRelatorioRotaTexto(rotaId){
     if(!res.indeferido) deferidas++; else comPendencia++;
     linhas.push((i+1)+'. '+(e?(e.re||'Sem RE')+' — '+(e.nome||'Sem nome'):'Edificação removida'));
     linhas.push('   '+rotuloVistoria(v)+' · concluída em '+new Date(v.concluidaEm).toLocaleDateString('pt-BR'));
-    linhas.push('   Status: '+(res.deferidoComAF ? '✅ Deferido com Auto de Infração — '+res.totalErrados+' item(ns) a regularizar' : (!res.indeferido ? '✅ Deferido' : '⚠️ Indeferido — '+res.totalErrados+' item(ns) com problema')));
+    linhas.push('   Status: '+(res.deferidoComAF ? '✅ Deferido com Auto de Fiscalização — '+res.totalErrados+' item(ns) a regularizar' : (!res.indeferido ? '✅ Deferido' : '⚠️ Indeferido — '+res.totalErrados+' item(ns) com problema')));
     if(res.alteracoes.length){
       linhas.push('   Alterações encontradas:');
       res.alteracoes.forEach(function(a){ linhas.push('     - '+a); });
@@ -8602,9 +8611,15 @@ function registrarMulta(){
   if(!e.cartorio) e.cartorio=[];
   var novoReg = {id:novoId('cart'), tipo:mtTipoAtual, numero:numero, motivo:motivo, prazo:prazo, criadaEm:new Date().toISOString(), resolvidaEm:null, cienciaDadaEm:null, avisoEnviadoEm:null, afOrigemId:null};
   if(itensAF.length) novoReg.itensPendencia = itensAF;
+  if(document.getElementById('mt-ciencia-ok') && document.getElementById('mt-ciencia-ok').checked){
+    var dc = (document.getElementById('mt-ciencia-data').value||'').trim(), tc = dc ? parseDataBR(dc) : Date.now();
+    if(dc && !tc){ alert('Data da ciência inválida. Use DD/MM/AAAA.'); return; }
+    novoReg.cienciaDadaEm = new Date(tc).toISOString();
+  }
   e.cartorio.push(novoReg);
   saveDB(db);
   mtEdifSelecionadaId = null;
+  if(document.getElementById('mt-ciencia-ok')){ document.getElementById('mt-ciencia-ok').checked = false; document.getElementById('mt-ciencia-data').value = ''; document.getElementById('mt-ciencia-data-box').style.display = 'none'; }
   document.getElementById('mt-edif-busca').value = '';
   document.getElementById('mt-form-detalhe').style.display='none';
   renderMtEdifLista();
@@ -9578,10 +9593,11 @@ function dosBotaoTexto(e){
   if(r.multa) partes.push(r.multa+' multa(s)');
   if(r.ciencia) partes.push(r.ciencia+' sem ciência');
   if(r.vencidos) partes.push('⚠️ prazo vencido');
+  var nc = dosQtdNaoCumpridas(e); if(nc) partes.push('🚫 '+nc+' NÃO cumprida(s)');
   return '📋 Dossiê · '+partes.join(' · ');
 }
 function dosBotaoHtml(e, extraStyle){
-  var r = dosResumo(e), alerta = r.vencidos || r.func.estado==='agir' || r.func.estado==='ciencia';
+  var r = dosResumo(e), alerta = r.vencidos || dosQtdNaoCumpridas(e) || r.func.estado==='agir' || r.func.estado==='ciencia';
   return '<button class="btn" style="width:100%;margin-bottom:8px;text-align:left;font-weight:700;'+(alerta?'border:1px solid #ff6b6b;':'border:1px solid #0A84FF;')+(extraStyle||'')+'" onclick="event.stopPropagation();abrirDossie(\''+e.id+'\')">'+dosEsc(dosBotaoTexto(e))+'</button>';
 }
 function dossieBannerHtml(e){ return e ? dosBotaoHtml(e) : ''; }
@@ -9603,6 +9619,55 @@ function dosModalEl(){
   }
   return ov;
 }
+// Liga AF/multa ao protocolo que cumpre a exigência: A = projeto, H = habite-se, F = funcionamento.
+// Lê o motivo/exigências do item; se exige um tipo e não há protocolo aprovado daquele tipo, NÃO está cumprida.
+function dosReqDefs(){ return [
+  {t:'A', nome:'Projeto (PPCI)', re:/projeto|ppci|pscip|an[aá]lise de projeto/i},
+  {t:'H', nome:'Habite-se', re:/habite/i},
+  {t:'F', nome:'Funcionamento', re:/funcionamento|renova[cç][aã]o/i}
+]; }
+function dosTextoItem(m){
+  return [m.motivo, m.origemAF, m.infracao, m.origem].concat(dosExigencias(m).map(function(x){return x.texto;})).join(' ');
+}
+function dosRequisitos(e, m){
+  var txt = dosTextoItem(m), ps = dosProtocolos(e), f = dosFunc(e);
+  var pendRe = /pendente|an[aá]lise|andamento|aguard|indefer|cancel|arquiv/i;
+  return dosReqDefs().filter(function(r){ return r.re.test(txt); }).map(function(r){
+    var todos = ps.filter(function(p){ return p.t===r.t; });
+    var aprov = todos.filter(function(p){ return !pendRe.test(p.sit||''); });
+    var ok, det;
+    if(r.t==='F'){
+      ok = !!f.venc && !f.vencido && !f.semFunc;
+      det = ok ? 'funcionamento vigente até '+f.venc : (f.emAndamento ? 'F já protocolado ('+(f.protAndamento||'em análise')+'), ainda não aprovado' : (f.semFunc ? 'a edificação não possui funcionamento' : 'funcionamento vencido'+(f.venc?' em '+f.venc:'')));
+    } else {
+      ok = aprov.length>0;
+      det = ok ? 'protocolo '+aprov.map(function(p){return p.p;}).join(', ')+' aprovado' : (todos.length ? 'protocolo '+todos.map(function(p){return p.p;}).join(', ')+' ainda não aprovado' : 'nenhum protocolo '+r.t+' aprovado');
+    }
+    return {t:r.t, nome:r.nome, ok:ok, det:det};
+  });
+}
+function dosNaoCumprida(e, m){ return !m.resolvidaEm && dosRequisitos(e,m).some(function(r){ return !r.ok; }); }
+function dosQtdNaoCumpridas(e){ return dosItens(e).filter(function(m){ return dosNaoCumprida(e,m); }).length; }
+function dosReqHtml(e, m){
+  if(m.resolvidaEm) return '';
+  var rq = dosRequisitos(e, m);
+  if(!rq.length) return String(dosTextoItem(m)).trim() ? '' : '<div style="font-size:11px;color:var(--sub);margin:4px 0">🔎 Sem motivo registrado: não dá para ligar aos protocolos A, H ou F. Confira no e-SCI.</div>';
+  return rq.map(function(r){
+    return r.ok
+      ? '<div style="margin:6px 0;border-radius:8px;padding:6px 9px;font-size:12px;background:rgba(52,199,89,.16)">✅ Exige '+dosEsc(r.nome)+' ('+r.t+'): '+dosEsc(r.det)+'. Confira se cobre o que foi exigido.</div>'
+      : '<div style="margin:6px 0;border-radius:8px;padding:7px 10px;font-size:13px;font-weight:800;background:rgba(255,59,48,.22);border:1px solid #ff3b30">🚫 NÃO CUMPRIDA: exige '+dosEsc(r.nome)+' ('+r.t+') e '+dosEsc(r.det)+'.</div>';
+  }).join('');
+}
+// selo para o card da edificação: chama a atenção para multa em aberto e AF/multa não cumprida
+function tagNaoCumprida(e){
+  var nc = 0, mu = 0;
+  try{ nc = dosQtdNaoCumpridas(e); mu = dosPend(e).multas.length; }catch(_){}
+  if(!nc && !mu) return '';
+  return '<div class="elist-s" style="margin-top:4px">'+
+    (nc ? '<span style="display:inline-block;background:#ff3b30;color:#fff;font-weight:800;font-size:11px;padding:3px 9px;border-radius:8px;margin-right:4px">🚫 '+nc+' AF/multa NÃO cumprida(s): confira o dossiê</span>' : '')+
+    (mu ? '<span style="display:inline-block;background:#B00020;color:#fff;font-weight:800;font-size:11px;padding:3px 9px;border-radius:8px">💰 MULTA EM ABERTO ('+mu+')</span>' : '')+
+  '</div>';
+}
 function dosItemHtml(e, m){
   var rot = m.tipo==='af' ? 'AF' : 'Multa';
   var ex = dosExigencias(m);
@@ -9610,6 +9675,7 @@ function dosItemHtml(e, m){
     '<div style="font-weight:800;font-size:14px">'+rot+' nº '+dosEsc(m.numero||'(sem número)')+
       (m.valor?' <span style="font-weight:400;color:var(--sub)">· '+dosEsc(m.valor)+'</span>':'')+
       (m.protocoloAF?' <span style="font-weight:400;color:var(--sub)">· '+dosEsc(m.protocoloAF)+'</span>':'')+'</div>';
+  h += dosReqHtml(e, m);
   if(m.tipo==='af') h += '<div style="font-size:12px;margin:4px 0">Cumprimento até: '+dosPrazoHtml(m.prazo)+(m.prazoN?' ('+dosEsc(m.prazoN)+')':'')+'</div>';
   else {
     if(m.motivo) h += '<div style="font-size:12px;line-height:1.5;margin:4px 0">'+dosEsc(m.motivo)+'</div>';
@@ -9840,6 +9906,32 @@ function importarArquivo(input){
 }
 
 // ════════════════════════════════════════
+
+// Marca na vistoria que faltou a solicitação do Funcionamento de bloco: entra na mensagem pro responsável
+// e vira um passo pendente em "Lançar no e-SCI".
+function faltaFuncBlocoSet(vistId, on){
+  var db = loadDB(), v = (db.vistorias||[]).find(function(x){return x.id===vistId;}); if(!v) return;
+  if(on) v.faltaFuncBloco = {em:new Date().toISOString(), obs:(v.faltaFuncBloco&&v.faltaFuncBloco.obs)||''};
+  else delete v.faltaFuncBloco;
+  v.atualizadoEm = new Date().toISOString();
+  saveDB(db);
+  try{ if(typeof renderExecucao==='function' && document.getElementById('execBody') && document.getElementById('execBody').innerHTML) renderExecucao(); }catch(_){}
+  try{ if(typeof renderExecucaoQuartel==='function' && typeof quExecVistId!=='undefined' && quExecVistId===vistId && document.getElementById('modalExecucao') && document.getElementById('modalExecucao').style.display!=='none') renderExecucaoQuartel(); }catch(_){}
+  try{ if(typeof renderESCI==='function' && document.getElementById('esciLista') && document.getElementById('v-esci') && document.getElementById('v-esci').classList.contains('on')) renderESCI(); }catch(_){}
+  try{ if(typeof atualizarBadgeESCI==='function') atualizarBadgeESCI(db); }catch(_){}
+}
+function faltaFuncBlocoObs(vistId, txt){
+  var db = loadDB(), v = (db.vistorias||[]).find(function(x){return x.id===vistId;}); if(!v || !v.faltaFuncBloco) return;
+  v.faltaFuncBloco.obs = txt; saveDB(db);
+}
+function htmlFaltaFuncBloco(v){
+  if(!v || !v.id) return '';
+  var on = !!v.faltaFuncBloco;
+  return '<div style="margin:10px 0;border-radius:10px;padding:9px 11px;border:1px solid '+(on?'#ff3b30':'var(--border)')+';background:'+(on?'rgba(255,59,48,.16)':'var(--card2)')+'">'+
+    '<label style="display:flex;gap:9px;align-items:flex-start;font-size:14px;font-weight:700"><input type="checkbox" style="width:auto;margin-top:3px" '+(on?'checked':'')+' onchange="faltaFuncBlocoSet(\''+v.id+'\',this.checked)"> <span>🏢 Faltou solicitar o Funcionamento de bloco<span style="display:block;font-weight:400;font-size:12px;color:var(--sub)">Entra na mensagem pro responsável e fica pendente em Lançar no e-SCI.</span></span></label>'+
+    (on ? '<input type="text" placeholder="Observação (opcional): ex. só o funcionamento de área específica foi pedido" value="'+String((v.faltaFuncBloco.obs||'')).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" onchange="faltaFuncBlocoObs(\''+v.id+'\',this.value)" style="margin-top:8px">' : '')+
+  '</div>';
+}
 // LANÇAR NO e-SCI — tudo o que foi feito em campo e ainda precisa ser espelhado no e-SCI:
 // resultado de vistoria, pré-AF (cadastrar e trazer o número), ciência colhida, conferência de
 // cumprimento de AF e multa nova. O OK grava `esciLancadoEm` no próprio registro (vistoria ou
@@ -9855,6 +9947,7 @@ function passosESCI(p){
   if(p.kind==='vistoria'){
     var r = calcularResumoPendenciasVistoria(p.e, p.v), L = [{k:'res',l:'Lançar o resultado da vistoria no e-SCI'}];
     if(r.indeferido || r.deferidoComAF) L.push({k:'af',l:'Cadastrar a AF dessa vistoria'});
+    if(p.v.faltaFuncBloco) L.push({k:'fbloco',l:'Notificar no e-SCI: faltou solicitar o Funcionamento de bloco'});
     return L;
   }
   if(p.kind==='ciencia'){
@@ -9909,8 +10002,9 @@ function textoPendenciaESCI(p){
   if(p.kind==='vistoria'){
     var res = calcularResumoPendenciasVistoria(e, p.v);
     L.push(rotuloVistoria(p.v)+' realizada em '+new Date(p.v.concluidaEm).toLocaleString('pt-BR')+(p.v.motivo?' · '+p.v.motivo:''));
-    L.push('Resultado: '+(res.indeferido?'INDEFERIDO':(res.deferidoComAF?'DEFERIDO com Auto de Infração':'DEFERIDO')));
+    L.push('Resultado: '+(res.indeferido?'INDEFERIDO':(res.deferidoComAF?'DEFERIDO com Auto de Fiscalização':'DEFERIDO')));
     if(res.alteracoes.length){ L.push('Irregularidades:'); res.alteracoes.forEach(function(t){ L.push('- '+t); }); }
+    if(p.v.faltaFuncBloco) L.push('⚠️ FALTOU SOLICITAR O FUNCIONAMENTO DE BLOCO'+((p.v.faltaFuncBloco.obs||'').trim()?': '+p.v.faltaFuncBloco.obs.trim():''));
   } else if(p.kind==='af'){
     var itens = normalizarItensPendencia(p.m.itensPendencia);
     L.push('Cadastrar AF'+(p.m.prazo?' · prazo '+p.m.prazo:''));
@@ -9966,6 +10060,7 @@ function renderESCI(){
       var on = !!feitosP[ps.k];
       return '<label style="display:flex;gap:8px;align-items:flex-start;padding:7px 0;font-size:14px;border-bottom:1px solid var(--border)"><input type="checkbox" style="width:auto;margin-top:3px" '+(on?'checked':'')+' onchange="esciPasso('+i+',\''+ps.k+'\',this.checked)"> <span style="'+(on?'text-decoration:line-through;opacity:.6':'')+'">'+ps.l+'</span></label>';
     }).join('')+'</div>' : '';
+    var fb = p.kind==='vistoria' ? '<button class="btn" style="width:auto'+(p.v.faltaFuncBloco?';border:1px solid #ff3b30':'')+'" onclick="faltaFuncBlocoSet(\''+p.v.id+'\','+(p.v.faltaFuncBloco?'false':'true')+')">🏢 '+(p.v.faltaFuncBloco?'Faltou F de bloco ✔ (desmarcar)':'Faltou funcionamento de bloco')+'</button>' : '';
     var pm = soPend
       ? '<button class="btn" style="width:auto" onclick="esciPendenteMes('+i+',false)">↩️ Voltar para a lista</button>'
       : '<button class="btn" style="width:auto" onclick="esciPendenteMes('+i+',true)">📌 Pendente do mês</button>';
@@ -9973,7 +10068,7 @@ function renderESCI(){
       '<div class="elist-t">'+ESCI_ROTULO[p.kind]+'</div>'+
       '<pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;margin:6px 0">'+escHtmlCart(txt)+'</pre>'+
       (pendInfo ? '<div class="sub" style="color:var(--amar);margin-bottom:4px">📌 Marcado em '+new Date(pendInfo.em).toLocaleDateString('pt-BR')+(pendInfo.motivo ? ' — falta: '+escHtmlCart(pendInfo.motivo) : '')+'</div>' : '')+chk+
-      '<div class="btnrow" style="gap:8px;flex-wrap:wrap">'+acao+pm+
+      '<div class="btnrow" style="gap:8px;flex-wrap:wrap">'+acao+pm+fb+
         '<button class="btn" style="width:auto" onclick="copiarESCI('+i+')">📋 Copiar</button>'+
         (telefoneParaWhatsapp(p.e.responsavel && p.e.responsavel.tel)
           ? '<button class="btn" style="width:auto;background:#25D366;color:#fff" title="Abre o WhatsApp com o responsável pela edificação" onclick="'+(p.kind==='vistoria' ? 'enviarResultadoVistoriaWhatsapp(\''+p.v.id+'\')' : 'enviarMensagemGenericaEdificacao(\''+p.e.id+'\')')+'">💬 WhatsApp'+(p.kind==='vistoria' ? ' (resultado)' : '')+'</button>'
