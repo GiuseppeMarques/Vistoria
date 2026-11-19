@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v163</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v164</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -859,6 +859,8 @@
       <div class="fcol"><label class="lbl">Longitude</label><input type="text" id="ef-lng"></div>
     </div>
 
+    <div class="sec-title">📝 Observações do campo</div>
+    <div class="frow"><div class="fcol"><textarea id="ef-obs-campo" rows="3" placeholder="Anotado no Vistoria Campo: referência para achar o prédio, quem atendeu, situação, pendências..." style="width:100%;box-sizing:border-box"></textarea></div></div>
     <div class="sec-title">Responsável</div>
     <div class="frow">
       <div class="fcol"><label class="lbl">Nome</label><input type="text" id="ef-resp-nome"></div>
@@ -1793,7 +1795,7 @@ function renderEdificacoes(){
         '<div style="flex:1;min-width:0">'+
           '<div class="elist-t">'+(e.nome||'Sem nome')+tagConferir(e)+paradaTag+origemTag+foraCompTag+desocupadaTag+'</div>'+
           '<div class="elist-s">'+(e.competencia==='fora' ? (e.competenciaMotivo||'Sem motivo informado') : (e.re||'Sem RE')+(e.bairro?' · '+e.bairro:'')+(e.municipio?' · '+e.municipio:'')+(venc?' · vence '+venc:'')+' · '+hsInfo[0]+' '+hsInfo[1])+'</div>'+
-          ultTxt+ocupLinhaCard(ocupLista(e))+tagNaoCumprida(e)+tagFaltando(e)+
+          ultTxt+ocupLinhaCard(ocupLista(e))+(e.obsCampo ? '<div class="elist-s" style="margin-top:3px;white-space:pre-wrap">📝 '+escHtmlCart(e.obsCampo)+'</div>' : '')+tagNaoCumprida(e)+tagFaltando(e)+
         '</div>'+
       '</div>'+
       (telWaEdif ? '<button class="btn" style="width:100%;margin-top:8px;background:#25D366;color:#fff" onclick="event.stopPropagation();enviarMensagemGenericaEdificacao(\''+e.id+'\')">💬 Mensagem para o responsável</button>' : '')+
@@ -2973,6 +2975,7 @@ function abrirFormEdif(id){
   document.getElementById('ef-altura').value = e ? (e.altura||'') : '';
   document.getElementById('ef-lat').value = e ? (e.lat||'') : '';
   document.getElementById('ef-lng').value = e ? (e.lng||'') : '';
+  document.getElementById('ef-obs-campo').value = e ? (e.obsCampo||'') : '';
   document.getElementById('ef-resp-nome').value = e ? ((e.responsavel&&e.responsavel.nome)||'') : '';
   document.getElementById('ef-resp-tel').value = e ? ((e.responsavel&&e.responsavel.tel)||'') : '';
   document.getElementById('ef-resp-vinculo').value = e ? ((e.responsavel&&e.responsavel.vinculo)||'') : '';
@@ -3065,6 +3068,7 @@ function salvarFormEdif(){
     altura: document.getElementById('ef-altura').value.trim(),
     lat: parseFloat(document.getElementById('ef-lat').value)||null,
     lng: parseFloat(document.getElementById('ef-lng').value)||null,
+    obsCampo: document.getElementById('ef-obs-campo').value.trim(),
     responsavel: {
       nome: document.getElementById('ef-resp-nome').value.trim(),
       tel: document.getElementById('ef-resp-tel').value.trim(),
