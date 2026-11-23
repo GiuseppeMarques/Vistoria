@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v165</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v166</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -9002,8 +9002,10 @@ function renderMultas(){
     var btnCienciaHtml = m.cienciaDadaEm
       ? '<span class="sub" style="padding:8px 4px">✅ Ciência dada em '+new Date(m.cienciaDadaEm).toLocaleDateString('pt-BR')+'</span>'
       : '<button class="btn" onclick="darCienciaCartorio(\''+e.id+'\',\''+m.id+'\')">✍️ Dar ciência</button>';
-    var btnGerarMultaHtml = (m.tipo==='af' && dias!=null && dias<0)
-      ? '<button class="btn" style="background:var(--red2);color:#fff" onclick="gerarMultaDeAF(\''+e.id+'\',\''+m.id+'\')">➡️ Gerar multa</button>' : '';
+    // a AF vira multa quando o prazo vence, mas o processo nem sempre espera o prazo do sistema:
+    // o botão fica em toda AF em aberto (vermelho se já venceu, neutro se ainda não)
+    var btnGerarMultaHtml = (m.tipo==='af' && !m.resolvidaEm && !m.suspensaEm)
+      ? '<button class="btn" style="'+((dias!=null && dias<0) ? 'background:var(--red2);color:#fff' : 'border:1px solid var(--red2);color:var(--red2)')+'" title="Transforma as exigências em aberto desta AF em multa" onclick="gerarMultaDeAF(\''+e.id+'\',\''+m.id+'\')">➡️ Gerar multa'+((dias!=null && dias<0) ? '' : ' (prazo não venceu)')+'</button>' : '';
     var itensNorm = normalizarItensPendencia(m.itensPendencia);
     // AF com itens detalhados: mostra cada item com controle individual de resolvido (dar
     // ciência já baixa a pendência item a item, sem esperar resolver tudo de uma vez) —
