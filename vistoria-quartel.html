@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v166</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v167</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -944,6 +944,30 @@
 </div>
 
 <!-- MODAL: gerar multa a partir de uma AF, escolhendo quais itens geraram a multa -->
+<div id="modalEditarCart" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h3 id="ecTitulo">Editar</h3>
+    <label class="lbl">Número</label>
+    <input type="text" id="ec-numero" placeholder="Nº no e-SCI" style="margin-bottom:10px">
+    <div id="ecAfBox">
+      <div class="sub" style="margin-bottom:4px">Exigências e prazos (apague as que não serão notificadas):</div>
+      <div id="ec-itens"></div>
+      <button type="button" class="btn" style="width:auto;padding:5px 10px;font-size:12px;margin-bottom:10px" onclick="ecAddItem()">＋ exigência</button>
+    </div>
+    <div id="ecMultaBox" style="display:none">
+      <label class="lbl">Motivo / infração</label>
+      <input type="text" id="ec-motivo" style="margin-bottom:10px">
+      <label class="lbl">Prazo / vencimento (DD/MM/AAAA)</label>
+      <input type="text" id="ec-prazo" inputmode="numeric" style="margin-bottom:10px">
+    </div>
+    <label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="ec-ci" style="width:auto"> Ciência já foi dada</label>
+    <input type="text" id="ec-cd" placeholder="Data da ciência DD/MM/AAAA (vazio = mantém/hoje)" inputmode="numeric" style="margin:6px 0 12px">
+    <div class="modal-actions">
+      <button class="btn" onclick="document.getElementById('modalEditarCart').style.display='none'">Cancelar</button>
+      <button class="btn primary" onclick="salvarEditarCart()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
 <div id="modalGerarMultaDeAF" class="modal-overlay" style="display:none">
   <div class="modal">
     <h3>Gerar multa a partir da AF</h3>
@@ -6878,6 +6902,73 @@ function toggleItemResolvidoAF(edifId, afId, idx){
   renderMultas();
 }
 
+var ecEdifId=null, ecRegId=null;
+function ecAddItem(txt, prazo){
+  var d = document.createElement('div'); d.className = 'ec-item';
+  d.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:6px';
+  d.innerHTML = '<input type="text" class="ec-it-txt" placeholder="Exigência" style="flex:3;min-width:0">'+
+    '<input type="text" class="ec-it-prazo" placeholder="DD/MM/AAAA" inputmode="numeric" style="flex:1.2;min-width:0">'+
+    '<button type="button" class="btn" style="width:auto;padding:6px 10px" title="Remover" onclick="this.parentNode.remove()">✕</button>';
+  document.getElementById('ec-itens').appendChild(d);
+  d.querySelector('.ec-it-txt').value = (typeof txt==='string') ? txt : ''; d.querySelector('.ec-it-prazo').value = (typeof prazo==='string') ? prazo : '';
+}
+// edita um registro do Cartório (AF ou multa): número, exigências com prazo (pode apagar as que não serão notificadas), motivo e ciência
+function abrirEditarCart(edifId, regId){
+  var db = loadDB(), e = db.edificacoes.find(function(x){return x.id===edifId;}); if(!e) return;
+  var m = (e.cartorio||[]).find(function(x){return x.id===regId;}); if(!m) return;
+  ecEdifId = edifId; ecRegId = regId;
+  document.getElementById('ecTitulo').textContent = 'Editar '+(m.tipo==='af' ? ((m.preAF && !m.numero) ? 'pré-AF' : 'AF') : 'multa')+' · '+(e.re||'Sem RE');
+  document.getElementById('ec-numero').value = m.numero||'';
+  var isAF = m.tipo==='af';
+  document.getElementById('ecAfBox').style.display = isAF ? 'block' : 'none';
+  document.getElementById('ecMultaBox').style.display = isAF ? 'none' : 'block';
+  document.getElementById('ec-itens').innerHTML = '';
+  if(isAF){
+    var its = normalizarItensPendencia(m.itensPendencia);
+    if(!its.length && m.motivo) its = String(m.motivo).split(/;|\n/).map(function(t){return {texto:t.trim(),prazo:m.prazo||''};}).filter(function(x){return x.texto;});
+    if(!its.length) its = [{texto:'',prazo:''}];
+    its.forEach(function(it){ ecAddItem(it.texto, it.prazo||''); });
+  } else {
+    document.getElementById('ec-motivo').value = (m.motivo||'').replace(/\n/g,'; ');
+    document.getElementById('ec-prazo').value = m.prazo||'';
+  }
+  document.getElementById('ec-ci').checked = !!m.cienciaDadaEm;
+  document.getElementById('ec-cd').value = m.cienciaDadaEm ? esciFormatarData(new Date(m.cienciaDadaEm)) : '';
+  document.getElementById('modalEditarCart').style.display = 'flex';
+}
+function salvarEditarCart(){
+  var db = loadDB(), e = db.edificacoes.find(function(x){return x.id===ecEdifId;}); if(!e) return;
+  var m = (e.cartorio||[]).find(function(x){return x.id===ecRegId;}); if(!m) return;
+  if(m.tipo==='af'){
+    var itens = [], linhas = document.querySelectorAll('#ec-itens .ec-item'), antigos = normalizarItensPendencia(m.itensPendencia);
+    for(var k=0;k<linhas.length;k++){
+      var tx = linhas[k].querySelector('.ec-it-txt').value.trim(), pz = linhas[k].querySelector('.ec-it-prazo').value.trim();
+      if(!tx && !pz) continue;
+      if(!tx){ alert('A exigência '+(k+1)+' tem prazo mas não tem texto.'); return; }
+      if(pz && !parseDataBR(pz)){ alert('Prazo inválido na exigência "'+tx+'". Use DD/MM/AAAA.'); return; }
+      var ant = antigos.find(function(a){return a.texto===tx;});
+      itens.push({texto:tx, prazo:pz, resolvidoEm:ant?ant.resolvidoEm:null});
+    }
+    if(!itens.length){ alert('Deixe ao menos uma exigência. Para tirar a AF inteira, use Excluir ou Suspender.'); return; }
+    m.itensPendencia = itens; m.motivo = itens.map(function(t){return t.texto;}).join('; '); m.prazo = mtPrazoMaisCedo(itens) || '';
+  } else {
+    var pzM = document.getElementById('ec-prazo').value.trim();
+    if(pzM && !parseDataBR(pzM)){ alert('Prazo inválido. Use DD/MM/AAAA.'); return; }
+    m.motivo = document.getElementById('ec-motivo').value.trim(); m.prazo = pzM;
+  }
+  m.numero = document.getElementById('ec-numero').value.trim();
+  if(document.getElementById('ec-ci').checked){
+    var dc = document.getElementById('ec-cd').value.trim(), tc = dc ? parseDataBR(dc) : Date.now();
+    if(dc && !tc){ alert('Data da ciência inválida. Use DD/MM/AAAA.'); return; }
+    if(!m.cienciaDadaEm || dc) m.cienciaDadaEm = new Date(tc).toISOString();
+  } else { m.cienciaDadaEm = null; }
+  m.atualizadoEm = new Date().toISOString();
+  saveDB(db);
+  document.getElementById('modalEditarCart').style.display = 'none';
+  renderMultas();
+  try{ renderESCI(); }catch(_){}
+  if(qmap) renderQMapaConteudo();
+}
 var gmaEdifIdAtual=null, gmaAfIdAtual=null;
 function confirmarGerarMultaDeAF(){
   var numero = document.getElementById('gma-numero').value.trim();
@@ -9002,10 +9093,8 @@ function renderMultas(){
     var btnCienciaHtml = m.cienciaDadaEm
       ? '<span class="sub" style="padding:8px 4px">✅ Ciência dada em '+new Date(m.cienciaDadaEm).toLocaleDateString('pt-BR')+'</span>'
       : '<button class="btn" onclick="darCienciaCartorio(\''+e.id+'\',\''+m.id+'\')">✍️ Dar ciência</button>';
-    // a AF vira multa quando o prazo vence, mas o processo nem sempre espera o prazo do sistema:
-    // o botão fica em toda AF em aberto (vermelho se já venceu, neutro se ainda não)
-    var btnGerarMultaHtml = (m.tipo==='af' && !m.resolvidaEm && !m.suspensaEm)
-      ? '<button class="btn" style="'+((dias!=null && dias<0) ? 'background:var(--red2);color:#fff' : 'border:1px solid var(--red2);color:var(--red2)')+'" title="Transforma as exigências em aberto desta AF em multa" onclick="gerarMultaDeAF(\''+e.id+'\',\''+m.id+'\')">➡️ Gerar multa'+((dias!=null && dias<0) ? '' : ' (prazo não venceu)')+'</button>' : '';
+    var btnGerarMultaHtml = (m.tipo==='af' && dias!=null && dias<0)
+      ? '<button class="btn" style="background:var(--red2);color:#fff" onclick="gerarMultaDeAF(\''+e.id+'\',\''+m.id+'\')">➡️ Gerar multa</button>' : '';
     var itensNorm = normalizarItensPendencia(m.itensPendencia);
     // AF com itens detalhados: mostra cada item com controle individual de resolvido (dar
     // ciência já baixa a pendência item a item, sem esperar resolver tudo de uma vez) —
@@ -9038,7 +9127,8 @@ function renderMultas(){
         '<button class="btn" onclick="excluirRegistroMulta(\''+e.id+'\',\''+m.id+'\')">Excluir</button>'+
       '</div>'+
     '</div>';
-  }).join('') : '<div class="empty"><div class="ico">✅</div>Nenhum registro pendente no momento.</div>';
+  }).join('') : '<div class="e        '<button class="btn" onclick="abrirEditarCart(\''+e.id+'\',\''+m.id+'\')">✏️ Editar</button>'+
+mpty"><div class="ico">✅</div>Nenhum registro pendente no momento.</div>';
 
   var elSus = document.getElementById('multasSuspensasLista');
   if(elSus) elSus.innerHTML = suspensas.length ? suspensas.map(function(x){
