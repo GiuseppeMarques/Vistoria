@@ -9093,8 +9093,10 @@ function renderMultas(){
     var btnCienciaHtml = m.cienciaDadaEm
       ? '<span class="sub" style="padding:8px 4px">✅ Ciência dada em '+new Date(m.cienciaDadaEm).toLocaleDateString('pt-BR')+'</span>'
       : '<button class="btn" onclick="darCienciaCartorio(\''+e.id+'\',\''+m.id+'\')">✍️ Dar ciência</button>';
-    var btnGerarMultaHtml = (m.tipo==='af' && dias!=null && dias<0)
-      ? '<button class="btn" style="background:var(--red2);color:#fff" onclick="gerarMultaDeAF(\''+e.id+'\',\''+m.id+'\')">➡️ Gerar multa</button>' : '';
+    // a AF vira multa quando o prazo vence, mas o processo nem sempre espera o prazo do sistema:
+    // o botão fica em toda AF em aberto (vermelho se já venceu, neutro se ainda não)
+    var btnGerarMultaHtml = (m.tipo==='af' && !m.resolvidaEm && !m.suspensaEm)
+      ? '<button class="btn" style="'+((dias!=null && dias<0) ? 'background:var(--red2);color:#fff' : 'border:1px solid var(--red2);color:var(--red2)')+'" title="Transforma as exigências em aberto desta AF em multa" onclick="gerarMultaDeAF(\''+e.id+'\',\''+m.id+'\')">➡️ Gerar multa'+((dias!=null && dias<0) ? '' : ' (prazo não venceu)')+'</button>' : '';
     var itensNorm = normalizarItensPendencia(m.itensPendencia);
     // AF com itens detalhados: mostra cada item com controle individual de resolvido (dar
     // ciência já baixa a pendência item a item, sem esperar resolver tudo de uma vez) —
@@ -9122,13 +9124,13 @@ function renderMultas(){
         (m.numero ? '' : '<button class="btn" style="background:var(--amar);color:#000" onclick="informarNumeroCartorio(\''+e.id+'\',\''+m.id+'\')">🔢 Informar número</button>')+
         btnCienciaHtml+
         btnGerarMultaHtml+
+        '<button class="btn" onclick="abrirEditarCart(\''+e.id+'\',\''+m.id+'\')">✏️ Editar</button>'+
         '<button class="btn" onclick="suspenderMulta(\''+e.id+'\',\''+m.id+'\')">⏸️ Suspender</button>'+
         '<button class="btn primary" style="flex:1" onclick="resolverMulta(\''+e.id+'\',\''+m.id+'\')">✓ Resolvido</button>'+
         '<button class="btn" onclick="excluirRegistroMulta(\''+e.id+'\',\''+m.id+'\')">Excluir</button>'+
       '</div>'+
     '</div>';
-  }).join('') : '<div class="e        '<button class="btn" onclick="abrirEditarCart(\''+e.id+'\',\''+m.id+'\')">✏️ Editar</button>'+
-mpty"><div class="ico">✅</div>Nenhum registro pendente no momento.</div>';
+  }).join('') : '<div class="empty"><div class="ico">✅</div>Nenhum registro pendente no momento.</div>';
 
   var elSus = document.getElementById('multasSuspensasLista');
   if(elSus) elSus.innerHTML = suspensas.length ? suspensas.map(function(x){
