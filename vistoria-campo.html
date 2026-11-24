@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v124</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v125</div>
   </header>
 
   <main>
@@ -2778,9 +2778,32 @@ function fotoGrande(id){
     ov.onclick = function(){ ov.style.display='none'; };
     document.body.appendChild(ov);
   }
-  ov.innerHTML = '<img src="'+f+'" alt="Foto da edificação" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px">'+
-    '<div style="position:absolute;top:14px;right:18px;color:#fff;font-size:28px;line-height:1">✕</div>';
+  var resp = (e && e.responsavel) || {}, telW = telWhatsCampo(resp.tel);
+  ov.innerHTML = '<img src="'+f+'" alt="Foto da edificação" style="max-width:100%;max-height:78%;object-fit:contain;border-radius:8px">'+
+    '<div style="position:absolute;top:14px;right:18px;color:#fff;font-size:28px;line-height:1">✕</div>'+
+    '<div style="position:absolute;left:12px;right:12px;bottom:14px;display:flex;flex-direction:column;gap:6px" onclick="event.stopPropagation()">'+
+      (resp.nome||resp.tel ? '<div style="color:#fff;font-size:12px;text-align:center">Responsável: '+escHtmlCart((resp.nome||'sem nome')+(resp.tel?' · '+resp.tel:''))+'</div>' : '')+
+      '<button type="button" class="btn primary" style="width:100%" onclick="enviarFotoWhatsApp(\''+id+'\')">📲 Enviar a foto por WhatsApp</button>'+
+    '</div>';
   ov.style.display = 'flex';
+}
+// manda a foto para o WhatsApp: abre a folha de compartilhar do celular com a imagem (escolha o contato do responsável);
+// onde o aparelho não compartilha arquivo, baixa a imagem e abre a conversa com o responsável para você anexar
+function enviarFotoWhatsApp(id){
+  var db = loadDB(), e = (db.edificacoes||[]).find(function(x){return x.id===id;}); if(!e) return;
+  var f = encFotoDe(db, e); if(!f) return;
+  var resp = e.responsavel||{}, tel = telWhatsCampo(resp.tel);
+  var texto = 'Foto da edificação '+(e.nome||'')+(e.re?' ('+e.re+')':'')+' registrada pelo Corpo de Bombeiros.';
+  var nome = 'edificacao_'+(e.re||e.id)+'.jpg';
+  fetch(f).then(function(r){ return r.blob(); }).then(function(blob){
+    var arq = new File([blob], nome, {type: blob.type||'image/jpeg'});
+    if(navigator.canShare && navigator.canShare({files:[arq]})){
+      return navigator.share({files:[arq], text:texto}).catch(function(err){ if(err && err.name==='AbortError') return; throw err; });
+    }
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; document.body.appendChild(a); a.click(); a.remove();
+    if(tel){ setTimeout(function(){ window.open('https://wa.me/'+tel+'?text='+encodeURIComponent(texto), '_blank'); }, 600); avisoCampo('Foto baixada. Anexe-a na conversa do WhatsApp que abriu.'); }
+    else alert('Foto baixada. Este aparelho não compartilha direto; anexe a imagem no WhatsApp. (Esta edificação não tem telefone do responsável.)');
+  }).catch(function(){ alert('Não consegui preparar a foto para envio.'); });
 }
 function fotoCartaoHtml(db, e){
   var f = encFotoDe(db, e);
