@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v170</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v171</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -973,7 +973,11 @@
   <div style="max-width:95vw;max-height:92vh;text-align:center" onclick="event.stopPropagation()">
     <div id="fotoEdifTitulo" style="color:#fff;font-weight:700;margin-bottom:8px"></div>
     <img id="fotoEdifImg" style="max-width:95vw;max-height:80vh;border-radius:8px;display:block;margin:0 auto" alt="Foto da edificação">
-    <button class="btn" style="width:auto;margin-top:10px" onclick="document.getElementById('modalFotoEdif').style.display='none'">Fechar</button>
+    <div id="fotoEdifResp" style="color:#fff;font-size:12px;margin-top:8px"></div>
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px">
+      <button class="btn primary" style="width:auto;background:#25D366" onclick="enviarFotoWhatsAppQ()">📲 Enviar por WhatsApp</button>
+      <button class="btn" style="width:auto" onclick="document.getElementById('modalFotoEdif').style.display='none'">Fechar</button>
+    </div>
   </div>
 </div>
 <div id="modalGerarMultaDeAF" class="modal-overlay" style="display:none">
@@ -5077,6 +5081,8 @@ function verFotoEdif(id){
   var mostra = function(f){
     document.getElementById('fotoEdifImg').src = f;
     document.getElementById('fotoEdifTitulo').textContent = titulo;
+    window._fotoEdifId = id; var rs = e.responsavel||{};
+    document.getElementById('fotoEdifResp').textContent = (rs.nome||rs.tel) ? 'Responsável: '+(rs.nome||'sem nome')+(rs.tel?' · '+rs.tel:'') : '';
     document.getElementById('modalFotoEdif').style.display = 'flex';
   };
   var f = encFotoDe(db, e);
@@ -5087,6 +5093,39 @@ function verFotoEdif(id){
     if(img){ FOTO_CACHE[ref] = img; mostra(img); }
     else alert('A edificação tem uma foto registrada, mas a imagem não está guardada neste navegador (o backup pode ter sido feito sem as fotos). Importe de novo o arquivo exportado pelo Campo.');
   });
+}
+// manda a foto pelo WhatsApp: celular/navegador que compartilha arquivo abre a folha de compartilhar; no computador copia a imagem
+// para a área de transferência e abre a conversa do WhatsApp Web com o responsável (é só colar com Ctrl+V); sem isso, baixa a imagem
+function enviarFotoWhatsAppQ(){
+  var db = loadDB(), e = db.edificacoes.find(function(x){return x.id===window._fotoEdifId;}); if(!e) return;
+  var f = encFotoDe(db, e); if(!f) return;
+  var tel = telefoneParaWhatsapp((e.responsavel||{}).tel);
+  var texto = 'Foto da edificação '+(e.nome||'')+(e.re?' ('+e.re+')':'')+' registrada pelo Corpo de Bombeiros.';
+  var nome = 'edificacao_'+(e.re||e.id)+'.png';
+  var abrirConversa = function(){ window.open('https://wa.me/'+(tel||'')+'?text='+encodeURIComponent(texto), '_blank'); };
+  var baixar = function(blob){ var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; document.body.appendChild(a); a.click(); a.remove(); };
+  var img = new Image();
+  img.onload = function(){
+    var c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; c.getContext('2d').drawImage(img,0,0);
+    c.toBlob(function(blob){
+      if(!blob){ alert('Não consegui preparar a foto para envio.'); return; }
+      var arq = new File([blob], nome, {type:'image/png'});
+      if(navigator.canShare && navigator.canShare({files:[arq]})){
+        navigator.share({files:[arq], text:texto}).catch(function(err){ if(!err || err.name!=='AbortError') alert('Não consegui abrir o compartilhamento.'); });
+        return;
+      }
+      var copiou = (navigator.clipboard && window.ClipboardItem)
+        ? navigator.clipboard.write([new ClipboardItem({'image/png': blob})]).then(function(){ return true; }, function(){ return false; })
+        : Promise.resolve(false);
+      copiou.then(function(ok){
+        if(!ok) baixar(blob);
+        abrirConversa();
+        alert(ok ? 'A foto foi copiada. Na conversa do WhatsApp que abriu'+(tel?'':' (escolha o contato)')+', clique na caixa de mensagem e cole com Ctrl+V.' : 'A foto foi baixada para o computador. Na conversa do WhatsApp que abriu, anexe a imagem baixada.');
+      });
+    }, 'image/png');
+  };
+  img.onerror = function(){ alert('Não consegui abrir a imagem.'); };
+  img.src = f;
 }
 function fotoMiniEdif(db, e){
   var f = encFotoDe(db, e);
