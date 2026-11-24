@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v168</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v169</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -9491,6 +9491,9 @@ function mergeArray(local, importados, contador){
       var campoConcluiu = !!(item.concluida && !loc.concluida && item.concluidaEm);
       if(!campoConcluiu && loc.atualizadoEm && item.atualizadoEm && loc.atualizadoEm > item.atualizadoEm){
         // versão local é mais recente que a do arquivo — não sobrescreve, sinaliza conflito
+        // (mas a foto e a observação do campo, quando faltam aqui, vêm do arquivo: antes ficavam de fora)
+        if(item.foto && !loc.foto){ loc.foto = item.foto; }
+        if(item.obsCampo && !loc.obsCampo){ loc.obsCampo = item.obsCampo; }
         contador.conflitos++;
       } else {
         // MESCLA campo a campo em vez de substituir o objeto inteiro — o Campo não conhece
@@ -9498,6 +9501,7 @@ function mergeArray(local, importados, contador){
         // etc.), então uma substituição completa apagaria esses dados silenciosamente.
         var dossieMantido = (loc.dossie && item.dossie && String(item.dossie.geradoEm||'') < String(loc.dossie.geradoEm||'')) ? loc.dossie : null;
         local[idx] = Object.assign({}, loc, item);
+        if(!item.foto && loc.foto) local[idx].foto = loc.foto;   // arquivo sem a imagem (null) não apaga a foto que já está aqui
         if(campoConcluiu){
           // mantém o que o Quartel decidiu depois da saída (rota atual); o resultado do campo vem do arquivo
           if(loc.rotaId) local[idx].rotaId = loc.rotaId;
