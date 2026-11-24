@@ -224,7 +224,7 @@
   <header>
     <h1 id="hdrTitle">Trajetória</h1>
     <div class="sub" id="hdrSub">Vistoria Campo</div>
-    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v123</div>
+    <div style="position:absolute;top:10px;right:14px;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v124</div>
   </header>
 
   <main>
@@ -6129,7 +6129,11 @@ function exportarParaQuartel2(){
     trajetorias: db.trajetorias||[],
     pontos: [],
     vistorias: db.vistorias||[],
-    edificacoes: fotoResolver(db.edificacoes), // todas — o Quartel já sabe mesclar por id/atualizadoEm sem duplicar
+    edificacoes: fotoResolver((db.edificacoes||[]).map(function(e){   // todas — o Quartel já sabe mesclar por id/atualizadoEm sem duplicar
+      if(e.foto) return e;
+      var pt = (db.pontos||[]).find(function(x){ return x.edificacaoGeradaId===e.id && x.foto; });   // foto que ficou só no ponto antigo também vai
+      return pt ? Object.assign({}, e, {foto: pt.foto}) : e;
+    })),
     rotas: []
   };
   baixarPacote(pacote, 'CAMPO_PARA_QUARTEL_');

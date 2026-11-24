@@ -174,7 +174,7 @@
 <div id="app">
   <aside>
     <div class="brand">Vistoria Quartel<div class="sub">Cadastro · Planejamento · Administração</div>
-      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v169</div>
+      <div style="margin-top:8px;display:inline-block;font-size:10px;color:var(--sub);background:rgba(255,255,255,.06);padding:3px 8px;border-radius:8px">v170</div>
     </div>
     <button data-v="edif" onclick="navTo('edif')"><span class="ic">🏢</span>Edificações</button>
     <button data-v="vist" onclick="navTo('vist')"><span class="ic">🗄️</span>Histórico</button>
@@ -1595,6 +1595,7 @@ function migrarFotosAoAbrir(){
 var fotoPronto = fotoCarregarTudo().then(function(){
   try{ migrarFotosAoAbrir(); }catch(_){}
   try{ if(typeof renderCampo==='function') renderCampo(); }catch(_){}
+  try{ if(typeof renderEdificacoes==='function') renderEdificacoes(); }catch(_){}
   try{ if(typeof encRefazerBoxes==='function') encRefazerBoxes(); }catch(_){}
 });
 
@@ -1830,6 +1831,7 @@ function renderEdificacoes(){
           ultTxt+ocupLinhaCard(ocupLista(e))+(e.obsCampo ? '<div class="elist-s" style="margin-top:3px;white-space:pre-wrap">📝 '+escHtmlCart(e.obsCampo)+'</div>' : '')+tagNaoCumprida(e)+tagFaltando(e)+
         '</div>'+fotoMiniEdif(dbLista, e)+
       '</div>'+
+      '<button class="btn" style="width:100%;margin-top:8px" onclick="event.stopPropagation();verFotoEdif(\''+e.id+'\')">📷 Ver foto</button>'+
       (telWaEdif ? '<button class="btn" style="width:100%;margin-top:8px;background:#25D366;color:#fff" onclick="event.stopPropagation();enviarMensagemGenericaEdificacao(\''+e.id+'\')">💬 Mensagem para o responsável</button>' : '')+
     '</div>';
   }).join('');
@@ -3010,7 +3012,7 @@ function abrirFormEdif(id){
   document.getElementById('ef-lat').value = e ? (e.lat||'') : '';
   document.getElementById('ef-lng').value = e ? (e.lng||'') : '';
   document.getElementById('ef-obs-campo').value = e ? (e.obsCampo||'') : '';
-  (function(){ var bx = document.getElementById('ef-foto-box'); var f = e ? encFotoDe(loadDB(), e) : ''; bx.innerHTML = f ? '<div class="sub" style="margin-bottom:4px">📷 Foto da edificação (toque para ampliar)</div><img src="'+f+'" style="max-width:100%;max-height:200px;border-radius:8px;cursor:zoom-in" onclick="verFotoEdif(\''+e.id+'\')">' : ''; bx.style.display = f ? 'block' : 'none'; })();
+  (function(){ var bx = document.getElementById('ef-foto-box'); var f = e ? encFotoDe(loadDB(), e) : ''; bx.innerHTML = (f ? '<img src="'+f+'" style="max-width:100%;max-height:200px;border-radius:8px;cursor:zoom-in;display:block;margin-bottom:6px" onclick="verFotoEdif(\''+e.id+'\')">' : '')+(e ? '<button type="button" class="btn" style="width:100%" onclick="verFotoEdif(\''+e.id+'\')">📷 Ver foto</button>' : ''); bx.style.display = e ? 'block' : 'none'; })();
   document.getElementById('ef-resp-nome').value = e ? ((e.responsavel&&e.responsavel.nome)||'') : '';
   document.getElementById('ef-resp-tel').value = e ? ((e.responsavel&&e.responsavel.tel)||'') : '';
   document.getElementById('ef-resp-vinculo').value = e ? ((e.responsavel&&e.responsavel.vinculo)||'') : '';
@@ -5060,12 +5062,31 @@ function encFotoDe(db, e){
   var p = (db.pontos||[]).find(function(x){ return x.edificacaoGeradaId===e.id && x.foto; });
   return p ? fotoSrc(p.foto) : '';
 }
+function fotoLerIDB(ref){
+  return fotoAbrirIDB().then(function(idb){
+    if(!idb || !ref || ref.indexOf('idb:')!==0) return '';
+    return new Promise(function(res){
+      try{ var rq = idb.transaction('f','readonly').objectStore('f').get(ref.slice(4)); rq.onsuccess = function(){ res(rq.result||''); }; rq.onerror = function(){ res(''); }; }
+      catch(_){ res(''); }
+    });
+  });
+}
 function verFotoEdif(id){
   var db = loadDB(), e = db.edificacoes.find(function(x){return x.id===id;}); if(!e) return;
-  var f = encFotoDe(db, e); if(!f){ alert('Esta edificação não tem foto salva neste aparelho.'); return; }
-  document.getElementById('fotoEdifImg').src = f;
-  document.getElementById('fotoEdifTitulo').textContent = (e.re||'Sem RE')+' — '+(e.nome||'Sem nome');
-  document.getElementById('modalFotoEdif').style.display = 'flex';
+  var titulo = (e.re||'Sem RE')+' — '+(e.nome||'Sem nome');
+  var mostra = function(f){
+    document.getElementById('fotoEdifImg').src = f;
+    document.getElementById('fotoEdifTitulo').textContent = titulo;
+    document.getElementById('modalFotoEdif').style.display = 'flex';
+  };
+  var f = encFotoDe(db, e);
+  if(f){ mostra(f); return; }
+  var ref = e.foto || ((db.pontos||[]).find(function(x){ return x.edificacaoGeradaId===e.id && x.foto; })||{}).foto;
+  if(!ref){ alert('Esta edificação não tem foto neste Quartel.\n\nA foto só chega pelo arquivo do Campo. Se ela aparece no Campo, abra o Campo (v124 ou mais nova), exporte de novo (Exportar pacote) e importe aqui outra vez.'); return; }
+  fotoLerIDB(ref).then(function(img){
+    if(img){ FOTO_CACHE[ref] = img; mostra(img); }
+    else alert('A edificação tem uma foto registrada, mas a imagem não está guardada neste navegador (o backup pode ter sido feito sem as fotos). Importe de novo o arquivo exportado pelo Campo.');
+  });
 }
 function fotoMiniEdif(db, e){
   var f = encFotoDe(db, e);
@@ -10017,6 +10038,7 @@ function importarArquivo(input){
     });
     if(!Object.keys(resumo).length) html += '<div class="resumo-item sub">Arquivo não continha dados reconhecidos.</div>';
     html += '</div>';
+    (function(){ var ne = (pacote.edificacoes||[]), cf = ne.filter(function(x){return x.foto;}).length; if(ne.length) html = html.replace(/<\/div>$/, '<div class="resumo-item sub">📷 '+cf+' de '+ne.length+' edificações do arquivo vieram com foto'+(cf?'':' (arquivo sem imagens)')+'.</div></div>'); })();
     document.getElementById('importResumo').innerHTML = html;
 
     renderEdificacoes(); renderVistorias(); renderRotas(); renderCampo();
